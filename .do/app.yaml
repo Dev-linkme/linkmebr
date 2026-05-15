@@ -1,0 +1,53 @@
+name: linkmebr
+region: nyc
+
+services:
+  - name: backend
+    source_dir: /backend
+    dockerfile_path: backend/Dockerfile
+    github:
+      repo: Dev-linkme/linkmebr
+      branch: main
+      deploy_on_push: true
+    http_port: 8080
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 30
+      period_seconds: 30
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: DATABASE_URL
+        value: PLACEHOLDER_SET_IN_DASHBOARD
+        type: SECRET
+      - key: JWT_SECRET
+        value: PLACEHOLDER_SET_IN_DASHBOARD
+        type: SECRET
+      - key: REDIS_URL
+        value: ${redis.REDIS_URL}
+
+static_sites:
+  - name: frontend
+    source_dir: /frontend
+    github:
+      repo: Dev-linkme/linkmebr
+      branch: main
+      deploy_on_push: true
+    build_command: npm run build
+    output_dir: dist
+    catchall_document: index.html
+    envs:
+      - key: VITE_API_URL
+        value: ${backend.PUBLIC_URL}/api/v1
+        scope: BUILD_TIME
+
+databases:
+  - name: redis
+    engine: REDIS
+    version: "7"
+    production: false

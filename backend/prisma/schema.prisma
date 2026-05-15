@@ -1,0 +1,168 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["silos"]
+}
+
+model Empresa {
+  id              Int       @id @default(autoincrement())
+  razao_social    String    @db.VarChar(200)
+  nome_fantasia   String?   @db.VarChar(200)
+  cnpj            String    @unique @db.VarChar(18)
+  logradouro      String?   @db.VarChar(300)
+  bairro          String?   @db.VarChar(100)
+  cidade          String?   @db.VarChar(100)
+  estado          String?   @db.Char(2)
+  cep             String?   @db.VarChar(10)
+  telefone        String?   @db.VarChar(20)
+  email           String?   @db.VarChar(200)
+  status          String    @default("ativa") @db.VarChar(10)
+  criado_em       DateTime  @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  usuarios        Usuario[]
+  silos           Silo[]
+
+  @@map("empresas")
+  @@schema("silos")
+}
+
+model Usuario {
+  id              Int       @id @default(autoincrement())
+  nome_completo   String    @db.VarChar(200)
+  email           String    @unique @db.VarChar(200)
+  senha_hash      String    @db.VarChar(255)
+  perfil          String    @db.VarChar(30)
+  empresa_id      Int?
+  status          String    @default("ativo") @db.VarChar(10)
+  criado_em       DateTime  @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  empresa         Empresa?  @relation(fields: [empresa_id], references: [id])
+
+  @@map("usuarios")
+  @@schema("silos")
+}
+
+model Silo {
+  id              Int       @id @default(autoincrement())
+  empresa_id      Int
+  nome            String    @db.VarChar(200)
+  logradouro      String?   @db.VarChar(300)
+  bairro          String?   @db.VarChar(100)
+  cidade          String?   @db.VarChar(100)
+  estado          String?   @db.Char(2)
+  latitude        Decimal?  @db.Decimal(10, 7)
+  longitude       Decimal?  @db.Decimal(10, 7)
+  descricao       String?   @db.Text
+  status          String    @default("ativo") @db.VarChar(10)
+  criado_em       DateTime  @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  empresa         Empresa   @relation(fields: [empresa_id], references: [id])
+  barras          Barra[]
+  alertas         Alerta[]
+
+  @@map("silos")
+  @@schema("silos")
+}
+
+model Barra {
+  id              Int       @id @default(autoincrement())
+  silo_id         Int
+  identificacao   String    @db.VarChar(100)
+  status          String    @default("ativa") @db.VarChar(10)
+  criado_em       DateTime  @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  silo            Silo      @relation(fields: [silo_id], references: [id])
+  sensores        Sensor[]
+
+  @@map("barras")
+  @@schema("silos")
+}
+
+model Sensor {
+  id              Int       @id @default(autoincrement())
+  barra_id        Int
+  identificacao   String    @db.VarChar(100)
+  altura_solo_m   Decimal   @db.Decimal(6, 2)
+  tipo_grandeza   String    @db.VarChar(20)
+  unidade_medida  String    @db.VarChar(10)
+  status          String    @default("ativo") @db.VarChar(10)
+  criado_em       DateTime  @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  barra           Barra     @relation(fields: [barra_id], references: [id])
+  leituras        Leitura[]
+
+  @@map("sensores")
+  @@schema("silos")
+}
+
+model Leitura {
+  id              BigInt    @id @default(autoincrement())
+  sensor_id       Int
+  timestamp       DateTime  @db.Timestamptz()
+  valor_avg       Decimal   @db.Decimal(10, 4)
+  valor_max       Decimal   @db.Decimal(10, 4)
+  valor_min       Decimal   @db.Decimal(10, 4)
+  num_amostras    Int
+  desvio_padrao   Decimal?  @db.Decimal(10, 4)
+
+  sensor          Sensor    @relation(fields: [sensor_id], references: [id])
+
+  @@map("leituras")
+  @@schema("silos")
+}
+
+model Alerta {
+  id              Int       @id @default(autoincrement())
+  silo_id         Int
+  descricao       String    @db.Text
+  criado_em       DateTime  @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  silo            Silo      @relation(fields: [silo_id], references: [id])
+
+  @@map("alertas")
+  @@schema("silos")
+}
+
+model Faq {
+  id              Int       @id @default(autoincrement())
+  pergunta_pt     String    @db.Text
+  pergunta_en     String    @db.Text
+  pergunta_es     String    @db.Text
+  resposta_pt     String    @db.Text
+  resposta_en     String    @db.Text
+  resposta_es     String    @db.Text
+  ordem           Int       @default(0)
+  status          String    @default("rascunho") @db.VarChar(15)
+  criado_em       DateTime  @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  @@map("faq")
+  @@schema("silos")
+}
+
+model SolicitacaoContato {
+  id                    Int       @id @default(autoincrement())
+  nome                  String    @db.VarChar(200)
+  empresa               String?   @db.VarChar(200)
+  email                 String    @db.VarChar(200)
+  telefone              String?   @db.VarChar(20)
+  mensagem              String    @db.Text
+  data_hora             DateTime  @default(now()) @db.Timestamptz()
+  status                String    @default("novo") @db.VarChar(20)
+  observacoes_internas  String?   @db.Text
+
+  @@map("solicitacoes_contato")
+  @@schema("silos")
+}

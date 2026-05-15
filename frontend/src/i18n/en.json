@@ -1,0 +1,170 @@
+{
+  "nav": {
+    "entrar": "Sign In",
+    "sair": "Sign Out",
+    "faq": "FAQ",
+    "contato": "Contact",
+    "dashboard": "Dashboard",
+    "silos": "Silos",
+    "relatorios": "Reports",
+    "admin": "Administration"
+  },
+  "hero": {
+    "headline": "Intelligent monitoring of grain quality in silos",
+    "subtitulo": "Temperature, humidity and CO₂ sensors integrated with artificial intelligence to protect your stock.",
+    "cta": "Request a demo"
+  },
+  "sobre": {
+    "titulo": "About LinkMe BR",
+    "descricao": "We develop monitoring solutions for Brazilian agribusiness, combining state-of-the-art sensors with intelligent data analysis."
+  },
+  "como_funciona": {
+    "titulo": "How it works",
+    "passo1_titulo": "Sensors capture",
+    "passo1_desc": "Temperature, humidity and CO₂ sensors installed on the silo bars collect data every 3 minutes.",
+    "passo2_titulo": "AI analyzes",
+    "passo2_desc": "Artificial intelligence algorithms process the data and identify anomalies in real time.",
+    "passo3_titulo": "Portal alerts",
+    "passo3_desc": "The portal displays alerts, recommendations and full history for fast decision making."
+  },
+  "funcionalidades": {
+    "titulo": "Features",
+    "f1_titulo": "Real-time dashboard",
+    "f1_desc": "View all your silos on an interactive map with updated status.",
+    "f2_titulo": "Smart alerts",
+    "f2_desc": "Receive automatic alerts when parameters go outside safe limits.",
+    "f3_titulo": "Historical reports",
+    "f3_desc": "Export CSV reports with a complete history of readings.",
+    "f4_titulo": "Multi-company",
+    "f4_desc": "Multi-tenant platform with total data isolation per company."
+  },
+  "beneficios": {
+    "titulo": "Proven results",
+    "b1": "Reduction of post-harvest losses",
+    "b2": "Compliance with storage regulations",
+    "b3": "Data-driven decisions in real time",
+    "b4": "24/7 monitoring without manual intervention"
+  },
+  "faq_section": {
+    "titulo": "Frequently asked questions"
+  },
+  "contato_section": {
+    "titulo": "Request a demo",
+    "nome": "Name",
+    "empresa": "Company",
+    "email": "E-mail",
+    "telefone": "Phone",
+    "mensagem": "Message",
+    "enviar": "Send",
+    "sucesso": "Request sent successfully!",
+    "erro": "Error sending. Please try again."
+  },
+  "rodape": {
+    "direitos": "All rights reserved."
+  },
+  "auth": {
+    "email": "E-mail",
+    "senha": "Password",
+    "entrar": "Sign In",
+    "erro_credenciais": "Invalid credentials",
+    "erro_generico": "Login error"
+  },
+  "dashboard": {
+    "titulo": "Silos Dashboard",
+    "total_silos": "Total silos",
+    "em_alerta": "In alert",
+    "normais": "Normal",
+    "sem_leitura": "No reading available",
+    "alerta_ativo": "Active alert",
+    "normal": "Normal",
+    "ver_detalhe": "View detail",
+    "clima": "Weather forecast",
+    "leituras": "Sensor readings",
+    "inativo": "Inactive"
+  },
+  "silos": {
+    "titulo": "Silo Management",
+    "novo": "New silo",
+    "nome": "Name",
+    "logradouro": "Address",
+    "bairro": "Neighborhood",
+    "cidade": "City",
+    "estado": "State",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "descricao": "Description",
+    "status": "Status",
+    "ativo": "Active",
+    "inativo": "Inactive",
+    "barras": "Bars",
+    "sensores": "Sensors",
+    "salvar": "Save",
+    "cancelar": "Cancel",
+    "excluir": "Delete",
+    "editar": "Edit",
+    "ativar": "Activate",
+    "desativar": "Deactivate",
+    "confirmacao_excluir": "Are you sure you want to delete?"
+  },
+  "relatorios": {
+    "titulo": "Reading Reports",
+    "silo": "Silo",
+    "barra": "Bar (optional)",
+    "sensor": "Sensor (optional)",
+    "data_inicio": "Start date",
+    "data_fim": "End date",
+    "consultar": "Query",
+    "exportar_csv": "Export CSV",
+    "todas_barras": "All bars",
+    "todos_sensores": "All sensors",
+    "coluna_data": "Date/Time",
+    "coluna_barra": "Bar",
+    "coluna_sensor": "Sensor",
+    "coluna_grandeza": "Quantity",
+    "coluna_avg": "Average",
+    "coluna_max": "Maximum",
+    "coluna_min": "Minimum",
+    "coluna_amostras": "Samples",
+    "coluna_desvio": "Std Deviation",
+    "coluna_unidade": "Unit",
+    "sem_dados": "No readings found for the selected filters."
+  },
+  "admin": {
+    "titulo": "Administration",
+    "empresas": "Companies",
+    "usuarios": "Users",
+    "faq": "FAQ",
+    "contatos": "Contacts",
+    "novo": "New",
+    "salvar": "Save",
+    "cancelar": "Cancel",
+    "excluir": "Delete",
+    "editar": "Edit",
+    "status": "Status",
+    "ativo": "Active",
+    "inativo": "Inactive",
+    "publicado": "Published",
+    "rascunho": "Draft",
+    "novo_contato": "new",
+    "em_atendimento": "In progress",
+    "concluido": "Completed"
+  },
+  "erros": {
+    "campo_obrigatorio": "Required field",
+    "email_invalido": "Invalid e-mail",
+    "data_invalida": "Invalid date",
+    "acesso_negado": "Access denied"
+  },
+  "idioma": {
+    "titulo": "Language"
+  },
+  "geral": {
+    "carregando": "Loading...",
+    "erro": "Error",
+    "sim": "Yes",
+    "nao": "No",
+    "anterior": "Previous",
+    "proximo": "Next",
+    "pagina": "Page"
+  }
+}

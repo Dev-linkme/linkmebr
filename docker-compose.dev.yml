@@ -1,0 +1,33 @@
+# Uso: docker compose -f docker-compose.dev.yml up -d
+# Sobe apenas PostgreSQL e Redis. Backend e frontend rodam localmente com npm run dev.
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: linkmebr_postgres_dev
+    environment:
+      POSTGRES_USER: linkmebr
+      POSTGRES_PASSWORD: linkmebr_dev
+      POSTGRES_DB: linkmebr
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linkmebr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: linkmebr_redis_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:

@@ -1,0 +1,170 @@
+{
+  "nav": {
+    "entrar": "Entrar",
+    "sair": "Sair",
+    "faq": "Perguntas frequentes",
+    "contato": "Contato",
+    "dashboard": "Painel",
+    "silos": "Silos",
+    "relatorios": "Relatórios",
+    "admin": "Administração"
+  },
+  "hero": {
+    "headline": "Monitoramento inteligente da qualidade de grãos em silos",
+    "subtitulo": "Sensores de temperatura, umidade e CO₂ integrados com inteligência artificial para proteger seu estoque.",
+    "cta": "Solicitar demonstração"
+  },
+  "sobre": {
+    "titulo": "Sobre a LinkMe BR",
+    "descricao": "Desenvolvemos soluções de monitoramento para o agronegócio brasileiro, combinando sensores de última geração com análise inteligente de dados."
+  },
+  "como_funciona": {
+    "titulo": "Como funciona",
+    "passo1_titulo": "Sensores capturam",
+    "passo1_desc": "Sensores de temperatura, umidade e CO₂ instalados nas barras do silo coletam dados a cada 3 minutos.",
+    "passo2_titulo": "IA analisa",
+    "passo2_desc": "Algoritmos de inteligência artificial processam os dados e identificam anomalias em tempo real.",
+    "passo3_titulo": "Portal alerta",
+    "passo3_desc": "O portal exibe alertas, recomendações e histórico completo para tomada de decisão rápida."
+  },
+  "funcionalidades": {
+    "titulo": "Funcionalidades",
+    "f1_titulo": "Dashboard em tempo real",
+    "f1_desc": "Visualize todos os seus silos em um mapa interativo com status atualizado.",
+    "f2_titulo": "Alertas inteligentes",
+    "f2_desc": "Receba alertas automáticos quando parâmetros saírem dos limites seguros.",
+    "f3_titulo": "Relatórios históricos",
+    "f3_desc": "Exporte relatórios em CSV com histórico completo de leituras.",
+    "f4_titulo": "Multi-empresa",
+    "f4_desc": "Plataforma multi-tenant com isolamento total de dados por empresa."
+  },
+  "beneficios": {
+    "titulo": "Resultados comprovados",
+    "b1": "Redução de perdas pós-colheita",
+    "b2": "Conformidade com normas de armazenagem",
+    "b3": "Decisões baseadas em dados em tempo real",
+    "b4": "Monitoramento 24/7 sem intervenção manual"
+  },
+  "faq_section": {
+    "titulo": "Perguntas frequentes"
+  },
+  "contato_section": {
+    "titulo": "Solicitar demonstração",
+    "nome": "Nome",
+    "empresa": "Empresa",
+    "email": "E-mail",
+    "telefone": "Telefone",
+    "mensagem": "Mensagem",
+    "enviar": "Enviar",
+    "sucesso": "Solicitação enviada com sucesso!",
+    "erro": "Erro ao enviar. Tente novamente."
+  },
+  "rodape": {
+    "direitos": "Todos os direitos reservados."
+  },
+  "auth": {
+    "email": "E-mail",
+    "senha": "Senha",
+    "entrar": "Entrar",
+    "erro_credenciais": "Credenciais inválidas",
+    "erro_generico": "Erro ao fazer login"
+  },
+  "dashboard": {
+    "titulo": "Painel de Silos",
+    "total_silos": "Total de silos",
+    "em_alerta": "Em alerta",
+    "normais": "Normais",
+    "sem_leitura": "Sem leitura disponível",
+    "alerta_ativo": "Alerta ativo",
+    "normal": "Normal",
+    "ver_detalhe": "Ver detalhe",
+    "clima": "Previsão do tempo",
+    "leituras": "Leituras dos sensores",
+    "inativo": "Inativo"
+  },
+  "silos": {
+    "titulo": "Gestão de Silos",
+    "novo": "Novo silo",
+    "nome": "Nome",
+    "logradouro": "Logradouro",
+    "bairro": "Bairro",
+    "cidade": "Cidade",
+    "estado": "Estado",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "descricao": "Descrição",
+    "status": "Status",
+    "ativo": "Ativo",
+    "inativo": "Inativo",
+    "barras": "Barras",
+    "sensores": "Sensores",
+    "salvar": "Salvar",
+    "cancelar": "Cancelar",
+    "excluir": "Excluir",
+    "editar": "Editar",
+    "ativar": "Ativar",
+    "desativar": "Desativar",
+    "confirmacao_excluir": "Tem certeza que deseja excluir?"
+  },
+  "relatorios": {
+    "titulo": "Relatórios de Leituras",
+    "silo": "Silo",
+    "barra": "Barra (opcional)",
+    "sensor": "Sensor (opcional)",
+    "data_inicio": "Data inicial",
+    "data_fim": "Data final",
+    "consultar": "Consultar",
+    "exportar_csv": "Exportar CSV",
+    "todas_barras": "Todas as barras",
+    "todos_sensores": "Todos os sensores",
+    "coluna_data": "Data/Hora",
+    "coluna_barra": "Barra",
+    "coluna_sensor": "Sensor",
+    "coluna_grandeza": "Grandeza",
+    "coluna_avg": "Média",
+    "coluna_max": "Máximo",
+    "coluna_min": "Mínimo",
+    "coluna_amostras": "Amostras",
+    "coluna_desvio": "Desvio Padrão",
+    "coluna_unidade": "Unidade",
+    "sem_dados": "Nenhuma leitura encontrada para os filtros selecionados."
+  },
+  "admin": {
+    "titulo": "Administração",
+    "empresas": "Empresas",
+    "usuarios": "Usuários",
+    "faq": "FAQ",
+    "contatos": "Contatos",
+    "novo": "Novo",
+    "salvar": "Salvar",
+    "cancelar": "Cancelar",
+    "excluir": "Excluir",
+    "editar": "Editar",
+    "status": "Status",
+    "ativo": "Ativo",
+    "inativo": "Inativo",
+    "publicado": "Publicado",
+    "rascunho": "Rascunho",
+    "novo_contato": "novo",
+    "em_atendimento": "Em atendimento",
+    "concluido": "Concluído"
+  },
+  "erros": {
+    "campo_obrigatorio": "Campo obrigatório",
+    "email_invalido": "E-mail inválido",
+    "data_invalida": "Data inválida",
+    "acesso_negado": "Acesso negado"
+  },
+  "idioma": {
+    "titulo": "Idioma"
+  },
+  "geral": {
+    "carregando": "Carregando...",
+    "erro": "Erro",
+    "sim": "Sim",
+    "nao": "Não",
+    "anterior": "Anterior",
+    "proximo": "Próximo",
+    "pagina": "Página"
+  }
+}
