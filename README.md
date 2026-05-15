@@ -2,6 +2,8 @@
 
 Sistema multi-tenant para monitoramento de silos de soja via sensores (temperatura, umidade, CO₂) e inteligência artificial.
 
+> Deploy automático via DigitalOcean App Platform.
+
 ## Estrutura
 
 ```
