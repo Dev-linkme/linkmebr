@@ -232,9 +232,9 @@ export default function RelatoriosPage() {
   // ── Load silos ──────────────────────────────────────────────────────────────
   useEffect(() => {
     api
-      .get<Silo[]>('/silos')
+      .get<{ data: Silo[] }>('/silos?per_page=200')
       .then((res) => {
-        const ativos = res.data.filter((s) => s.status === 'ativo');
+        const ativos = (res.data.data ?? []).filter((s) => s.status === 'ativo');
         setSilos(ativos);
       })
       .catch(() => toast.error('Erro ao carregar silos'));
