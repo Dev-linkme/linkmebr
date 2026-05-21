@@ -75,7 +75,7 @@ function ViewModal({ silo, onClose }: { silo: Silo; onClose: () => void }) {
 export default function SilosPage() {
   const navigate = useNavigate();
   const { isAdminEmpresa, isAdminGeral } = useAuth();
-  const podeEditar = isAdminEmpresa || isAdminGeral;
+  const podeEditar = isAdminEmpresa;
 
   const [silos, setSilos] = useState<Silo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,7 +271,7 @@ export default function SilosPage() {
                         <button onClick={() => setViewingSilo(silo)} title="Visualizar" className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors">
                           <Eye size={13} /> Ver
                         </button>
-                        <button onClick={() => navigate(`/silos/${silo.id}/barras`)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors" title="Gerenciar barras">
+                        <button onClick={() => navigate(`/admin/silos/${silo.id}/barras`)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors" title="Gerenciar barras">
                           <Layers size={13} /> Barras
                         </button>
                         {podeEditar && (

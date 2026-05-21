@@ -45,11 +45,11 @@ export default function App() {
         <Route index element={<RelatoriosPage />} />
       </Route>
 
-      {/* Silos — administrador_empresa + administrador_geral */}
+      {/* Admin — silos: administrador_empresa only */}
       <Route
-        path="/silos"
+        path="/admin/silos"
         element={
-          <ProtectedRoute perfis={['administrador_empresa', 'administrador_geral']}>
+          <ProtectedRoute perfis={['administrador_empresa']}>
             <AppLayout />
           </ProtectedRoute>
         }

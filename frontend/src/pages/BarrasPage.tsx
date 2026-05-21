@@ -72,8 +72,8 @@ function SensorViewModal({ sensor, onClose }: { sensor: Sensor; onClose: () => v
 export default function BarrasPage() {
   const { id: siloId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdminEmpresa, isAdminGeral } = useAuth();
-  const podeEditar = isAdminEmpresa || isAdminGeral;
+  const { isAdminEmpresa } = useAuth();
+  const podeEditar = isAdminEmpresa;
 
   const [silo, setSilo] = useState<Silo | null>(null);
   const [barras, setBarras] = useState<BarraComSensores[]>([]);
@@ -212,7 +212,7 @@ export default function BarrasPage() {
     <div className="space-y-6">
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/silos')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Voltar">
+        <button onClick={() => navigate('/admin/silos')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Voltar">
           <ArrowLeft size={20} />
         </button>
         <div>

@@ -50,7 +50,7 @@ router.get(
 router.put(
   '/:id',
   authenticate,
-  authorize('administrador_geral', 'administrador_empresa'),
+  authorize('administrador_empresa'),
   atualizar,
 );
 
@@ -66,7 +66,7 @@ router.put(
 router.patch(
   '/:id/status',
   authenticate,
-  authorize('administrador_geral', 'administrador_empresa'),
+  authorize('administrador_empresa'),
   alterarStatus,
 );
 
@@ -82,7 +82,7 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize('administrador_geral', 'administrador_empresa'),
+  authorize('administrador_empresa'),
   excluir,
 );
 

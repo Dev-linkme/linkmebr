@@ -45,12 +45,6 @@ export default function AppLayout() {
       icon: <LayoutDashboard size={18} />,
     },
     {
-      to: '/silos',
-      label: t('nav.silos'),
-      icon: <Database size={18} />,
-      perfis: ['administrador_geral', 'administrador_empresa'],
-    },
-    {
       to: '/relatorios',
       label: t('nav.relatorios'),
       icon: <BarChart2 size={18} />,
@@ -69,6 +63,12 @@ export default function AppLayout() {
       label: t('admin.usuarios'),
       icon: <Users size={16} />,
       perfis: ['administrador_geral', 'administrador_empresa'],
+    },
+    {
+      to: '/admin/silos',
+      label: t('nav.silos'),
+      icon: <Database size={16} />,
+      perfis: ['administrador_empresa'],
     },
     {
       to: '/admin/faq',
