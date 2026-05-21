@@ -235,11 +235,11 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
     const sensorIds = await getSensorIds(silo_id, barra_id, sensor_id);
     if (sensorIds.length === 0) { res.json({ series: [], sensores: [] }); return; }
 
-    // Escolhe o bucket de tempo conforme o intervalo selecionado
+    // Escolhe o tamanho do bucket em segundos conforme o intervalo selecionado
     const diffHoras = data_inicio && data_fim
       ? (data_fim.getTime() - data_inicio.getTime()) / 3_600_000
       : 24 * 7;
-    const bucket = diffHoras <= 24 ? '10 minutes' : diffHoras <= 24 * 7 ? '1 hour' : '3 hours';
+    const bucketSec = diffHoras <= 24 ? 600 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
     const whereClause: string[] = [`l.sensor_id = ANY($1::int[])`];
     const params: unknown[] = [sensorIds];
@@ -254,7 +254,7 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
       min: number;
     }>>(
       `SELECT l.sensor_id,
-              date_trunc('${bucket}', l.timestamp) AS bucket,
+              to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
               AVG(l.valor_avg)::float AS avg,
               MAX(l.valor_max)::float AS max,
               MIN(l.valor_min)::float AS min
