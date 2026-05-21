@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import {
   AlertTriangle, CheckCircle, Database, MapPin,
   Thermometer, Droplets, Wind,
@@ -10,21 +11,19 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 import type { Silo } from '../types/index';
 
-// ── Ícones do mapa ──────────────────────────────────────────────────────────
+// ── Ícones do mapa (padrão Leaflet colorido) ────────────────────────────────
 
-function makeLabelIcon(nome: string, hasAlert: boolean) {
-  const bg = hasAlert ? '#ef4444' : '#16a34a';
-  return L.divIcon({
-    className: '',
-    html: `<div style="
-      background:${bg};color:#fff;padding:3px 10px;border-radius:9999px;
-      font-size:12px;font-weight:700;white-space:nowrap;
-      box-shadow:0 1px 4px rgba(0,0,0,.35);border:2px solid #fff;
-    ">${nome}</div>`,
-    iconAnchor: [0, 0],
-    popupAnchor: [0, -10],
-  });
-}
+const greenIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl,
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+});
+
+const redIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl,
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+});
 
 // ── Centraliza mapa no silo selecionado ─────────────────────────────────────
 
@@ -51,6 +50,7 @@ interface ResumoAltura {
 }
 
 interface ClimaAtual {
+  time?: string;
   temperature_2m?: number;
   relative_humidity_2m?: number;
   wind_speed_10m?: number;
@@ -214,9 +214,12 @@ export default function DashboardPage() {
                 <Marker
                   key={silo.id}
                   position={[Number(silo.latitude), Number(silo.longitude)]}
-                  icon={makeLabelIcon(silo.nome, hasAlert)}
+                  icon={hasAlert ? redIcon : greenIcon}
                   eventHandlers={{ click: () => setSiloSelecionado(silo.id) }}
                 >
+                  <Tooltip permanent direction="top" offset={[0, -42]} opacity={1}>
+                    <span className="text-xs font-semibold">{silo.nome}</span>
+                  </Tooltip>
                   <Popup>
                     <div className="text-sm space-y-1">
                       <p className="font-bold">{silo.nome}</p>
@@ -258,12 +261,21 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Info do silo */}
                 <div className="bg-white rounded-xl shadow p-5">
-                  <h2 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                  <h2 className="font-semibold text-gray-700 mb-4 flex items-center gap-2 flex-wrap">
                     <Database size={16} className="text-gray-400" />
                     {painel.silo.nome}
                     {painel.silo.cidade && (
                       <span className="text-sm font-normal text-gray-400 ml-1">
                         — {painel.silo.cidade}/{painel.silo.estado}
+                      </span>
+                    )}
+                    {(painel.silo.alertas_ativos ?? 0) > 0 ? (
+                      <span className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
+                        <AlertTriangle size={12} /> Alerta
+                      </span>
+                    ) : (
+                      <span className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                        <CheckCircle size={12} /> Normal
                       </span>
                     )}
                   </h2>
@@ -290,10 +302,20 @@ export default function DashboardPage() {
                 {/* Clima */}
                 {painel.clima ? (
                   <div className="bg-white rounded-xl shadow p-5">
-                    <h2 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                    <h2 className="font-semibold text-gray-700 mb-1 flex items-center gap-2">
                       <MapPin size={16} className="text-gray-400" />
                       Condições climáticas locais
                     </h2>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-xs text-gray-400">
+                        Fonte: <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Open-Meteo</a>
+                      </span>
+                      {painel.clima?.time && (
+                        <span className="text-xs text-gray-400">
+                          · {fmtTs(painel.clima.time)}
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="flex items-center gap-2 bg-yellow-50 rounded-lg p-3">
                         <WeatherIcon code={painel.clima.weather_code} />
