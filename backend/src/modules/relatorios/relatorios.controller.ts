@@ -74,7 +74,7 @@ export async function buscarLeituras(
 
     const total = Number(totalRaw);
     res.json({
-      dados: leituras,
+      dados: leituras.map(serializeLeitura),
       total,
       pagina: page,
       total_paginas: Math.ceil(total / limit),
@@ -235,6 +235,38 @@ async function getSensorIds(
   });
 
   return sensores.map((s) => s.id);
+}
+
+function serializeLeitura(l: {
+  id: bigint;
+  sensor_id: number;
+  timestamp: Date;
+  valor_avg: { toNumber(): number };
+  valor_max: { toNumber(): number };
+  valor_min: { toNumber(): number };
+  num_amostras: number;
+  desvio_padrao: { toNumber(): number } | null;
+  sensor: {
+    id: number;
+    identificacao: string;
+    tipo_grandeza: string;
+    unidade_medida: string;
+    barra: { id: number; identificacao: string };
+  };
+}) {
+  return {
+    id: l.id.toString(),
+    sensor_id: l.sensor_id,
+    timestamp: l.timestamp.toISOString(),
+    valor_avg: l.valor_avg.toNumber(),
+    valor_max: l.valor_max.toNumber(),
+    valor_min: l.valor_min.toNumber(),
+    num_amostras: l.num_amostras,
+    desvio_padrao: l.desvio_padrao ? l.desvio_padrao.toNumber() : null,
+    sensor: {
+      ...l.sensor,
+    },
+  };
 }
 
 function escapeCsvField(value: string): string {
