@@ -117,7 +117,7 @@ function TableHeaders({ nivel }: { nivel: Nivel }) {
     case 'barras':
       return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Status', 'st')}</>;
     case 'sensores':
-      return <>{th('Identificação', 'id')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Status', 'st')}</>;
+      return <>{th('Identificação', 'id')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('Status', 'st')}</>;
   }
 }
 
@@ -160,6 +160,7 @@ function TableCells({ nivel, item }: { nivel: Nivel; item: AnyItem }) {
           {td(<span className="font-medium text-gray-900">{item.identificacao as string}</span>, 'id')}
           {td(item.tipo_grandeza as string, 'tp')}
           {td((item.unidade_medida as string) || '—', 'un')}
+          {td(item.altura_solo_m != null ? `${item.altura_solo_m} m` : '—', 'alt')}
           {td(<StatusBadge status={item.status} />, 'st')}
         </>
       );
@@ -269,7 +270,7 @@ export default function CadastrosPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <TableHeaders nivel={currentNivel} />
-                  {hasNext && <th className="px-4 py-3 w-8" />}
+                  {hasNext && <th className="px-4 py-3 w-12" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -286,7 +287,7 @@ export default function CadastrosPage() {
                     <TableCells nivel={currentNivel} item={item} />
                     {hasNext && (
                       <td className="px-4 py-3 text-right">
-                        <ChevronRight size={16} className="text-gray-400 ml-auto" />
+                        <ChevronRight size={20} className="text-green-500 ml-auto" />
                       </td>
                     )}
                   </tr>
