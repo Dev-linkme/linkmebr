@@ -232,15 +232,12 @@ export async function excluir(req: Request, res: Response, next: NextFunction): 
     if (!sensor) throw new AppError(404, 'Sensor não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, sensor.barra.silo.empresa_id);
 
-    const leiturasCount = await prisma.leitura.count({ where: { sensor_id: id } });
-    if (leiturasCount > 0) {
-      throw new AppError(
-        409,
-        `Não é possível excluir o sensor pois ele possui ${leiturasCount} leitura(s) associada(s)`,
-      );
-    }
+    // Deleta leituras e sensor em transação
+    await prisma.$transaction([
+      prisma.leitura.deleteMany({ where: { sensor_id: id } }),
+      prisma.sensor.delete({ where: { id } }),
+    ]);
 
-    await prisma.sensor.delete({ where: { id } });
     res.status(204).send();
   } catch (err) {
     next(err);

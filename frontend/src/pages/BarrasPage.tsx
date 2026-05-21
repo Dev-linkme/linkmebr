@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { ArrowLeft, Plus, Power, ChevronDown, ChevronRight, X, Check, Layers, Activity, Eye, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, ChevronDown, ChevronRight, X, Check, Layers, Activity, Eye, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -270,16 +270,6 @@ export default function BarrasPage() {
     }
   }
 
-  async function desativarBarra(barraId: number) {
-    try {
-      await api.patch(`/barras/${barraId}/status`, { status: 'inativo' });
-      toast.success('Barra desativada!');
-      await fetchBarras();
-    } catch {
-      toast.error('Erro ao desativar barra');
-    }
-  }
-
   async function excluirBarra(barra: BarraComSensores) {
     if (barra.sensores.length > 0) {
       toast.error(`Não é possível excluir: a barra possui ${barra.sensores.length} sensor(es) associado(s).`);
@@ -316,13 +306,15 @@ export default function BarrasPage() {
     }
   }
 
-  async function desativarSensor(sensorId: number, barraId: number) {
+  async function excluirSensor(sensorId: number, barraId: number) {
+    if (!confirm('Excluir este sensor? Todas as leituras associadas também serão excluídas. Esta ação não pode ser desfeita.')) return;
     try {
-      await api.patch(`/sensores/${sensorId}/status`, { status: 'inativo' });
-      toast.success('Sensor desativado!');
+      await api.delete(`/sensores/${sensorId}`);
+      toast.success('Sensor excluído com sucesso!');
       fetchSensores(barraId);
-    } catch {
-      toast.error('Erro ao desativar sensor');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao excluir sensor.';
+      toast.error(msg);
     }
   }
 
@@ -431,11 +423,6 @@ export default function BarrasPage() {
                     <button onClick={() => openSensorForm(barra.id)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 transition-colors">
                       <Plus size={13} /> Sensor
                     </button>
-                    {barra.status === 'ativo' && (
-                      <button onClick={() => desativarBarra(barra.id)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors">
-                        <Power size={13} /> Desativar
-                      </button>
-                    )}
                     <button onClick={() => excluirBarra(barra)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors">
                       <Trash2 size={13} /> Excluir
                     </button>
@@ -573,9 +560,9 @@ export default function BarrasPage() {
                                       <Pencil size={12} />
                                     </button>
                                   )}
-                                  {podeEditar && sensor.status === 'ativo' && (
-                                    <button onClick={() => desativarSensor(sensor.id, barra.id)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors">
-                                      <Power size={12} /> Desativar
+                                  {podeEditar && (
+                                    <button onClick={() => excluirSensor(sensor.id, barra.id)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors">
+                                      <Trash2 size={12} /> Excluir
                                     </button>
                                   )}
                                 </div>

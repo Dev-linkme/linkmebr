@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Plus, Edit2, Layers, Power, X, Check, Eye } from 'lucide-react';
+import { Plus, Edit2, Layers, Trash2, X, Check, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -149,14 +149,15 @@ export default function SilosPage() {
     }
   }
 
-  async function toggleStatus(silo: Silo) {
-    const novoStatus = silo.status === 'ativo' ? 'inativo' : 'ativo';
+  async function excluirSilo(silo: Silo) {
+    if (!confirm(`Excluir o silo "${silo.nome}"? Esta ação não pode ser desfeita.`)) return;
     try {
-      await api.patch(`/silos/${silo.id}/status`, { status: novoStatus });
-      toast.success(`Silo ${novoStatus === 'ativo' ? 'ativado' : 'desativado'} com sucesso!`);
+      await api.delete(`/silos/${silo.id}`);
+      toast.success('Silo excluído com sucesso!');
       fetchSilos(page);
-    } catch {
-      toast.error('Erro ao alterar status do silo');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao excluir silo.';
+      toast.error(msg);
     }
   }
 
@@ -279,8 +280,8 @@ export default function SilosPage() {
                             <button onClick={() => openEdit(silo)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 transition-colors" title="Editar">
                               <Edit2 size={13} /> Editar
                             </button>
-                            <button onClick={() => toggleStatus(silo)} className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${silo.status === 'ativo' ? 'bg-red-50 hover:bg-red-100 text-red-700' : 'bg-green-50 hover:bg-green-100 text-green-700'}`} title={silo.status === 'ativo' ? 'Desativar' : 'Ativar'}>
-                              <Power size={13} />{silo.status === 'ativo' ? 'Desativar' : 'Ativar'}
+                            <button onClick={() => excluirSilo(silo)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors" title="Excluir">
+                              <Trash2 size={13} /> Excluir
                             </button>
                           </>
                         )}
