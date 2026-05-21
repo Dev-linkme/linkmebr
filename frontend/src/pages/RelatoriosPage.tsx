@@ -222,6 +222,9 @@ export default function RelatoriosPage() {
   const [totalPaginas, setTotalPaginas] = useState(0);
   const [lastFiltros, setLastFiltros] = useState<FiltrosForm | null>(null);
 
+  // Tab
+  const [activeTab, setActiveTab] = useState<'tabela' | 'grafico'>('tabela');
+
   // Sort
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -507,8 +510,27 @@ export default function RelatoriosPage() {
         </div>
       </form>
 
+      {/* Tabs */}
+      {lastFiltros && (
+        <div className="flex gap-1 border-b border-gray-200">
+          {(['tabela', 'grafico'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-5 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab === 'tabela' ? 'Tabela' : 'Gráfico'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Charts */}
-      {dados.length > 0 && (
+      {dados.length > 0 && activeTab === 'grafico' && (
         <div>
           {grandezasPresentes.map((grandeza) => (
             <GrandezaChart
@@ -522,7 +544,7 @@ export default function RelatoriosPage() {
       )}
 
       {/* Table */}
-      {lastFiltros && (
+      {lastFiltros && activeTab === 'tabela' && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-gray-500 text-sm">

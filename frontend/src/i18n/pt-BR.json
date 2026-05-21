@@ -6,7 +6,7 @@
     "contato": "Contato",
     "dashboard": "Painel",
     "silos": "Silos",
-    "relatorios": "Relatórios",
+    "relatorios": "Leituras",
     "admin": "Administração",
     "cadastros": "Cadastros"
   },
@@ -114,7 +114,7 @@
     "confirmacao_excluir": "Tem certeza que deseja excluir?"
   },
   "relatorios": {
-    "titulo": "Relatórios de Leituras",
+    "titulo": "Leituras",
     "silo": "Silo",
     "barra": "Barra (opcional)",
     "sensor": "Sensor (opcional)",
