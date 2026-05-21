@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { ArrowLeft, Plus, Power, ChevronDown, ChevronRight, X, Check, Layers, Activity, Eye, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Power, ChevronDown, ChevronRight, X, Check, Layers, Activity, Eye, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -280,6 +280,22 @@ export default function BarrasPage() {
     }
   }
 
+  async function excluirBarra(barra: BarraComSensores) {
+    if (barra.sensores.length > 0) {
+      toast.error(`Não é possível excluir: a barra possui ${barra.sensores.length} sensor(es) associado(s).`);
+      return;
+    }
+    if (!confirm(`Excluir a barra "${barra.identificacao}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await api.delete(`/barras/${barra.id}`);
+      toast.success('Barra excluída com sucesso!');
+      await fetchBarras();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao excluir barra.';
+      toast.error(msg);
+    }
+  }
+
   function openSensorForm(barraId: number) {
     setSensorFormBarraId(barraId);
     resetSensor({ tipo_grandeza: 'temperatura', identificacao: '', altura_solo_m: '' });
@@ -420,6 +436,9 @@ export default function BarrasPage() {
                         <Power size={13} /> Desativar
                       </button>
                     )}
+                    <button onClick={() => excluirBarra(barra)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-colors">
+                      <Trash2 size={13} /> Excluir
+                    </button>
                   </div>
                 )}
               </div>
