@@ -12,7 +12,10 @@ interface BarraComSensores extends Barra {
   loadingSensores: boolean;
 }
 
-interface BarraForm { identificacao: string; }
+interface BarraForm {
+  identificacao: string;
+  local: 'interno ao silo' | 'externo ao silo';
+}
 
 interface SensorForm {
   identificacao: string;
@@ -146,7 +149,7 @@ export default function BarrasPage() {
 
   async function onSubmitBarra(data: BarraForm) {
     try {
-      await api.post(`/silos/${siloId}/barras`, data);
+      await api.post(`/silos/${siloId}/barras`, { identificacao: data.identificacao, local: data.local });
       toast.success('Barra criada com sucesso!');
       setShowBarraForm(false);
       resetBarra();
@@ -245,6 +248,18 @@ export default function BarrasPage() {
               />
               {errBarra.identificacao && <p className="text-red-500 text-xs mt-1">{errBarra.identificacao.message}</p>}
             </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Local <span className="text-red-500">*</span></label>
+              <select
+                {...regBarra('local', { required: 'Selecione o local.' })}
+                className={clsInput(!!errBarra.local)}
+                defaultValue="interno ao silo"
+              >
+                <option value="interno ao silo">Interno ao silo</option>
+                <option value="externo ao silo">Externo ao silo</option>
+              </select>
+              {errBarra.local && <p className="text-red-500 text-xs mt-1">{errBarra.local.message}</p>}
+            </div>
             <div className="flex gap-2 sm:pt-5">
               <button type="button" onClick={() => setShowBarraForm(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancelar</button>
               <button type="submit" disabled={submittingBarra} className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
@@ -273,6 +288,11 @@ export default function BarrasPage() {
                   <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${barra.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                     {barra.status}
                   </span>
+                  {barra.local && (
+                    <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium capitalize">
+                      {barra.local}
+                    </span>
+                  )}
                   <span className="ml-2 text-xs text-gray-400">{barra.loadingSensores ? '...' : `${barra.sensores.length} sensor(es)`}</span>
                 </button>
 

@@ -58,11 +58,16 @@ interface ClimaAtual {
   apparent_temperature?: number;
 }
 
+interface ResumoLocal {
+  local: string;
+  resumo_alturas: ResumoAltura[];
+}
+
 interface PainelResponse {
   silo: Silo & { total_barras_ativas: number; total_sensores_ativos: number };
   clima: ClimaAtual | null;
   referencia: string | null;
-  resumo_alturas: ResumoAltura[];
+  resumo_por_local: ResumoLocal[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -150,11 +155,11 @@ export default function DashboardPage() {
     );
   }
 
-  const grandezasPresentes = painel?.resumo_alturas.length
-    ? (['temperatura', 'umidade', 'co2'] as const).filter((g) =>
-        painel.resumo_alturas.some((r) => r[g] != null),
-      )
-    : [];
+  function grandezasDoLocal(alturas: ResumoAltura[]) {
+    return (['temperatura', 'umidade', 'co2'] as const).filter((g) =>
+      alturas.some((r) => r[g] != null),
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -358,80 +363,86 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Tabela resumo por altura */}
-              {painel.resumo_alturas.length > 0 && (
-                <div className="bg-white rounded-xl shadow overflow-hidden">
-                  <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="font-semibold text-gray-700">Resumo por Altura</h2>
-                    {painel.referencia && (
-                      <span className="text-xs text-gray-400">
-                        Referência: {fmtTs(painel.referencia)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm divide-y divide-gray-100">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
-                            Altura (m)
-                          </th>
-                          {grandezasPresentes.map((g) => (
-                            <th
-                              key={g}
-                              colSpan={3}
-                              className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase border-l border-gray-100 whitespace-nowrap"
-                            >
-                              {GRANDEZA_LABEL[g]}
+              {/* Tabelas de leituras por local */}
+              {painel.resumo_por_local.length > 0 && painel.resumo_por_local.map((grupo) => {
+                const grandezasPresentes = grandezasDoLocal(grupo.resumo_alturas);
+                return (
+                  <div key={grupo.local} className="bg-white rounded-xl shadow overflow-hidden">
+                    <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h2 className="font-semibold text-gray-700">Últimas leituras realizadas</h2>
+                        <p className="text-xs text-blue-600 font-medium mt-0.5 capitalize">{grupo.local}</p>
+                      </div>
+                      {painel.referencia && (
+                        <span className="text-xs text-gray-400">
+                          Referência: {fmtTs(painel.referencia)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm divide-y divide-gray-100">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
+                              Altura (m)
                             </th>
-                          ))}
-                        </tr>
-                        <tr className="bg-gray-50 border-t border-gray-100">
-                          <th className="px-4 py-2" />
-                          {grandezasPresentes.map((g) => (
-                            <>
-                              <th key={`${g}-avg`} className="px-3 py-2 text-center text-xs text-gray-400 border-l border-gray-100 font-medium">Média</th>
-                              <th key={`${g}-min`} className="px-3 py-2 text-center text-xs text-gray-400 font-medium">Mín</th>
-                              <th key={`${g}-max`} className="px-3 py-2 text-center text-xs text-gray-400 font-medium">Máx</th>
-                            </>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {painel.resumo_alturas.map((row) => (
-                          <tr key={row.altura_m} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">
-                              {row.altura_m.toFixed(1)} m
-                            </td>
-                            {grandezasPresentes.map((g) => {
-                              const d = row[g] as ResumoGrandeza | undefined;
-                              return d ? (
-                                <>
-                                  <td key={`${g}-avg`} className="px-3 py-3 text-center text-gray-800 font-medium border-l border-gray-100 whitespace-nowrap">
-                                    {fmt(d.avg_avg, 2)} <span className="text-gray-400 text-xs">{d.unidade}</span>
-                                  </td>
-                                  <td key={`${g}-min`} className="px-3 py-3 text-center text-blue-600 whitespace-nowrap">
-                                    {fmt(d.avg_min, 2)}
-                                  </td>
-                                  <td key={`${g}-max`} className="px-3 py-3 text-center text-red-500 whitespace-nowrap">
-                                    {fmt(d.avg_max, 2)}
-                                  </td>
-                                </>
-                              ) : (
-                                <>
-                                  <td key={`${g}-avg`} className="px-3 py-3 text-center text-gray-300 border-l border-gray-100">—</td>
-                                  <td key={`${g}-min`} className="px-3 py-3 text-center text-gray-300">—</td>
-                                  <td key={`${g}-max`} className="px-3 py-3 text-center text-gray-300">—</td>
-                                </>
-                              );
-                            })}
+                            {grandezasPresentes.map((g) => (
+                              <th
+                                key={g}
+                                colSpan={3}
+                                className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase border-l border-gray-100 whitespace-nowrap"
+                              >
+                                {GRANDEZA_LABEL[g]}
+                              </th>
+                            ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                          <tr className="bg-gray-50 border-t border-gray-100">
+                            <th className="px-4 py-2" />
+                            {grandezasPresentes.map((g) => (
+                              <>
+                                <th key={`${g}-avg`} className="px-3 py-2 text-center text-xs text-gray-400 border-l border-gray-100 font-medium">Média</th>
+                                <th key={`${g}-min`} className="px-3 py-2 text-center text-xs text-gray-400 font-medium">Mín</th>
+                                <th key={`${g}-max`} className="px-3 py-2 text-center text-xs text-gray-400 font-medium">Máx</th>
+                              </>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {grupo.resumo_alturas.map((row) => (
+                            <tr key={row.altura_m} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">
+                                {row.altura_m.toFixed(1)} m
+                              </td>
+                              {grandezasPresentes.map((g) => {
+                                const d = row[g] as ResumoGrandeza | undefined;
+                                return d ? (
+                                  <>
+                                    <td key={`${g}-avg`} className="px-3 py-3 text-center text-gray-800 font-medium border-l border-gray-100 whitespace-nowrap">
+                                      {fmt(d.avg_avg, 2)} <span className="text-gray-400 text-xs">{d.unidade}</span>
+                                    </td>
+                                    <td key={`${g}-min`} className="px-3 py-3 text-center text-blue-600 whitespace-nowrap">
+                                      {fmt(d.avg_min, 2)}
+                                    </td>
+                                    <td key={`${g}-max`} className="px-3 py-3 text-center text-red-500 whitespace-nowrap">
+                                      {fmt(d.avg_max, 2)}
+                                    </td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <td key={`${g}-avg`} className="px-3 py-3 text-center text-gray-300 border-l border-gray-100">—</td>
+                                    <td key={`${g}-min`} className="px-3 py-3 text-center text-gray-300">—</td>
+                                    <td key={`${g}-max`} className="px-3 py-3 text-center text-gray-300">—</td>
+                                  </>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })}
             </>
           ) : null}
         </div>

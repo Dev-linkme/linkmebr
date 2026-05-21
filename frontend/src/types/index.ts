@@ -37,6 +37,7 @@ export interface Barra {
   id: number;
   silo_id: number;
   identificacao: string;
+  local: 'interno ao silo' | 'externo ao silo';
   status: string;
 }
 

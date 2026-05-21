@@ -146,11 +146,12 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
-    // Flattens sensores com última leitura
+    // Flattens sensores com última leitura, preservando o local da barra
     const sensoresFlat = silo.barras.flatMap((b) =>
       b.sensores
         .filter((s) => s.leituras.length > 0)
         .map((s) => ({
+          local: b.local,
           altura_solo_m: Number(s.altura_solo_m),
           tipo_grandeza: s.tipo_grandeza,
           unidade_medida: s.unidade_medida,
@@ -167,28 +168,39 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
           s.timestamp > max ? s.timestamp : max, sensoresFlat[0].timestamp)
       : null;
 
-    // Agrupa por altura e grandeza
-    const alturas = [...new Set(sensoresFlat.map((s) => s.altura_solo_m))].sort((a, b) => a - b);
     const grandezas = ['temperatura', 'umidade', 'co2'] as const;
 
-    const resumo_alturas = alturas.map((altura) => {
-      const row: Record<string, unknown> = { altura_m: altura };
-      for (const grandeza of grandezas) {
-        const grupo = sensoresFlat.filter(
-          (s) => s.altura_solo_m === altura && s.tipo_grandeza === grandeza,
-        );
-        if (grupo.length > 0) {
-          const n = grupo.length;
-          row[grandeza] = {
-            avg_avg: +(grupo.reduce((sum, s) => sum + s.valor_avg, 0) / n).toFixed(4),
-            avg_min: +(grupo.reduce((sum, s) => sum + s.valor_min, 0) / n).toFixed(4),
-            avg_max: +(grupo.reduce((sum, s) => sum + s.valor_max, 0) / n).toFixed(4),
-            unidade: grupo[0].unidade_medida,
-          };
+    function buildResumoAlturas(sensores: typeof sensoresFlat) {
+      const alturas = [...new Set(sensores.map((s) => s.altura_solo_m))].sort((a, b) => a - b);
+      return alturas.map((altura) => {
+        const row: Record<string, unknown> = { altura_m: altura };
+        for (const grandeza of grandezas) {
+          const grupo = sensores.filter(
+            (s) => s.altura_solo_m === altura && s.tipo_grandeza === grandeza,
+          );
+          if (grupo.length > 0) {
+            const n = grupo.length;
+            row[grandeza] = {
+              avg_avg: +(grupo.reduce((sum, s) => sum + s.valor_avg, 0) / n).toFixed(4),
+              avg_min: +(grupo.reduce((sum, s) => sum + s.valor_min, 0) / n).toFixed(4),
+              avg_max: +(grupo.reduce((sum, s) => sum + s.valor_max, 0) / n).toFixed(4),
+              unidade: grupo[0].unidade_medida,
+            };
+          }
         }
-      }
-      return row;
-    });
+        return row;
+      });
+    }
+
+    // Agrupa por local, mantendo ordem: interno → externo
+    const locaisOrdenados = ['interno ao silo', 'externo ao silo'] as const;
+    const resumo_por_local = locaisOrdenados
+      .map((local) => {
+        const sensoresDoLocal = sensoresFlat.filter((s) => s.local === local);
+        if (sensoresDoLocal.length === 0) return null;
+        return { local, resumo_alturas: buildResumoAlturas(sensoresDoLocal) };
+      })
+      .filter(Boolean);
 
     // Clima (cache Redis)
     let clima: Record<string, unknown> | null = null;
@@ -233,7 +245,7 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
       },
       clima: (clima as { current?: unknown } | null)?.current ?? null,
       referencia: referencia ? (referencia as Date).toISOString() : null,
-      resumo_alturas,
+      resumo_por_local,
     });
   } catch (err) {
     next(err);
