@@ -115,7 +115,7 @@ function TableHeaders({ nivel }: { nivel: Nivel }) {
     case 'silos':
       return <>{th('Nome', 'nm')}{th('Localização', 'loc')}{th('Status', 'st')}</>;
     case 'barras':
-      return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Status', 'st')}</>;
+      return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Local', 'loc')}{th('Status', 'st')}</>;
     case 'sensores':
       return <>{th('Identificação', 'id')}{th('Barra', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('Status', 'st')}</>;
   }
@@ -150,6 +150,12 @@ function TableCells({ nivel, item }: { nivel: Nivel; item: AnyItem }) {
         <>
           {td(<span className="font-medium text-gray-900">{item.identificacao as string}</span>, 'id')}
           {td((silo?.nome as string) || '—', 'silo')}
+          {td(
+            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 capitalize">
+              {(item.local as string) || '—'}
+            </span>,
+            'loc',
+          )}
           {td(<StatusBadge status={item.status} />, 'st')}
         </>
       );
