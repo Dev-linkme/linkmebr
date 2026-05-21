@@ -119,6 +119,7 @@ model Leitura {
 
   sensor          Sensor    @relation(fields: [sensor_id], references: [id])
 
+  @@unique([sensor_id, timestamp], name: "leituras_sensor_timestamp_uq")
   @@map("leituras")
   @@schema("silos")
 }
