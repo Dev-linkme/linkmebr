@@ -73,8 +73,11 @@
     "email": "E-mail",
     "senha": "Password",
     "entrar": "Sign In",
-    "erro_credenciais": "Invalid credentials",
-    "erro_generico": "Login error"
+    "erro_credenciais": "Incorrect email or password",
+    "erro_muitas_tentativas": "Too many attempts. Please wait 15 minutes and try again.",
+    "erro_generico": "Could not connect to the server. Please try again.",
+    "mostrar_senha": "Show password",
+    "ocultar_senha": "Hide password"
   },
   "dashboard": {
     "titulo": "Silos Dashboard",

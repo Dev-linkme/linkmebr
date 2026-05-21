@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { X, LogIn } from 'lucide-react';
+import { X, LogIn, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface LoginFormData {
@@ -20,6 +20,7 @@ export default function LoginModal({ isOpen, onClose }: Props) {
   const { t } = useTranslation();
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const [showSenha, setShowSenha] = useState(false);
 
   const {
     register,
@@ -38,6 +39,11 @@ export default function LoginModal({ isOpen, onClose }: Props) {
     }
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose]);
+
+  // Reset visibility when modal closes
+  useEffect(() => {
+    if (!isOpen) setShowSenha(false);
+  }, [isOpen]);
 
   // Redirect after successful login
   useEffect(() => {
@@ -59,6 +65,8 @@ export default function LoginModal({ isOpen, onClose }: Props) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401 || status === 403) {
         toast.error(t('auth.erro_credenciais'));
+      } else if (status === 429) {
+        toast.error(t('auth.erro_muitas_tentativas'), { duration: 6000 });
       } else {
         toast.error(t('auth.erro_generico'));
       }
@@ -126,17 +134,28 @@ export default function LoginModal({ isOpen, onClose }: Props) {
             >
               {t('auth.senha')}
             </label>
-            <input
-              id="login-senha"
-              type="password"
-              autoComplete="current-password"
-              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition ${
-                errors.senha ? 'border-red-400' : 'border-gray-300'
-              }`}
-              {...register('senha', {
-                required: t('erros.campo_obrigatorio'),
-              })}
-            />
+            <div className="relative">
+              <input
+                id="login-senha"
+                type={showSenha ? 'text' : 'password'}
+                autoComplete="current-password"
+                className={`w-full px-3 py-2 pr-10 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition ${
+                  errors.senha ? 'border-red-400' : 'border-gray-300'
+                }`}
+                {...register('senha', {
+                  required: t('erros.campo_obrigatorio'),
+                })}
+              />
+              <button
+                type="button"
+                onClick={() => setShowSenha((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+                aria-label={showSenha ? t('auth.ocultar_senha') : t('auth.mostrar_senha')}
+              >
+                {showSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
             {errors.senha && (
               <p className="mt-1 text-xs text-red-500">{errors.senha.message}</p>
             )}

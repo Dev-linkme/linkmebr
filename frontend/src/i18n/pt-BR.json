@@ -73,8 +73,11 @@
     "email": "E-mail",
     "senha": "Senha",
     "entrar": "Entrar",
-    "erro_credenciais": "Credenciais inválidas",
-    "erro_generico": "Erro ao fazer login"
+    "erro_credenciais": "E-mail ou senha incorretos",
+    "erro_muitas_tentativas": "Muitas tentativas. Aguarde 15 minutos e tente novamente.",
+    "erro_generico": "Não foi possível conectar ao servidor. Tente novamente.",
+    "mostrar_senha": "Mostrar senha",
+    "ocultar_senha": "Ocultar senha"
   },
   "dashboard": {
     "titulo": "Painel de Silos",
