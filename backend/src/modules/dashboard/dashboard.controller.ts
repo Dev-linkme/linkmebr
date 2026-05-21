@@ -114,7 +114,7 @@ export async function detalharSilo(
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
-    res.json(silo);
+    res.json(JSON.parse(JSON.stringify(silo, (_, v) => typeof v === 'bigint' ? v.toString() : v)));
   } catch (err) {
     next(err);
   }
