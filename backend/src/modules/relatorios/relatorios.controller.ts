@@ -218,6 +218,75 @@ export async function buscarRange(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export async function buscarGrafico(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const silo_id = Number(req.query.silo_id);
+    if (!silo_id || isNaN(silo_id)) throw new AppError(400, 'silo_id é obrigatório');
+
+    const silo = await prisma.silo.findUnique({ where: { id: silo_id } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    const barra_id = req.query.barra_id ? Number(req.query.barra_id) : undefined;
+    const sensor_id = req.query.sensor_id ? Number(req.query.sensor_id) : undefined;
+    const data_inicio = req.query.data_inicio ? new Date(req.query.data_inicio as string) : undefined;
+    const data_fim = req.query.data_fim ? new Date(req.query.data_fim as string) : undefined;
+
+    const sensorIds = await getSensorIds(silo_id, barra_id, sensor_id);
+    if (sensorIds.length === 0) { res.json({ series: [], sensores: [] }); return; }
+
+    // Escolhe o bucket de tempo conforme o intervalo selecionado
+    const diffHoras = data_inicio && data_fim
+      ? (data_fim.getTime() - data_inicio.getTime()) / 3_600_000
+      : 24 * 7;
+    const bucket = diffHoras <= 24 ? '10 minutes' : diffHoras <= 24 * 7 ? '1 hour' : '3 hours';
+
+    const whereClause: string[] = [`l.sensor_id = ANY($1::int[])`];
+    const params: unknown[] = [sensorIds];
+    if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
+    if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
+
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      sensor_id: number;
+      bucket: Date;
+      avg: number;
+      max: number;
+      min: number;
+    }>>(
+      `SELECT l.sensor_id,
+              date_trunc('${bucket}', l.timestamp) AS bucket,
+              AVG(l.valor_avg)::float AS avg,
+              MAX(l.valor_max)::float AS max,
+              MIN(l.valor_min)::float AS min
+       FROM silos.leituras l
+       WHERE ${whereClause.join(' AND ')}
+       GROUP BY l.sensor_id, bucket
+       ORDER BY l.sensor_id, bucket`,
+      ...params,
+    );
+
+    // Busca metadados dos sensores
+    const sensores = await prisma.sensor.findMany({
+      where: { id: { in: sensorIds } },
+      select: { id: true, identificacao: true, tipo_grandeza: true, unidade_medida: true, altura_solo_m: true },
+      orderBy: { id: 'asc' },
+    });
+
+    res.json({
+      series: rows.map((r) => ({
+        sensor_id: r.sensor_id,
+        bucket: r.bucket instanceof Date ? r.bucket.toISOString() : r.bucket,
+        avg: Number(r.avg),
+        max: Number(r.max),
+        min: Number(r.min),
+      })),
+      sensores: sensores.map((s) => ({ ...s, altura_solo_m: Number(s.altura_solo_m) })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Retorna IDs de sensores com base em silo/barra/sensor
 async function getSensorIds(
   siloId: number,

@@ -57,6 +57,27 @@ interface RelatorioResponse {
   total: number;
 }
 
+interface GraficoSerie {
+  sensor_id: number;
+  bucket: string;
+  avg: number;
+  max: number;
+  min: number;
+}
+
+interface GraficoSensor {
+  id: number;
+  identificacao: string;
+  tipo_grandeza: GrandezaTipo;
+  unidade_medida: string;
+  altura_solo_m: number;
+}
+
+interface GraficoResponse {
+  series: GraficoSerie[];
+  sensores: GraficoSensor[];
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatTimestamp(ts: string): string {
@@ -98,40 +119,30 @@ function formatNum(val: number | undefined | null, decimals = 2): string {
 
 interface GrandezaChartProps {
   grandeza: GrandezaTipo;
-  dados: Leitura[];
-  sensores: Sensor[];
+  series: GraficoSerie[];
+  sensores: GraficoSensor[];
 }
 
-function GrandezaChart({ grandeza, dados, sensores }: GrandezaChartProps) {
-  // Filter sensors of this grandeza that actually appear in data
-  const sensoresDaGrandeza = sensores.filter(
-    (s) => s.tipo_grandeza === grandeza && dados.some((d) => d.sensor_id === s.id)
-  );
-
+function GrandezaChart({ grandeza, series, sensores }: GrandezaChartProps) {
+  const sensoresDaGrandeza = sensores.filter((s) => s.tipo_grandeza === grandeza);
   if (sensoresDaGrandeza.length === 0) return null;
 
-  // Build chart data: sorted unique timestamps, each row has sensorId -> valor_avg
-  const dadosDaGrandeza = dados.filter((d) =>
-    sensoresDaGrandeza.some((s) => s.id === d.sensor_id)
+  const seriesDaGrandeza = series.filter((s) =>
+    sensoresDaGrandeza.some((sensor) => sensor.id === s.sensor_id)
   );
+  if (seriesDaGrandeza.length === 0) return null;
 
-  const tsSet = new Set(dadosDaGrandeza.map((d) => d.timestamp));
-  const tsArr = Array.from(tsSet).sort();
+  const buckets = Array.from(new Set(seriesDaGrandeza.map((s) => s.bucket))).sort();
 
-  const chartData = tsArr.map((ts) => {
-    const row: Record<string, unknown> = { timestamp: ts };
+  const chartData = buckets.map((bucket) => {
+    const row: Record<string, unknown> = { bucket };
     sensoresDaGrandeza.forEach((s) => {
-      const leitura = dadosDaGrandeza.find(
-        (d) => d.sensor_id === s.id && d.timestamp === ts
-      );
-      if (leitura) {
-        row[String(s.id)] = leitura.valor_avg;
-      }
+      const ponto = seriesDaGrandeza.find((d) => d.bucket === bucket && d.sensor_id === s.id);
+      if (ponto) row[String(s.id)] = ponto.avg;
     });
     return row;
   });
 
-  // Determine unidade from first sensor
   const unidade = sensoresDaGrandeza[0]?.unidade_medida ?? '';
 
   return (
@@ -144,27 +155,20 @@ function GrandezaChart({ grandeza, dados, sensores }: GrandezaChartProps) {
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
-            dataKey="timestamp"
+            dataKey="bucket"
             tickFormatter={formatTimestamp}
             tick={{ fontSize: 11 }}
             minTickGap={40}
           />
           <YAxis
             tick={{ fontSize: 11 }}
-            label={{
-              value: unidade,
-              angle: -90,
-              position: 'insideLeft',
-              style: { fontSize: 11 },
-            }}
+            label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
           />
           <Tooltip
             labelFormatter={(val) => formatTimestamp(String(val))}
             formatter={(val, name) => {
               const sensor = sensoresDaGrandeza.find((s) => String(s.id) === String(name));
-              const label = sensor
-                ? `${sensor.identificacao} (${sensor.altura_solo_m}m)`
-                : String(name);
+              const label = sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : String(name);
               const numVal = typeof val === 'number' ? val.toFixed(2) : val;
               return [`${numVal} ${unidade}`, label];
             }}
@@ -172,9 +176,7 @@ function GrandezaChart({ grandeza, dados, sensores }: GrandezaChartProps) {
           <Legend
             formatter={(value) => {
               const sensor = sensoresDaGrandeza.find((s) => String(s.id) === value);
-              return sensor
-                ? `${sensor.identificacao} (${sensor.altura_solo_m}m)`
-                : value;
+              return sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : value;
             }}
           />
           {sensoresDaGrandeza.map((s, idx) => (
@@ -231,7 +233,6 @@ export default function RelatoriosPage() {
 
   // Results
   const [dados, setDados] = useState<Leitura[]>([]);
-  const [todosSensores, setTodosSensores] = useState<Sensor[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingExport, setLoadingExport] = useState(false);
   const [pagina, setPagina] = useState(1);
@@ -240,6 +241,10 @@ export default function RelatoriosPage() {
 
   // Tab
   const [activeTab, setActiveTab] = useState<'tabela' | 'grafico'>('tabela');
+
+  // Chart data (aggregated)
+  const [grafico, setGrafico] = useState<GraficoResponse | null>(null);
+  const [loadingGrafico, setLoadingGrafico] = useState(false);
 
   // Sort
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -313,12 +318,6 @@ export default function RelatoriosPage() {
         setPagina(res.data.pagina);
         setTotalPaginas(res.data.total_paginas);
 
-        // Collect all unique sensors from the returned data
-        const sensMap = new Map<number, Sensor>();
-        res.data.dados.forEach((d) => {
-          if (d.sensor) sensMap.set(d.sensor_id, d.sensor);
-        });
-        setTodosSensores(Array.from(sensMap.values()));
       } catch {
         toast.error('Erro ao consultar leituras');
       } finally {
@@ -328,10 +327,28 @@ export default function RelatoriosPage() {
     []
   );
 
+  const fetchGrafico = useCallback(async (filtros: FiltrosForm) => {
+    setLoadingGrafico(true);
+    try {
+      const params: Record<string, string> = { silo_id: filtros.silo_id };
+      if (filtros.barra_id) params.barra_id = filtros.barra_id;
+      if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
+      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
+      if (filtros.data_fim) params.data_fim = filtros.data_fim;
+      const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
+      setGrafico(res.data);
+    } catch {
+      toast.error('Erro ao carregar gráfico');
+    } finally {
+      setLoadingGrafico(false);
+    }
+  }, []);
+
   const onSubmit = (filtros: FiltrosForm) => {
     setLastFiltros(filtros);
     setSortField(null);
     fetchDados(filtros, 1);
+    fetchGrafico(filtros);
   };
 
   const handlePageChange = (newPage: number) => {
@@ -397,7 +414,7 @@ export default function RelatoriosPage() {
 
   // ── Chart data ─────────────────────────────────────────────────────────────
   const grandezasPresentes = Array.from(
-    new Set(todosSensores.map((s) => s.tipo_grandeza))
+    new Set((grafico?.sensores ?? []).map((s) => s.tipo_grandeza))
   ) as GrandezaTipo[];
 
   // ── Sort Icon helper ───────────────────────────────────────────────────────
@@ -572,16 +589,26 @@ export default function RelatoriosPage() {
       )}
 
       {/* Charts */}
-      {dados.length > 0 && activeTab === 'grafico' && (
+      {activeTab === 'grafico' && lastFiltros && (
         <div>
-          {grandezasPresentes.map((grandeza) => (
-            <GrandezaChart
-              key={grandeza}
-              grandeza={grandeza}
-              dados={dados}
-              sensores={todosSensores}
-            />
-          ))}
+          {loadingGrafico ? (
+            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
+              {t('geral.carregando')}
+            </div>
+          ) : grafico && grafico.series.length > 0 ? (
+            grandezasPresentes.map((grandeza) => (
+              <GrandezaChart
+                key={grandeza}
+                grandeza={grandeza}
+                series={grafico.series}
+                sensores={grafico.sensores}
+              />
+            ))
+          ) : (
+            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
+              {t('relatorios.sem_dados')}
+            </div>
+          )}
         </div>
       )}
 
