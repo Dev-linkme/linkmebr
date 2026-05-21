@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { MessageSquare, ChevronDown, ChevronUp, Save } from 'lucide-react';
+import { MessageSquare, ChevronDown, ChevronUp, Save, Eye, X } from 'lucide-react';
 import api from '../services/api';
 import type { SolicitacaoContato } from '../types/index.ts';
 
@@ -125,6 +125,58 @@ function RowDetail({ contato, onUpdated }: RowDetailProps) {
   );
 }
 
+// ─── Modal de Visualização ────────────────────────────────────────────────────
+
+function ViewModal({ contato, onClose }: { contato: SolicitacaoContato; onClose: () => void }) {
+  const campos = [
+    { label: 'ID', value: String(contato.id) },
+    { label: 'Nome', value: contato.nome },
+    { label: 'Empresa', value: contato.empresa ?? '—' },
+    { label: 'E-mail', value: contato.email },
+    { label: 'Telefone', value: contato.telefone ?? '—' },
+    { label: 'Data', value: formatDate(contato.data_hora) },
+    {
+      label: 'Status',
+      value: STATUS_LABEL[contato.status as StatusContato] ?? contato.status,
+      badge: STATUS_BADGE[contato.status as StatusContato],
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-gray-900">Detalhes do Contato</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <dl className="space-y-3">
+          {campos.map(({ label, value, badge }) => (
+            <div key={label} className="flex items-start gap-2">
+              <dt className="w-24 shrink-0 text-xs font-semibold text-gray-500 uppercase pt-0.5">{label}</dt>
+              <dd className="text-sm text-gray-800">
+                {badge ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge}`}>{value}</span> : value}
+              </dd>
+            </div>
+          ))}
+          <div className="flex items-start gap-2">
+            <dt className="w-24 shrink-0 text-xs font-semibold text-gray-500 uppercase pt-0.5">Mensagem</dt>
+            <dd className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 rounded p-3 flex-1">{contato.mensagem}</dd>
+          </div>
+          {contato.observacoes_internas && (
+            <div className="flex items-start gap-2">
+              <dt className="w-24 shrink-0 text-xs font-semibold text-gray-500 uppercase pt-0.5">Obs. internas</dt>
+              <dd className="text-sm text-gray-800 whitespace-pre-wrap bg-yellow-50 rounded p-3 flex-1">{contato.observacoes_internas}</dd>
+            </div>
+          )}
+        </dl>
+        <div className="mt-6 flex justify-end">
+          <button onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm">Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ContatosPage() {
@@ -132,6 +184,7 @@ export default function ContatosPage() {
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<StatusFiltro>('todos');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewingContato, setViewingContato] = useState<SolicitacaoContato | null>(null);
 
   const fetchContatos = async () => {
     try {
@@ -269,7 +322,16 @@ export default function ContatosPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-400">
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setViewingContato(contato); }}
+                              title="Visualizar"
+                              className="text-gray-400 hover:text-blue-600 p-1 rounded"
+                            >
+                              <Eye size={15} />
+                            </button>
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </div>
                         </td>
                       </tr>
                       {isExpanded && (
@@ -290,6 +352,8 @@ export default function ContatosPage() {
           </div>
         )}
       </div>
+
+      {viewingContato && <ViewModal contato={viewingContato} onClose={() => setViewingContato(null)} />}
     </div>
   );
 }

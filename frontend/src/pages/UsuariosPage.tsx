@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Users, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Eye } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { Usuario, Empresa } from '../types/index.ts';
@@ -28,6 +28,80 @@ const PERFIL_BADGE: Record<Perfil, string> = {
   operador_empresa: 'bg-gray-100 text-gray-800',
 };
 
+const SENHA_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
+const SENHA_HINT = 'Mínimo 8 caracteres com letra maiúscula, minúscula, número e caractere especial (@$!%*?&).';
+
+// ─── Modal de Visualização ────────────────────────────────────────────────────
+
+interface ViewModalProps {
+  usuario: Usuario;
+  empresaNome: string;
+  onClose: () => void;
+}
+
+function ViewModal({ usuario, empresaNome, onClose }: ViewModalProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-gray-900">Detalhes do Usuário</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <dl className="space-y-3">
+          {[
+            { label: 'ID', value: String(usuario.id) },
+            { label: 'Nome Completo', value: usuario.nome_completo },
+            { label: 'E-mail', value: usuario.email },
+            {
+              label: 'Perfil',
+              value: PERFIL_LABELS[usuario.perfil] ?? usuario.perfil,
+              badge: PERFIL_BADGE[usuario.perfil],
+            },
+            { label: 'Empresa', value: empresaNome },
+            {
+              label: 'Status',
+              value: usuario.status === 'ativo' ? 'Ativo' : 'Inativo',
+              badge:
+                usuario.status === 'ativo'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800',
+            },
+          ].map(({ label, value, badge }) => (
+            <div key={label} className="flex items-start gap-2">
+              <dt className="w-36 shrink-0 text-xs font-semibold text-gray-500 uppercase pt-0.5">
+                {label}
+              </dt>
+              <dd className="text-sm text-gray-800">
+                {badge ? (
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge}`}>
+                    {value}
+                  </span>
+                ) : (
+                  value
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={onClose}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Página Principal ─────────────────────────────────────────────────────────
+
 export default function UsuariosPage() {
   const { user: authUser, isAdminGeral } = useAuth();
 
@@ -37,6 +111,7 @@ export default function UsuariosPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [viewingUsuario, setViewingUsuario] = useState<Usuario | null>(null);
 
   const {
     register,
@@ -66,7 +141,7 @@ export default function UsuariosPage() {
       const res = await api.get<{ data: Empresa[] }>('/empresas');
       setEmpresas(res.data.data ?? []);
     } catch {
-      // silently ignore — empresas are only needed for adm_geral
+      // silently ignore
     }
   };
 
@@ -105,9 +180,7 @@ export default function UsuariosPage() {
     reset();
   };
 
-  // Whether the empresa_id field should be shown
-  const showEmpresaField =
-    isAdminGeral && perfilSelecionado !== 'administrador_geral';
+  const showEmpresaField = isAdminGeral && perfilSelecionado !== 'administrador_geral';
 
   const onSubmit = async (data: UsuarioFormData) => {
     const payload: Record<string, unknown> = {
@@ -116,23 +189,14 @@ export default function UsuariosPage() {
       perfil: data.perfil,
     };
 
-    if (data.senha) {
-      payload.senha = data.senha;
-    }
-
-    if (showEmpresaField && data.empresa_id) {
-      payload.empresa_id = Number(data.empresa_id);
-    }
+    if (data.senha) payload.senha = data.senha;
+    if (showEmpresaField && data.empresa_id) payload.empresa_id = Number(data.empresa_id);
 
     try {
       if (editingId !== null) {
         await api.put(`/usuarios/${editingId}`, payload);
         toast.success('Usuário atualizado com sucesso.');
       } else {
-        if (!data.senha) {
-          toast.error('Senha é obrigatória para criar um usuário.');
-          return;
-        }
         await api.post('/usuarios', payload);
         toast.success('Usuário criado com sucesso.');
       }
@@ -200,7 +264,7 @@ export default function UsuariosPage() {
         )}
       </div>
 
-      {/* Inline form */}
+      {/* Formulário inline */}
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -221,8 +285,13 @@ export default function UsuariosPage() {
                 </label>
                 <input
                   type="text"
-                  {...register('nome_completo', { required: 'Nome completo é obrigatório.' })}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  {...register('nome_completo', {
+                    required: 'Nome completo é obrigatório.',
+                    minLength: { value: 2, message: 'Nome deve ter ao menos 2 caracteres.' },
+                  })}
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                    errors.nome_completo ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
                 {errors.nome_completo && (
                   <p className="text-red-500 text-xs mt-1">{errors.nome_completo.message}</p>
@@ -240,10 +309,12 @@ export default function UsuariosPage() {
                     required: 'E-mail é obrigatório.',
                     pattern: {
                       value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      message: 'E-mail inválido.',
+                      message: 'Informe um e-mail válido (ex: nome@dominio.com).',
                     },
                   })}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                    errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
                 {errors.email && (
                   <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
@@ -262,15 +333,21 @@ export default function UsuariosPage() {
                   type="password"
                   {...register('senha', {
                     required: editingId === null ? 'Senha é obrigatória.' : false,
-                    minLength: {
-                      value: 6,
-                      message: 'Senha deve ter ao menos 6 caracteres.',
+                    validate: (value) => {
+                      if (!value) return true;
+                      if (value.length < 8) return 'Senha deve ter ao menos 8 caracteres.';
+                      if (!SENHA_REGEX.test(value)) return 'Senha inválida. ' + SENHA_HINT;
+                      return true;
                     },
                   })}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                    errors.senha ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
-                {errors.senha && (
+                {errors.senha ? (
                   <p className="text-red-500 text-xs mt-1">{errors.senha.message}</p>
+                ) : (
+                  <p className="text-gray-400 text-xs mt-1">{SENHA_HINT}</p>
                 )}
               </div>
 
@@ -281,7 +358,9 @@ export default function UsuariosPage() {
                 </label>
                 <select
                   {...register('perfil', { required: 'Perfil é obrigatório.' })}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white ${
+                    errors.perfil ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                  }`}
                 >
                   {perfilOptions.map((p) => (
                     <option key={p} value={p}>
@@ -294,7 +373,7 @@ export default function UsuariosPage() {
                 )}
               </div>
 
-              {/* Empresa — só visível para adm_geral quando perfil != adm_geral */}
+              {/* Empresa */}
               {showEmpresaField && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
@@ -317,14 +396,14 @@ export default function UsuariosPage() {
               <button
                 type="button"
                 onClick={closeForm}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-60"
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm disabled:opacity-60"
               >
                 {isSubmitting ? 'Salvando...' : 'Salvar'}
               </button>
@@ -333,7 +412,7 @@ export default function UsuariosPage() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Tabela */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex justify-center items-center py-12">
@@ -348,9 +427,6 @@ export default function UsuariosPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Nome
                   </th>
@@ -378,21 +454,18 @@ export default function UsuariosPage() {
                   const isSelf = usr.id === authUser?.id;
                   return (
                     <tr key={usr.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-500">{usr.id}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">
                         {usr.nome_completo}
-                        {isSelf && (
-                          <span className="ml-2 text-xs text-gray-400">(você)</span>
-                        )}
+                        {isSelf && <span className="ml-2 text-xs text-gray-400">(você)</span>}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{usr.email}</td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            PERFIL_BADGE[usr.perfil as Perfil] ?? 'bg-gray-100 text-gray-800'
+                            PERFIL_BADGE[usr.perfil] ?? 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {PERFIL_LABELS[usr.perfil as Perfil] ?? usr.perfil}
+                          {PERFIL_LABELS[usr.perfil] ?? usr.perfil}
                         </span>
                       </td>
                       {isAdminGeral && (
@@ -413,6 +486,13 @@ export default function UsuariosPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setViewingUsuario(usr)}
+                            title="Visualizar"
+                            className="text-gray-500 hover:text-blue-600 p-1 rounded"
+                          >
+                            <Eye size={16} />
+                          </button>
                           <button
                             onClick={() => openEdit(usr)}
                             title="Editar"
@@ -465,7 +545,16 @@ export default function UsuariosPage() {
         )}
       </div>
 
-      {/* Delete confirmation modal */}
+      {/* Modal de visualização */}
+      {viewingUsuario && (
+        <ViewModal
+          usuario={viewingUsuario}
+          empresaNome={getEmpresaNome(viewingUsuario.empresa_id)}
+          onClose={() => setViewingUsuario(null)}
+        />
+      )}
+
+      {/* Modal de confirmação de exclusão */}
       {confirmDeleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
@@ -476,13 +565,13 @@ export default function UsuariosPage() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setConfirmDeleteId(null)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handleDelete(confirmDeleteId)}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm"
               >
                 Excluir
               </button>
