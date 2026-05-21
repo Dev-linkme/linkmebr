@@ -14,6 +14,8 @@ import {
   X,
   Leaf,
   ChevronDown,
+  Layers,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -31,6 +33,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminExpanded, setAdminExpanded] = useState(false);
+  const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -89,8 +92,33 @@ export default function AppLayout() {
     return user ? item.perfis.includes(user.perfil) : false;
   };
 
+  const cadastrosNavItems: NavItem[] = [
+    {
+      to: '/cadastros/empresas',
+      label: t('cadastros.empresas'),
+      icon: <Building2 size={16} />,
+      perfis: ['administrador_geral'],
+    },
+    {
+      to: '/cadastros/silos',
+      label: t('cadastros.silos'),
+      icon: <Database size={16} />,
+    },
+    {
+      to: '/cadastros/barras',
+      label: t('cadastros.barras'),
+      icon: <Layers size={16} />,
+    },
+    {
+      to: '/cadastros/sensores',
+      label: t('cadastros.sensores'),
+      icon: <Activity size={16} />,
+    },
+  ];
+
   const showAdminSection = isAdminGeral || isAdminEmpresa;
   const visibleAdminItems = adminNavItems.filter(canSeeItem);
+  const visibleCadastrosItems = cadastrosNavItems.filter(canSeeItem);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -138,6 +166,42 @@ export default function AppLayout() {
             {adminExpanded && (
               <div className="mt-1 space-y-1">
                 {visibleAdminItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-primary-50 text-primary-700'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`
+                    }
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {visibleCadastrosItems.length > 0 && (
+          <div className="pt-3">
+            <button
+              onClick={() => setCadastrosExpanded(!cadastrosExpanded)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors"
+            >
+              <span>{t('nav.cadastros')}</span>
+              <ChevronDown
+                size={14}
+                className={`transition-transform ${cadastrosExpanded ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {cadastrosExpanded && (
+              <div className="mt-1 space-y-1">
+                {visibleCadastrosItems.map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

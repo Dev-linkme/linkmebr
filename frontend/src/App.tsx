@@ -12,6 +12,7 @@ import EmpresasPage from './pages/EmpresasPage';
 import UsuariosPage from './pages/UsuariosPage';
 import FaqAdminPage from './pages/FaqAdminPage';
 import ContatosPage from './pages/ContatosPage';
+import CadastrosPage from './pages/CadastrosPage';
 
 export default function App() {
   return (
@@ -104,6 +105,18 @@ export default function App() {
         }
       >
         <Route index element={<ContatosPage />} />
+      </Route>
+
+      {/* Cadastros — visualização hierárquica (todos os perfis autenticados) */}
+      <Route
+        path="/cadastros"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path=":nivel" element={<CadastrosPage />} />
       </Route>
 
       {/* Catch-all */}

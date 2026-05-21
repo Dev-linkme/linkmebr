@@ -7,7 +7,14 @@
     "dashboard": "Dashboard",
     "silos": "Silos",
     "relatorios": "Reports",
-    "admin": "Administration"
+    "admin": "Administration",
+    "cadastros": "Records"
+  },
+  "cadastros": {
+    "empresas": "Companies",
+    "silos": "Silos",
+    "barras": "Bars",
+    "sensores": "Sensors"
   },
   "hero": {
     "headline": "Intelligent monitoring of grain quality in silos",

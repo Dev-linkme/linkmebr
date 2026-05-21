@@ -7,7 +7,14 @@
     "dashboard": "Painel",
     "silos": "Silos",
     "relatorios": "Relatórios",
-    "admin": "Administração"
+    "admin": "Administração",
+    "cadastros": "Cadastros"
+  },
+  "cadastros": {
+    "empresas": "Empresas",
+    "silos": "Silos",
+    "barras": "Barras",
+    "sensores": "Sensores"
   },
   "hero": {
     "headline": "Monitoramento inteligente da qualidade de grãos em silos",

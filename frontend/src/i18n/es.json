@@ -7,7 +7,14 @@
     "dashboard": "Panel",
     "silos": "Silos",
     "relatorios": "Informes",
-    "admin": "Administración"
+    "admin": "Administración",
+    "cadastros": "Registros"
+  },
+  "cadastros": {
+    "empresas": "Empresas",
+    "silos": "Silos",
+    "barras": "Barras",
+    "sensores": "Sensores"
   },
   "hero": {
     "headline": "Monitoreo inteligente de la calidad de granos en silos",
