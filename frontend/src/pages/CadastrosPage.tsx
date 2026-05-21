@@ -117,7 +117,7 @@ function TableHeaders({ nivel }: { nivel: Nivel }) {
     case 'barras':
       return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Status', 'st')}</>;
     case 'sensores':
-      return <>{th('Identificação', 'id')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('Status', 'st')}</>;
+      return <>{th('Identificação', 'id')}{th('Barra', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('Status', 'st')}</>;
   }
 }
 
@@ -154,16 +154,19 @@ function TableCells({ nivel, item }: { nivel: Nivel; item: AnyItem }) {
         </>
       );
     }
-    case 'sensores':
+    case 'sensores': {
+      const barra = item.barra as Record<string, unknown> | undefined;
       return (
         <>
           {td(<span className="font-medium text-gray-900">{item.identificacao as string}</span>, 'id')}
+          {td((barra?.identificacao as string) || '—', 'br')}
           {td(item.tipo_grandeza as string, 'tp')}
           {td((item.unidade_medida as string) || '—', 'un')}
           {td(item.altura_solo_m != null ? `${item.altura_solo_m} m` : '—', 'alt')}
           {td(<StatusBadge status={item.status} />, 'st')}
         </>
       );
+    }
   }
 }
 

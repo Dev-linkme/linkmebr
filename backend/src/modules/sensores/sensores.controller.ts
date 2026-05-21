@@ -42,6 +42,9 @@ export async function listarSensoresDeBarra(
         skip,
         take: limit,
         orderBy: { altura_solo_m: 'asc' },
+        include: {
+          barra: { select: { id: true, identificacao: true } },
+        },
       }),
     ]);
 
