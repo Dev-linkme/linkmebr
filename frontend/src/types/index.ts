@@ -48,6 +48,7 @@ export interface Sensor {
   tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
   unidade_medida: string;
   status: string;
+  barra?: Pick<Barra, 'id' | 'identificacao'>;
 }
 
 export interface Leitura {

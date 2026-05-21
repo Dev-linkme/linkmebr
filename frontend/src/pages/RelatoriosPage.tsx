@@ -611,7 +611,7 @@ export default function RelatoriosPage() {
                   <tbody className="divide-y divide-gray-100">
                     {sortedDados.map((leitura) => {
                       const sensor = leitura.sensor;
-                      const barra = leitura.barra;
+                      const barra = leitura.sensor?.barra;
                       const isInativo = sensor?.status === 'inativo';
                       return (
                         <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">

@@ -46,7 +46,7 @@ export async function buscarLeituras(
       ...(Object.keys(whereTimestamp).length > 0 ? { timestamp: whereTimestamp } : {}),
     };
 
-    const [total, leituras] = await Promise.all([
+    const [totalRaw, leituras] = await Promise.all([
       prisma.leitura.count({ where }),
       prisma.leitura.findMany({
         where,
@@ -72,9 +72,12 @@ export async function buscarLeituras(
       }),
     ]);
 
+    const total = Number(totalRaw);
     res.json({
-      data: leituras,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      dados: leituras,
+      total,
+      pagina: page,
+      total_paginas: Math.ceil(total / limit),
     });
   } catch (err) {
     next(err);
