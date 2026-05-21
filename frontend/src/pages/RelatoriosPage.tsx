@@ -117,13 +117,22 @@ function formatNum(val: number | undefined | null, decimals = 2): string {
 
 // ─── Chart per grandeza ────────────────────────────────────────────────────────
 
+type ValorTipo = 'avg' | 'min' | 'max';
+
+const VALOR_LABELS: Record<ValorTipo, string> = {
+  avg: 'Média',
+  min: 'Mínimo',
+  max: 'Máximo',
+};
+
 interface GrandezaChartProps {
   grandeza: GrandezaTipo;
   series: GraficoSerie[];
   sensores: GraficoSensor[];
+  valor: ValorTipo;
 }
 
-function GrandezaChart({ grandeza, series, sensores }: GrandezaChartProps) {
+function GrandezaChart({ grandeza, series, sensores, valor }: GrandezaChartProps) {
   const sensoresDaGrandeza = sensores.filter((s) => s.tipo_grandeza === grandeza);
   if (sensoresDaGrandeza.length === 0) return null;
 
@@ -138,7 +147,7 @@ function GrandezaChart({ grandeza, series, sensores }: GrandezaChartProps) {
     const row: Record<string, unknown> = { bucket };
     sensoresDaGrandeza.forEach((s) => {
       const ponto = seriesDaGrandeza.find((d) => d.bucket === bucket && d.sensor_id === s.id);
-      if (ponto) row[String(s.id)] = ponto.avg;
+      if (ponto) row[String(s.id)] = ponto[valor];
     });
     return row;
   });
@@ -245,6 +254,7 @@ export default function RelatoriosPage() {
   // Chart data (aggregated)
   const [grafico, setGrafico] = useState<GraficoResponse | null>(null);
   const [loadingGrafico, setLoadingGrafico] = useState(false);
+  const [valorTipo, setValorTipo] = useState<ValorTipo>('avg');
 
   // Sort
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -596,14 +606,36 @@ export default function RelatoriosPage() {
               {t('geral.carregando')}
             </div>
           ) : grafico && grafico.series.length > 0 ? (
-            grandezasPresentes.map((grandeza) => (
-              <GrandezaChart
-                key={grandeza}
-                grandeza={grandeza}
-                series={grafico.series}
-                sensores={grafico.sensores}
-              />
-            ))
+            <>
+              {/* Seletor de valor */}
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-sm text-gray-500">Exibindo:</span>
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                  {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setValorTipo(v)}
+                      className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                        valorTipo === v
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-white text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {VALOR_LABELS[v]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {grandezasPresentes.map((grandeza) => (
+                <GrandezaChart
+                  key={grandeza}
+                  grandeza={grandeza}
+                  series={grafico.series}
+                  sensores={grafico.sensores}
+                  valor={valorTipo}
+                />
+              ))}
+            </>
           ) : (
             <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
               {t('relatorios.sem_dados')}
