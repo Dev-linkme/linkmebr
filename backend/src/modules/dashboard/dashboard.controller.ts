@@ -63,6 +63,8 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
         nome: silo.nome,
         cidade: silo.cidade,
         estado: silo.estado,
+        latitude: silo.latitude,
+        longitude: silo.longitude,
         status: silo.status,
         empresa: silo.empresa,
         total_barras_ativas: silo.barras.length,
