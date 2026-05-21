@@ -53,7 +53,12 @@ export async function listar(req: Request, res: Response, next: NextFunction): P
 
 export async function criar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = criarSiloSchema.safeParse(req.body);
+    const body = {
+      ...req.body,
+      empresa_id: req.body.empresa_id ?? req.user?.empresa_id,
+    };
+
+    const data = criarSiloSchema.safeParse(body);
     if (!data.success) {
       throw new AppError(400, data.error.errors.map((e) => e.message).join(', '));
     }
