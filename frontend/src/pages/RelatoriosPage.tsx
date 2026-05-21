@@ -193,6 +193,7 @@ export default function RelatoriosPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FiltrosForm>({
     defaultValues: {
@@ -244,22 +245,25 @@ export default function RelatoriosPage() {
   useEffect(() => {
     setBarras([]);
     setSensores([]);
+    setValue('barra_id', '');
+    setValue('sensor_id', '');
     if (!siloId) return;
     api
-      .get<{ data: Barra[] }>(`/silos/${siloId}/barras`)
+      .get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
       .catch(() => toast.error('Erro ao carregar barras'));
-  }, [siloId]);
+  }, [siloId, setValue]);
 
   // ── Load sensores when barra changes ──────────────────────────────────────
   useEffect(() => {
     setSensores([]);
+    setValue('sensor_id', '');
     if (!barraId) return;
     api
-      .get<{ data: Sensor[] }>(`/barras/${barraId}/sensores`)
+      .get<{ data: Sensor[] }>(`/barras/${barraId}/sensores?per_page=200`)
       .then((res) => setSensores(res.data.data ?? []))
       .catch(() => toast.error('Erro ao carregar sensores'));
-  }, [barraId]);
+  }, [barraId, setValue]);
 
   // ── Query ──────────────────────────────────────────────────────────────────
   const fetchDados = useCallback(
