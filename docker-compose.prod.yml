@@ -1,5 +1,6 @@
 # Uso no Droplet: docker compose -f docker-compose.prod.yml up -d --build
-# Portas expostas apenas para localhost — nginx do host faz o proxy com SSL.
+# Portas expostas diretamente. Quando nginx + SSL estiver configurado,
+# trocar para 127.0.0.1:3000:80 / 127.0.0.1:8080:8080 e instalar nginx.
 
 services:
 
@@ -32,7 +33,7 @@ services:
       PORT: 8080
       NODE_ENV: production
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     depends_on:
       redis:
         condition: service_healthy
@@ -45,11 +46,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://linkeme.tec.br/api/v1
+        VITE_API_URL: http://157.245.139.143:8080/api/v1
     container_name: linkmebr_frontend
     restart: always
     ports:
-      - "127.0.0.1:3000:80"
+      - "80:80"
     depends_on:
       - backend
     networks:
