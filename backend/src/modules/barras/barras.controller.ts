@@ -35,6 +35,7 @@ export async function listarBarrasDeSilo(
         take: limit,
         orderBy: { identificacao: 'asc' },
         include: {
+          silo: { select: { id: true, nome: true } },
           _count: { select: { sensores: true } },
         },
       }),
