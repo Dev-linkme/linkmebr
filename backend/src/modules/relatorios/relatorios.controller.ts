@@ -58,8 +58,10 @@ export async function buscarLeituras(
             select: {
               id: true,
               identificacao: true,
+              altura_solo_m: true,
               tipo_grandeza: true,
               unidade_medida: true,
+              status: true,
               barra: {
                 select: {
                   id: true,
@@ -249,8 +251,10 @@ function serializeLeitura(l: {
   sensor: {
     id: number;
     identificacao: string;
+    altura_solo_m: { toNumber(): number };
     tipo_grandeza: string;
     unidade_medida: string;
+    status: string;
     barra: { id: number; identificacao: string };
   };
 }) {
@@ -265,6 +269,7 @@ function serializeLeitura(l: {
     desvio_padrao: l.desvio_padrao ? l.desvio_padrao.toNumber() : null,
     sensor: {
       ...l.sensor,
+      altura_solo_m: l.sensor.altura_solo_m.toNumber(),
     },
   };
 }
