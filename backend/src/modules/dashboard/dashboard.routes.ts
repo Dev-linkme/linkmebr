@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middlewares/authenticate';
 import { authorize } from '../../middlewares/authorize';
-import { listarSilos, detalharSilo, climaSilo } from './dashboard.controller';
+import { listarSilos, detalharSilo, climaSilo, painelSilo } from './dashboard.controller';
 
 const router = Router();
 
@@ -41,6 +41,13 @@ router.get(
  *       200:
  *         description: Detalhes do silo
  */
+router.get(
+  '/silos/:id/painel',
+  authenticate,
+  authorize('administrador_geral', 'administrador_empresa', 'operador_empresa'),
+  painelSilo,
+);
+
 router.get(
   '/silos/:id',
   authenticate,

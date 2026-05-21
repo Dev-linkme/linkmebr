@@ -1,56 +1,146 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useEffect, useState, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import iconUrl from 'leaflet/dist/images/marker-icon.png';
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
-import { AlertTriangle, CheckCircle, Database, MapPin } from 'lucide-react';
+import {
+  AlertTriangle, CheckCircle, Database, MapPin,
+  Thermometer, Droplets, Wind,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import type { Silo } from '../types/index';
 
-// Fix Leaflet default icon
-L.Icon.Default.mergeOptions({ iconUrl, shadowUrl, iconRetinaUrl: iconUrl });
+// ── Ícones do mapa ──────────────────────────────────────────────────────────
 
-const greenIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+function makeLabelIcon(nome: string, hasAlert: boolean) {
+  const bg = hasAlert ? '#ef4444' : '#16a34a';
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      background:${bg};color:#fff;padding:3px 10px;border-radius:9999px;
+      font-size:12px;font-weight:700;white-space:nowrap;
+      box-shadow:0 1px 4px rgba(0,0,0,.35);border:2px solid #fff;
+    ">${nome}</div>`,
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -10],
+  });
+}
 
-const redIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+// ── Centraliza mapa no silo selecionado ─────────────────────────────────────
+
+function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => { map.flyTo([lat, lng], 13, { duration: 1 }); }, [lat, lng, map]);
+  return null;
+}
+
+// ── Tipos ───────────────────────────────────────────────────────────────────
+
+interface ResumoGrandeza {
+  avg_avg: number;
+  avg_min: number;
+  avg_max: number;
+  unidade: string;
+}
+
+interface ResumoAltura {
+  altura_m: number;
+  temperatura?: ResumoGrandeza;
+  umidade?: ResumoGrandeza;
+  co2?: ResumoGrandeza;
+}
+
+interface ClimaAtual {
+  temperature_2m?: number;
+  relative_humidity_2m?: number;
+  wind_speed_10m?: number;
+  weather_code?: number;
+  apparent_temperature?: number;
+}
+
+interface PainelResponse {
+  silo: Silo & { total_barras_ativas: number; total_sensores_ativos: number };
+  clima: ClimaAtual | null;
+  referencia: string | null;
+  resumo_alturas: ResumoAltura[];
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(v?: number | null, dec = 1) {
+  return v != null ? v.toFixed(dec) : '—';
+}
+
+function fmtTs(ts: string | null) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function WeatherIcon({ code }: { code?: number }) {
+  if (code == null) return <Thermometer size={26} className="text-yellow-500" />;
+  if (code === 0)  return <span className="text-3xl">☀️</span>;
+  if (code <= 3)   return <span className="text-3xl">⛅</span>;
+  if (code <= 67)  return <span className="text-3xl">🌧️</span>;
+  if (code <= 77)  return <span className="text-3xl">❄️</span>;
+  return <span className="text-3xl">⛈️</span>;
+}
+
+const GRANDEZA_LABEL: Record<string, string> = {
+  temperatura: 'Temperatura',
+  umidade: 'Umidade',
+  co2: 'CO₂',
+};
+
+// ── Componente principal ─────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const navigate = useNavigate();
   const [silos, setSilos] = useState<Silo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [siloSelecionado, setSiloSelecionado] = useState<number | null>(null);
+  const [painel, setPainel] = useState<PainelResponse | null>(null);
+  const [loadingPainel, setLoadingPainel] = useState(false);
 
+  // Carrega lista de silos
   useEffect(() => {
     api
       .get<{ data: Silo[] }>('/dashboard/silos')
-      .then((res) => setSilos(res.data.data ?? []))
+      .then((res) => {
+        const lista = res.data.data ?? [];
+        setSilos(lista);
+        if (lista.length > 0) setSiloSelecionado(lista[0].id);
+      })
       .catch(() => toast.error('Erro ao carregar dados do dashboard'))
       .finally(() => setLoading(false));
   }, []);
 
-  const total = silos.length;
+  // Carrega painel do silo selecionado
+  const carregarPainel = useCallback((id: number) => {
+    setLoadingPainel(true);
+    api
+      .get<PainelResponse>(`/dashboard/silos/${id}/painel`)
+      .then((res) => setPainel(res.data))
+      .catch(() => toast.error('Erro ao carregar painel do silo'))
+      .finally(() => setLoadingPainel(false));
+  }, []);
+
+  useEffect(() => {
+    if (siloSelecionado != null) carregarPainel(siloSelecionado);
+  }, [siloSelecionado, carregarPainel]);
+
+  const total    = silos.length;
   const emAlerta = silos.filter((s) => (s.alertas_ativos ?? 0) > 0).length;
-  const normais = total - emAlerta;
+  const normais  = total - emAlerta;
 
   const silosComCoordenadas = silos.filter(
     (s) => s.latitude != null && s.longitude != null,
   );
+
+  const siloAtual = silos.find((s) => s.id === siloSelecionado);
+  const mapCenter: [number, number] =
+    siloAtual?.latitude && siloAtual?.longitude
+      ? [Number(siloAtual.latitude), Number(siloAtual.longitude)]
+      : [-15, -55];
 
   if (loading) {
     return (
@@ -59,6 +149,12 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const grandezasPresentes = painel?.resumo_alturas.length
+    ? (['temperatura', 'umidade', 'co2'] as const).filter((g) =>
+        painel.resumo_alturas.some((r) => r[g] != null),
+      )
+    : [];
 
   return (
     <div className="space-y-6">
@@ -94,114 +190,230 @@ export default function DashboardPage() {
         <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
           <MapPin size={18} className="text-gray-400" />
           <span className="font-semibold text-gray-700">Mapa de Silos</span>
+          {siloAtual && (
+            <span className="ml-2 text-sm text-gray-500">— clique em outro marcador para selecionar</span>
+          )}
         </div>
-        <div className="h-[400px]">
+        <div className="h-[360px]">
           <MapContainer
-            center={[-15, -55]}
-            zoom={4}
+            center={mapCenter}
+            zoom={silosComCoordenadas.length === 1 ? 13 : 4}
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {silosComCoordenadas.map((silo) => (
-              <Marker
-                key={silo.id}
-                position={[silo.latitude!, silo.longitude!]}
-                icon={(silo.alertas_ativos ?? 0) > 0 ? redIcon : greenIcon}
-              >
-                <Popup>
-                  <div className="text-sm">
-                    <p className="font-bold">{silo.nome}</p>
-                    {silo.cidade && (
-                      <p className="text-gray-500">
-                        {silo.cidade}/{silo.estado}
-                      </p>
-                    )}
-                    {(silo.alertas_ativos ?? 0) > 0 && (
-                      <p className="text-red-600 font-semibold">
-                        {silo.alertas_ativos} alerta(s)
-                      </p>
-                    )}
-                    <button
-                      onClick={() => navigate(`/dashboard/silos/${silo.id}`)}
-                      className="mt-2 text-green-600 underline text-xs"
-                    >
-                      Ver detalhe
-                    </button>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+            {siloAtual?.latitude && siloAtual?.longitude && (
+              <MapFlyTo lat={Number(siloAtual.latitude)} lng={Number(siloAtual.longitude)} />
+            )}
+            {silosComCoordenadas.map((silo) => {
+              const hasAlert = (silo.alertas_ativos ?? 0) > 0;
+              const isSelected = silo.id === siloSelecionado;
+              return (
+                <Marker
+                  key={silo.id}
+                  position={[Number(silo.latitude), Number(silo.longitude)]}
+                  icon={makeLabelIcon(silo.nome, hasAlert)}
+                  eventHandlers={{ click: () => setSiloSelecionado(silo.id) }}
+                >
+                  <Popup>
+                    <div className="text-sm space-y-1">
+                      <p className="font-bold">{silo.nome}</p>
+                      {silo.cidade && (
+                        <p className="text-gray-500">{silo.cidade}/{silo.estado}</p>
+                      )}
+                      {hasAlert && (
+                        <p className="text-red-600 font-semibold">
+                          {silo.alertas_ativos} alerta(s)
+                        </p>
+                      )}
+                      {!isSelected && (
+                        <button
+                          onClick={() => setSiloSelecionado(silo.id)}
+                          className="text-green-600 underline text-xs"
+                        >
+                          Ver painel
+                        </button>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
         </div>
       </div>
 
-      {/* Grid de cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {silos.map((silo) => {
-          const hasAlert = (silo.alertas_ativos ?? 0) > 0;
-          return (
-            <button
-              key={silo.id}
-              onClick={() => navigate(`/dashboard/silos/${silo.id}`)}
-              className="bg-white rounded-xl shadow p-5 text-left hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <h2 className="font-bold text-gray-900 text-lg leading-tight">
-                  {silo.nome}
-                </h2>
-                <span
-                  className={`ml-2 flex-shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
-                    hasAlert
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}
-                >
-                  {hasAlert ? (
-                    <>
-                      <AlertTriangle size={11} />
-                      {silo.alertas_ativos} alerta(s)
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={11} />
-                      Normal
-                    </>
-                  )}
-                </span>
+      {/* Painel do silo selecionado */}
+      {siloSelecionado && (
+        <div className="space-y-4">
+          {loadingPainel ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+            </div>
+          ) : painel ? (
+            <>
+              {/* Info + Clima lado a lado */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Info do silo */}
+                <div className="bg-white rounded-xl shadow p-5">
+                  <h2 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                    <Database size={16} className="text-gray-400" />
+                    {painel.silo.nome}
+                    {painel.silo.cidade && (
+                      <span className="text-sm font-normal text-gray-400 ml-1">
+                        — {painel.silo.cidade}/{painel.silo.estado}
+                      </span>
+                    )}
+                  </h2>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Status</p>
+                      <p className="font-semibold capitalize">{painel.silo.status}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Barras ativas</p>
+                      <p className="font-semibold">{painel.silo.total_barras_ativas}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Sensores ativos</p>
+                      <p className="font-semibold">{painel.silo.total_sensores_ativos}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 mb-0.5">Referência</p>
+                      <p className="font-semibold text-xs">{fmtTs(painel.referencia)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Clima */}
+                {painel.clima ? (
+                  <div className="bg-white rounded-xl shadow p-5">
+                    <h2 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                      <MapPin size={16} className="text-gray-400" />
+                      Condições climáticas locais
+                    </h2>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="flex items-center gap-2 bg-yellow-50 rounded-lg p-3">
+                        <WeatherIcon code={painel.clima.weather_code} />
+                        <div>
+                          <p className="text-xs text-gray-500">Temperatura</p>
+                          <p className="font-bold text-gray-800">
+                            {fmt(painel.clima.temperature_2m)}°C
+                          </p>
+                          {painel.clima.apparent_temperature != null && (
+                            <p className="text-xs text-gray-400">
+                              Sensação {fmt(painel.clima.apparent_temperature)}°C
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 bg-blue-50 rounded-lg p-3">
+                        <Droplets size={22} className="text-blue-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Umidade</p>
+                          <p className="font-bold text-gray-800">
+                            {fmt(painel.clima.relative_humidity_2m, 0)}%
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
+                        <Wind size={22} className="text-gray-400 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Vento</p>
+                          <p className="font-bold text-gray-800">
+                            {fmt(painel.clima.wind_speed_10m)} km/h
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow p-5 flex items-center justify-center text-gray-400 text-sm">
+                    Dados climáticos indisponíveis
+                  </div>
+                )}
               </div>
 
-              {(silo.cidade || silo.estado) && (
-                <p className="text-sm text-gray-500 mb-3 flex items-center gap-1">
-                  <MapPin size={13} />
-                  {[silo.cidade, silo.estado].filter(Boolean).join(' / ')}
-                </p>
+              {/* Tabela resumo por altura */}
+              {painel.resumo_alturas.length > 0 && (
+                <div className="bg-white rounded-xl shadow overflow-hidden">
+                  <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="font-semibold text-gray-700">Resumo por Altura</h2>
+                    {painel.referencia && (
+                      <span className="text-xs text-gray-400">
+                        Referência: {fmtTs(painel.referencia)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm divide-y divide-gray-100">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
+                            Altura (m)
+                          </th>
+                          {grandezasPresentes.map((g) => (
+                            <th
+                              key={g}
+                              colSpan={3}
+                              className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase border-l border-gray-100 whitespace-nowrap"
+                            >
+                              {GRANDEZA_LABEL[g]}
+                            </th>
+                          ))}
+                        </tr>
+                        <tr className="bg-gray-50 border-t border-gray-100">
+                          <th className="px-4 py-2" />
+                          {grandezasPresentes.map((g) => (
+                            <>
+                              <th key={`${g}-avg`} className="px-3 py-2 text-center text-xs text-gray-400 border-l border-gray-100 font-medium">Média</th>
+                              <th key={`${g}-min`} className="px-3 py-2 text-center text-xs text-gray-400 font-medium">Mín</th>
+                              <th key={`${g}-max`} className="px-3 py-2 text-center text-xs text-gray-400 font-medium">Máx</th>
+                            </>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {painel.resumo_alturas.map((row) => (
+                          <tr key={row.altura_m} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">
+                              {row.altura_m.toFixed(1)} m
+                            </td>
+                            {grandezasPresentes.map((g) => {
+                              const d = row[g] as ResumoGrandeza | undefined;
+                              return d ? (
+                                <>
+                                  <td key={`${g}-avg`} className="px-3 py-3 text-center text-gray-800 font-medium border-l border-gray-100 whitespace-nowrap">
+                                    {fmt(d.avg_avg, 2)} <span className="text-gray-400 text-xs">{d.unidade}</span>
+                                  </td>
+                                  <td key={`${g}-min`} className="px-3 py-3 text-center text-blue-600 whitespace-nowrap">
+                                    {fmt(d.avg_min, 2)}
+                                  </td>
+                                  <td key={`${g}-max`} className="px-3 py-3 text-center text-red-500 whitespace-nowrap">
+                                    {fmt(d.avg_max, 2)}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td key={`${g}-avg`} className="px-3 py-3 text-center text-gray-300 border-l border-gray-100">—</td>
+                                  <td key={`${g}-min`} className="px-3 py-3 text-center text-gray-300">—</td>
+                                  <td key={`${g}-max`} className="px-3 py-3 text-center text-gray-300">—</td>
+                                </>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
-
-              <div className="flex gap-4 text-sm text-gray-600">
-                <span>
-                  <span className="font-semibold">{silo.total_barras_ativas ?? 0}</span>{' '}
-                  barra(s)
-                </span>
-                <span>
-                  <span className="font-semibold">
-                    {silo.total_sensores_ativos ?? 0}
-                  </span>{' '}
-                  sensor(es)
-                </span>
-              </div>
-            </button>
-          );
-        })}
-
-        {silos.length === 0 && (
-          <p className="col-span-full text-center text-gray-400 py-12">
-            Nenhum silo cadastrado.
-          </p>
-        )}
-      </div>
+            </>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
