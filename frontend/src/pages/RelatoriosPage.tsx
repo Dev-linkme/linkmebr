@@ -78,6 +78,17 @@ function formatFullTimestamp(ts: string): string {
   return `${dd}/${MM}/${yyyy} ${HH}:${mm}`;
 }
 
+function formatRangeDate(ts: string | null | undefined): string {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const MM = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const HH = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${MM}/${yyyy} ${HH}:${mm}`;
+}
+
 function formatNum(val: number | undefined | null, decimals = 2): string {
   if (val == null) return '—';
   return val.toFixed(decimals);
@@ -207,12 +218,16 @@ export default function RelatoriosPage() {
 
   const siloId = watch('silo_id');
   const barraId = watch('barra_id');
+  const sensorId = watch('sensor_id');
   const dataInicio = watch('data_inicio');
 
   // Select options
   const [silos, setSilos] = useState<Silo[]>([]);
   const [barras, setBarras] = useState<Barra[]>([]);
   const [sensores, setSensores] = useState<Sensor[]>([]);
+
+  // Date range hint
+  const [range, setRange] = useState<{ data_inicio: string | null; data_fim: string | null } | null>(null);
 
   // Results
   const [dados, setDados] = useState<Leitura[]>([]);
@@ -264,6 +279,19 @@ export default function RelatoriosPage() {
       .then((res) => setSensores(res.data.data ?? []))
       .catch(() => toast.error('Erro ao carregar sensores'));
   }, [barraId, setValue]);
+
+  // ── Fetch date range when silo/barra/sensor changes ───────────────────────
+  useEffect(() => {
+    setRange(null);
+    if (!siloId) return;
+    const params: Record<string, string> = { silo_id: siloId };
+    if (barraId) params.barra_id = barraId;
+    if (sensorId) params.sensor_id = sensorId;
+    api
+      .get<{ data_inicio: string | null; data_fim: string | null }>('/relatorios/leituras/range', { params })
+      .then((res) => setRange(res.data))
+      .catch(() => {});
+  }, [siloId, barraId, sensorId]);
 
   // ── Query ──────────────────────────────────────────────────────────────────
   const fetchDados = useCallback(
@@ -467,6 +495,11 @@ export default function RelatoriosPage() {
               {...register('data_inicio')}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+            {range && (
+              <p className="text-xs text-gray-400 mt-1">
+                Disponível: {formatRangeDate(range.data_inicio)}
+              </p>
+            )}
           </div>
 
           {/* Data fim */}
@@ -486,6 +519,11 @@ export default function RelatoriosPage() {
               })}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+            {range && (
+              <p className="text-xs text-gray-400 mt-1">
+                Disponível: {formatRangeDate(range.data_fim)}
+              </p>
+            )}
             {errors.data_fim && (
               <p className="text-xs text-red-500 mt-1">{errors.data_fim.message}</p>
             )}

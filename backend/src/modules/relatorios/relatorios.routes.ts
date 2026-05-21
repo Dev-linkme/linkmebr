@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middlewares/authenticate';
 import { authorize } from '../../middlewares/authorize';
-import { buscarLeituras, exportarCSV } from './relatorios.controller';
+import { buscarLeituras, exportarCSV, buscarRange } from './relatorios.controller';
 
 const router = Router();
 
@@ -40,6 +40,13 @@ const router = Router();
  *       200:
  *         description: Lista paginada de leituras
  */
+router.get(
+  '/leituras/range',
+  authenticate,
+  authorize('administrador_geral', 'administrador_empresa', 'operador_empresa'),
+  buscarRange,
+);
+
 router.get(
   '/leituras',
   authenticate,

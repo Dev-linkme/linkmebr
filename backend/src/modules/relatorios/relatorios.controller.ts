@@ -187,6 +187,35 @@ export async function exportarCSV(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export async function buscarRange(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const silo_id = Number(req.query.silo_id);
+    if (!silo_id || isNaN(silo_id)) throw new AppError(400, 'silo_id é obrigatório');
+
+    const silo = await prisma.silo.findUnique({ where: { id: silo_id } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    const barra_id = req.query.barra_id ? Number(req.query.barra_id) : undefined;
+    const sensor_id = req.query.sensor_id ? Number(req.query.sensor_id) : undefined;
+
+    const sensorIds = await getSensorIds(silo_id, barra_id, sensor_id);
+
+    const agg = await prisma.leitura.aggregate({
+      where: { sensor_id: { in: sensorIds } },
+      _min: { timestamp: true },
+      _max: { timestamp: true },
+    });
+
+    res.json({
+      data_inicio: agg._min.timestamp,
+      data_fim: agg._max.timestamp,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Retorna IDs de sensores com base em silo/barra/sensor
 async function getSensorIds(
   siloId: number,
