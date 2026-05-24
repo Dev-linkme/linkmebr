@@ -310,11 +310,23 @@ export default function RelatoriosPage() {
   // ── Load sensores when barra changes ─────────────────────────────────────────
   useEffect(() => {
     setSensores([]); setValue('sensor_id', '');
+    setDados([]); setGrafico(null);
+    setDadosExternos([]); setGraficoExterno(null);
+    setDadosLabrador([]); setGraficoLabrador(null);
+    setLastFiltros(null);
     if (!barraId) return;
     api.get<{ data: Sensor[] }>(`/barras/${barraId}/sensores?per_page=200`)
       .then((res) => setSensores(res.data.data ?? []))
       .catch(() => toast.error('Erro ao carregar sensores'));
   }, [barraId, setValue]);
+
+  // ── Clear data when sensor changes ───────────────────────────────────────────
+  useEffect(() => {
+    setDados([]); setGrafico(null);
+    setDadosExternos([]); setGraficoExterno(null);
+    setDadosLabrador([]); setGraficoLabrador(null);
+    setLastFiltros(null);
+  }, [sensorId]);
 
   // ── Fetch ranges ─────────────────────────────────────────────────────────────
   useEffect(() => {
