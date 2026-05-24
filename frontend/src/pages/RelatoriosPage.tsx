@@ -287,6 +287,10 @@ export default function RelatoriosPage() {
     setBarras([]); setSensores([]);
     setValue('barra_id', ''); setValue('sensor_id', '');
     setRangeInterna(null); setRangeExterna(null); setRangeLabrador(null);
+    setDados([]); setGrafico(null);
+    setDadosExternos([]); setGraficoExterno(null);
+    setDadosLabrador([]); setGraficoLabrador(null);
+    setLastFiltros(null);
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
