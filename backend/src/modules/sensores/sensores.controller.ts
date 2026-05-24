@@ -232,9 +232,11 @@ export async function excluir(req: Request, res: Response, next: NextFunction): 
     if (!sensor) throw new AppError(404, 'Sensor não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, sensor.barra.silo.empresa_id);
 
-    // Deleta leituras e sensor em transação
+    // Deleta leituras (interna e externa) e sensor em transação
+    // leitura_externa tem FK ON DELETE RESTRICT, portanto deve ser removida antes do sensor
     await prisma.$transaction([
-      prisma.leitura.deleteMany({ where: { sensor_id: id } }),
+      prisma.leituraInterna.deleteMany({ where: { sensor_id: id } }),
+      prisma.leituraExterna.deleteMany({ where: { sensor_id: id } }),
       prisma.sensor.delete({ where: { id } }),
     ]);
 

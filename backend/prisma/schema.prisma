@@ -90,24 +90,25 @@ model Barra {
 }
 
 model Sensor {
-  id              Int       @id @default(autoincrement())
-  barra_id        Int
-  identificacao   String    @db.VarChar(100)
-  altura_solo_m   Decimal   @db.Decimal(6, 2)
-  tipo_grandeza   String    @db.VarChar(20)
-  unidade_medida  String    @db.VarChar(10)
-  status          String    @default("ativo") @db.VarChar(10)
-  criado_em       DateTime  @default(now()) @db.Timestamptz()
-  atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
+  id                Int              @id @default(autoincrement())
+  barra_id          Int
+  identificacao     String           @db.VarChar(100)
+  altura_solo_m     Decimal          @db.Decimal(6, 2)
+  tipo_grandeza     String           @db.VarChar(20)
+  unidade_medida    String           @db.VarChar(10)
+  status            String           @default("ativo") @db.VarChar(10)
+  criado_em         DateTime         @default(now()) @db.Timestamptz()
+  atualizado_em     DateTime         @default(now()) @updatedAt @db.Timestamptz()
 
-  barra           Barra     @relation(fields: [barra_id], references: [id])
-  leituras        Leitura[]
+  barra             Barra            @relation(fields: [barra_id], references: [id])
+  leituras_internas LeituraInterna[]
+  leituras_externas LeituraExterna[]
 
   @@map("sensores")
   @@schema("silos")
 }
 
-model Leitura {
+model LeituraInterna {
   id              BigInt    @id @default(autoincrement())
   sensor_id       Int
   timestamp       DateTime  @db.Timestamptz()
@@ -119,8 +120,26 @@ model Leitura {
 
   sensor          Sensor    @relation(fields: [sensor_id], references: [id])
 
-  @@unique([sensor_id, timestamp], name: "leituras_sensor_timestamp_uq")
-  @@map("leituras")
+  @@unique([sensor_id, timestamp], name: "leitura_interna_sensor_timestamp_uq")
+  @@map("leitura_interna")
+  @@schema("silos")
+}
+
+model LeituraExterna {
+  id              BigInt    @id @default(autoincrement())
+  sensor_id       Int
+  timestamp       DateTime  @db.Timestamptz()
+  temp_avg        Float?
+  umid_avg        Float?
+  n_amostras      Int
+  rele            Boolean?
+  sht_online      Boolean?
+  fw              String    @db.VarChar(20)
+
+  sensor          Sensor    @relation(fields: [sensor_id], references: [id])
+
+  @@unique([sensor_id, timestamp], name: "leitura_externa_sensor_timestamp_uq")
+  @@map("leitura_externa")
   @@schema("silos")
 }
 

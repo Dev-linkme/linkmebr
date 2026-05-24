@@ -23,7 +23,7 @@ import {
   Search,
 } from 'lucide-react';
 import api from '../services/api';
-import type { Silo, Barra, Sensor, Leitura } from '../types/index';
+import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna } from '../types/index';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -50,11 +50,38 @@ interface FiltrosForm {
 type SortField = 'valor_avg' | 'valor_max' | 'valor_min';
 type SortDir = 'asc' | 'desc';
 
+type TipoLeitura = 'interna' | 'externa';
+
 interface RelatorioResponse {
-  dados: Leitura[];
+  dados: LeituraInterna[];
   pagina: number;
   total_paginas: number;
   total: number;
+}
+
+interface RelatorioExternoResponse {
+  dados: LeituraExterna[];
+  pagina: number;
+  total_paginas: number;
+  total: number;
+}
+
+interface GraficoExternoSerie {
+  sensor_id: number;
+  bucket: string;
+  avg_temp: number | null;
+  avg_umid: number | null;
+}
+
+interface GraficoExternoSensor {
+  id: number;
+  identificacao: string;
+  altura_solo_m: number;
+}
+
+interface GraficoExternoResponse {
+  series: GraficoExternoSerie[];
+  sensores: GraficoExternoSensor[];
 }
 
 interface GraficoSerie {
@@ -205,6 +232,99 @@ function GrandezaChart({ grandeza, series, sensores, valor }: GrandezaChartProps
   );
 }
 
+// ─── Paginação ─────────────────────────────────────────────────────────────────
+
+interface PaginacaoProps {
+  pagina: number;
+  totalPaginas: number;
+  loading: boolean;
+  onPageChange: (p: number) => void;
+  t: (key: string) => string;
+}
+
+function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: PaginacaoProps) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+      <p className="text-sm text-gray-600">
+        {t('geral.pagina')} {pagina} / {totalPaginas}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onPageChange(pagina - 1)}
+          disabled={pagina <= 1 || loading}
+          className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft size={15} />
+          {t('geral.anterior')}
+        </button>
+        <button
+          onClick={() => onPageChange(pagina + 1)}
+          disabled={pagina >= totalPaginas || loading}
+          className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {t('geral.proximo')}
+          <ChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Gráfico Externo ───────────────────────────────────────────────────────────
+
+interface ExternoChartProps {
+  campo: 'avg_temp' | 'avg_umid';
+  label: string;
+  unidade: string;
+  series: GraficoExternoSerie[];
+  sensores: GraficoExternoSensor[];
+}
+
+function ExternoChart({ campo, label, unidade, series, sensores }: ExternoChartProps) {
+  const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
+  if (buckets.length === 0) return null;
+
+  const chartData = buckets.map((bucket) => {
+    const row: Record<string, unknown> = { bucket };
+    sensores.forEach((s) => {
+      const ponto = series.find((d) => d.bucket === bucket && d.sensor_id === s.id);
+      if (ponto) row[String(s.id)] = ponto[campo];
+    });
+    return row;
+  });
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <h3 className="text-sm font-semibold text-gray-700 mb-3">
+        {label}{unidade ? ` (${unidade})` : ''}
+      </h3>
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
+          <YAxis tick={{ fontSize: 11 }} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
+          <Tooltip
+            labelFormatter={(val) => formatTimestamp(String(val))}
+            formatter={(val, name) => {
+              const sensor = sensores.find((s) => String(s.id) === String(name));
+              const lbl = sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : String(name);
+              const numVal = typeof val === 'number' ? val.toFixed(2) : val;
+              return [`${numVal} ${unidade}`, lbl];
+            }}
+          />
+          <Legend formatter={(value) => {
+            const sensor = sensores.find((s) => String(s.id) === value);
+            return sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : value;
+          }} />
+          {sensores.map((s, idx) => (
+            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]} dot={false} strokeWidth={2} connectNulls />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function RelatoriosPage() {
@@ -240,8 +360,12 @@ export default function RelatoriosPage() {
   // Date range hint
   const [range, setRange] = useState<{ data_inicio: string | null; data_fim: string | null } | null>(null);
 
+  // Tipo de leitura
+  const [tipoLeitura, setTipoLeitura] = useState<TipoLeitura>('interna');
+
   // Results
-  const [dados, setDados] = useState<Leitura[]>([]);
+  const [dados, setDados] = useState<LeituraInterna[]>([]);
+  const [dadosExternos, setDadosExternos] = useState<LeituraExterna[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingExport, setLoadingExport] = useState(false);
   const [pagina, setPagina] = useState(1);
@@ -253,6 +377,7 @@ export default function RelatoriosPage() {
 
   // Chart data (aggregated)
   const [grafico, setGrafico] = useState<GraficoResponse | null>(null);
+  const [graficoExterno, setGraficoExterno] = useState<GraficoExternoResponse | null>(null);
   const [loadingGrafico, setLoadingGrafico] = useState(false);
   const [valorTipo, setValorTipo] = useState<ValorTipo>('avg');
 
@@ -295,22 +420,25 @@ export default function RelatoriosPage() {
       .catch(() => toast.error('Erro ao carregar sensores'));
   }, [barraId, setValue]);
 
-  // ── Fetch date range when silo/barra/sensor changes ───────────────────────
+  // ── Fetch date range when silo/barra/sensor/tipo changes ─────────────────
   useEffect(() => {
     setRange(null);
     if (!siloId) return;
     const params: Record<string, string> = { silo_id: siloId };
     if (barraId) params.barra_id = barraId;
     if (sensorId) params.sensor_id = sensorId;
+    const endpoint = tipoLeitura === 'externa'
+      ? '/relatorios/leituras-externas/range'
+      : '/relatorios/leituras/range';
     api
-      .get<{ data_inicio: string | null; data_fim: string | null }>('/relatorios/leituras/range', { params })
+      .get<{ data_inicio: string | null; data_fim: string | null }>(endpoint, { params })
       .then((res) => setRange(res.data))
       .catch(() => {});
-  }, [siloId, barraId, sensorId]);
+  }, [siloId, barraId, sensorId, tipoLeitura]);
 
   // ── Query ──────────────────────────────────────────────────────────────────
   const fetchDados = useCallback(
-    async (filtros: FiltrosForm, page: number) => {
+    async (filtros: FiltrosForm, page: number, tipo: TipoLeitura) => {
       setLoading(true);
       try {
         const params: Record<string, string | number> = {
@@ -323,11 +451,19 @@ export default function RelatoriosPage() {
         if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
         if (filtros.data_fim) params.data_fim = filtros.data_fim;
 
-        const res = await api.get<RelatorioResponse>('/relatorios/leituras', { params });
-        setDados(res.data.dados);
-        setPagina(res.data.pagina);
-        setTotalPaginas(res.data.total_paginas);
-
+        if (tipo === 'externa') {
+          const res = await api.get<RelatorioExternoResponse>('/relatorios/leituras-externas', { params });
+          setDadosExternos(res.data.dados);
+          setDados([]);
+          setPagina(res.data.pagina);
+          setTotalPaginas(res.data.total_paginas);
+        } else {
+          const res = await api.get<RelatorioResponse>('/relatorios/leituras', { params });
+          setDados(res.data.dados);
+          setDadosExternos([]);
+          setPagina(res.data.pagina);
+          setTotalPaginas(res.data.total_paginas);
+        }
       } catch {
         toast.error('Erro ao consultar leituras');
       } finally {
@@ -337,7 +473,7 @@ export default function RelatoriosPage() {
     []
   );
 
-  const fetchGrafico = useCallback(async (filtros: FiltrosForm) => {
+  const fetchGrafico = useCallback(async (filtros: FiltrosForm, tipo: TipoLeitura) => {
     setLoadingGrafico(true);
     try {
       const params: Record<string, string> = { silo_id: filtros.silo_id };
@@ -345,8 +481,16 @@ export default function RelatoriosPage() {
       if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
       if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
       if (filtros.data_fim) params.data_fim = filtros.data_fim;
-      const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
-      setGrafico(res.data);
+
+      if (tipo === 'externa') {
+        const res = await api.get<GraficoExternoResponse>('/relatorios/leituras-externas/grafico', { params });
+        setGraficoExterno(res.data);
+        setGrafico(null);
+      } else {
+        const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
+        setGrafico(res.data);
+        setGraficoExterno(null);
+      }
     } catch {
       toast.error('Erro ao carregar gráfico');
     } finally {
@@ -357,13 +501,13 @@ export default function RelatoriosPage() {
   const onSubmit = (filtros: FiltrosForm) => {
     setLastFiltros(filtros);
     setSortField(null);
-    fetchDados(filtros, 1);
-    fetchGrafico(filtros);
+    fetchDados(filtros, 1, tipoLeitura);
+    fetchGrafico(filtros, tipoLeitura);
   };
 
   const handlePageChange = (newPage: number) => {
     if (!lastFiltros) return;
-    fetchDados(lastFiltros, newPage);
+    fetchDados(lastFiltros, newPage, tipoLeitura);
   };
 
   // ── Export CSV ─────────────────────────────────────────────────────────────
@@ -378,7 +522,10 @@ export default function RelatoriosPage() {
       if (lastFiltros.data_inicio) params.data_inicio = lastFiltros.data_inicio;
       if (lastFiltros.data_fim) params.data_fim = lastFiltros.data_fim;
 
-      const res = await api.get<string>('/relatorios/leituras/export', {
+      const endpoint = tipoLeitura === 'externa'
+        ? '/relatorios/leituras-externas/export'
+        : '/relatorios/leituras/export';
+      const res = await api.get<string>(endpoint, {
         params,
         responseType: 'text',
       });
@@ -419,7 +566,7 @@ export default function RelatoriosPage() {
     if (!sortField) return 0;
     const va = a[sortField] ?? 0;
     const vb = b[sortField] ?? 0;
-    return sortDir === 'asc' ? va - vb : vb - va;
+    return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
   });
 
   // ── Chart data ─────────────────────────────────────────────────────────────
@@ -445,6 +592,31 @@ export default function RelatoriosPage() {
       <div className="flex items-center gap-3">
         <BarChart2 size={28} className="text-primary-600" />
         <h1 className="text-2xl font-bold text-gray-900">{t('relatorios.titulo')}</h1>
+      </div>
+
+      {/* Tipo de leitura */}
+      <div className="flex gap-1 bg-white rounded-lg shadow px-4 py-3 w-fit">
+        {(['interna', 'externa'] as TipoLeitura[]).map((tipo) => (
+          <button
+            key={tipo}
+            type="button"
+            onClick={() => {
+              setTipoLeitura(tipo);
+              setLastFiltros(null);
+              setDados([]);
+              setDadosExternos([]);
+              setGrafico(null);
+              setGraficoExterno(null);
+            }}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tipoLeitura === tipo
+                ? 'bg-primary-600 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {tipo === 'interna' ? 'Leituras Internas' : 'Leituras Externas'}
+          </button>
+        ))}
       </div>
 
       {/* Filter form */}
@@ -605,9 +777,8 @@ export default function RelatoriosPage() {
             <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
               {t('geral.carregando')}
             </div>
-          ) : grafico && grafico.series.length > 0 ? (
+          ) : tipoLeitura === 'interna' && grafico && grafico.series.length > 0 ? (
             <>
-              {/* Seletor de valor */}
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-sm text-gray-500">Exibindo:</span>
                 <div className="flex rounded-lg border border-gray-200 overflow-hidden">
@@ -636,6 +807,11 @@ export default function RelatoriosPage() {
                 />
               ))}
             </>
+          ) : tipoLeitura === 'externa' && graficoExterno && graficoExterno.series.length > 0 ? (
+            <>
+              <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} />
+              <ExternoChart campo="avg_umid" label="Umidade" unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} />
+            </>
           ) : (
             <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
               {t('relatorios.sem_dados')}
@@ -651,58 +827,36 @@ export default function RelatoriosPage() {
             <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
               {t('geral.carregando')}
             </div>
-          ) : dados.length === 0 ? (
+          ) : tipoLeitura === 'interna' && dados.length === 0 ? (
             <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
               {t('relatorios.sem_dados')}
             </div>
-          ) : (
+          ) : tipoLeitura === 'externa' && dadosExternos.length === 0 ? (
+            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
+              {t('relatorios.sem_dados')}
+            </div>
+          ) : tipoLeitura === 'interna' ? (
             <>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                        {t('relatorios.coluna_data')}
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_grandeza')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_avg')}>
+                        {t('relatorios.coluna_avg')}<SortIcon field="valor_avg" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                        {t('relatorios.coluna_barra')}
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_max')}>
+                        {t('relatorios.coluna_max')}<SortIcon field="valor_max" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                        {t('relatorios.coluna_sensor')}
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_min')}>
+                        {t('relatorios.coluna_min')}<SortIcon field="valor_min" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                        {t('relatorios.coluna_grandeza')}
-                      </th>
-                      <th
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900"
-                        onClick={() => handleSort('valor_avg')}
-                      >
-                        {t('relatorios.coluna_avg')}
-                        <SortIcon field="valor_avg" />
-                      </th>
-                      <th
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900"
-                        onClick={() => handleSort('valor_max')}
-                      >
-                        {t('relatorios.coluna_max')}
-                        <SortIcon field="valor_max" />
-                      </th>
-                      <th
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900"
-                        onClick={() => handleSort('valor_min')}
-                      >
-                        {t('relatorios.coluna_min')}
-                        <SortIcon field="valor_min" />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                        {t('relatorios.coluna_amostras')}
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                        {t('relatorios.coluna_desvio')}
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
-                        {t('relatorios.coluna_unidade')}
-                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -712,76 +866,78 @@ export default function RelatoriosPage() {
                       const isInativo = sensor?.status === 'inativo';
                       return (
                         <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                            {formatFullTimestamp(leitura.timestamp)}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                            {barra?.identificacao ?? '—'}
-                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
                           <td className="px-4 py-3 whitespace-nowrap text-gray-700">
                             <span>{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</span>
-                            {isInativo && (
-                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                                (inativo)
-                              </span>
-                            )}
+                            {isInativo && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">(inativo)</span>}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-gray-700 capitalize">
-                            {sensor
-                              ? GRANDEZA_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza
-                              : '—'}
+                            {sensor ? GRANDEZA_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza : '—'}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
-                            {formatNum(leitura.valor_avg)}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                            {formatNum(leitura.valor_max)}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                            {formatNum(leitura.valor_min)}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                            {leitura.num_amostras}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                            {formatNum(leitura.desvio_padrao)}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-500">
-                            {sensor?.unidade_medida ?? '—'}
-                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.valor_avg)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_max)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-
-              {/* Pagination */}
-              {totalPaginas > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-                  <p className="text-sm text-gray-600">
-                    {t('geral.pagina')} {pagina} / {totalPaginas}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handlePageChange(pagina - 1)}
-                      disabled={pagina <= 1 || loading}
-                      className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft size={15} />
-                      {t('geral.anterior')}
-                    </button>
-                    <button
-                      onClick={() => handlePageChange(pagina + 1)}
-                      disabled={pagina >= totalPaginas || loading}
-                      className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {t('geral.proximo')}
-                      <ChevronRight size={15} />
-                    </button>
-                  </div>
-                </div>
-              )}
+              {totalPaginas > 1 && <Paginacao pagina={pagina} totalPaginas={totalPaginas} loading={loading} onPageChange={handlePageChange} t={t} />}
+            </>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Temp. Média (°C)</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Umid. Média (%)</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Amostras</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Relé</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">SHT Online</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Firmware</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {dadosExternos.map((leitura) => {
+                      const sensor = leitura.sensor;
+                      const barra = sensor?.barra;
+                      return (
+                        <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.temp_avg)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.umid_avg)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.n_amostras}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {leitura.rele === null ? '—' : leitura.rele
+                              ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Ligado</span>
+                              : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">Desligado</span>
+                            }
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {leitura.sht_online === null ? '—' : leitura.sht_online
+                              ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Online</span>
+                              : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-600">Offline</span>
+                            }
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.fw}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {totalPaginas > 1 && <Paginacao pagina={pagina} totalPaginas={totalPaginas} loading={loading} onPageChange={handlePageChange} t={t} />}
             </>
           )}
         </div>

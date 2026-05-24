@@ -31,7 +31,11 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
             sensores: {
               where: { status: 'ativo' },
               include: {
-                leituras: {
+                leituras_internas: {
+                  orderBy: { timestamp: 'desc' },
+                  take: 1,
+                },
+                leituras_externas: {
                   orderBy: { timestamp: 'desc' },
                   take: 1,
                 },
@@ -46,16 +50,26 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
     const resultado = silos.map((silo) => {
       const totalSensores = silo.barras.reduce((acc, b) => acc + b.sensores.length, 0);
       const ultimasLeituras = silo.barras.flatMap((b) =>
-        b.sensores.flatMap((s) =>
-          s.leituras.map((l) => ({
+        b.sensores.flatMap((s) => {
+          if (b.local === 'externo ao silo') {
+            return s.leituras_externas.map((l) => ({
+              sensor_id: s.id,
+              sensor_identificacao: s.identificacao,
+              tipo_grandeza: s.tipo_grandeza,
+              unidade_medida: s.unidade_medida,
+              valor_avg: l.temp_avg,
+              timestamp: l.timestamp,
+            }));
+          }
+          return s.leituras_internas.map((l) => ({
             sensor_id: s.id,
             sensor_identificacao: s.identificacao,
             tipo_grandeza: s.tipo_grandeza,
             unidade_medida: s.unidade_medida,
-            valor_avg: l.valor_avg,
+            valor_avg: Number(l.valor_avg),
             timestamp: l.timestamp,
-          })),
-        ),
+          }));
+        }),
       );
 
       return {
@@ -100,7 +114,11 @@ export async function detalharSilo(
             sensores: {
               orderBy: { altura_solo_m: 'asc' },
               include: {
-                leituras: {
+                leituras_internas: {
+                  orderBy: { timestamp: 'desc' },
+                  take: 10,
+                },
+                leituras_externas: {
                   orderBy: { timestamp: 'desc' },
                   take: 10,
                 },
@@ -135,7 +153,8 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
             sensores: {
               where: { status: 'ativo' },
               include: {
-                leituras: { orderBy: { timestamp: 'desc' }, take: 1 },
+                leituras_internas: { orderBy: { timestamp: 'desc' }, take: 1 },
+                leituras_externas: { orderBy: { timestamp: 'desc' }, take: 1 },
               },
             },
           },
@@ -147,20 +166,41 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
     // Flattens sensores com última leitura, preservando o local da barra
-    const sensoresFlat = silo.barras.flatMap((b) =>
-      b.sensores
-        .filter((s) => s.leituras.length > 0)
+    const sensoresFlat = silo.barras.flatMap((b) => {
+      if (b.local === 'externo ao silo') {
+        return b.sensores
+          .filter((s) => s.leituras_externas.length > 0)
+          .map((s) => {
+            const l = s.leituras_externas[0];
+            return {
+              local: b.local,
+              altura_solo_m: Number(s.altura_solo_m),
+              tipo_grandeza: s.tipo_grandeza,
+              unidade_medida: s.unidade_medida,
+              valor_avg: l.temp_avg ?? 0,
+              valor_max: l.temp_avg ?? 0,
+              valor_min: l.temp_avg ?? 0,
+              umid_avg: l.umid_avg,
+              rele: l.rele,
+              sht_online: l.sht_online,
+              fw: l.fw,
+              timestamp: l.timestamp,
+            };
+          });
+      }
+      return b.sensores
+        .filter((s) => s.leituras_internas.length > 0)
         .map((s) => ({
           local: b.local,
           altura_solo_m: Number(s.altura_solo_m),
           tipo_grandeza: s.tipo_grandeza,
           unidade_medida: s.unidade_medida,
-          valor_avg: Number(s.leituras[0].valor_avg),
-          valor_max: Number(s.leituras[0].valor_max),
-          valor_min: Number(s.leituras[0].valor_min),
-          timestamp: s.leituras[0].timestamp,
-        })),
-    );
+          valor_avg: Number(s.leituras_internas[0].valor_avg),
+          valor_max: Number(s.leituras_internas[0].valor_max),
+          valor_min: Number(s.leituras_internas[0].valor_min),
+          timestamp: s.leituras_internas[0].timestamp,
+        }));
+    });
 
     // Data de referência = timestamp mais recente
     const referencia = sensoresFlat.length > 0

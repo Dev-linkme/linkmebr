@@ -52,7 +52,7 @@ export interface Sensor {
   barra?: Pick<Barra, 'id' | 'identificacao'>;
 }
 
-export interface Leitura {
+export interface LeituraInterna {
   id: string;
   sensor_id: number;
   timestamp: string;
@@ -63,6 +63,21 @@ export interface Leitura {
   desvio_padrao?: number;
   sensor?: Sensor;
   barra?: Barra;
+}
+
+export interface LeituraExterna {
+  id: string;
+  sensor_id: number;
+  timestamp: string;
+  temp_avg: number | null;
+  umid_avg: number | null;
+  n_amostras: number;
+  rele: boolean | null;
+  sht_online: boolean | null;
+  fw: string;
+  sensor?: Pick<Sensor, 'id' | 'identificacao' | 'status'> & {
+    barra?: Pick<Barra, 'id' | 'identificacao' | 'local'>;
+  };
 }
 
 export interface Faq {
