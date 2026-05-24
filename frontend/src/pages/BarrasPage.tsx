@@ -170,8 +170,8 @@ function SensorViewModal({ sensor, onClose }: { sensor: Sensor; onClose: () => v
 export default function BarrasPage() {
   const { id: siloId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdminEmpresa } = useAuth();
-  const podeEditar = isAdminEmpresa;
+  const { isAdminEmpresa, isAdminGeral } = useAuth();
+  const podeEditar = isAdminEmpresa || isAdminGeral;
 
   const [silo, setSilo] = useState<Silo | null>(null);
   const [barras, setBarras] = useState<BarraComSensores[]>([]);
@@ -360,10 +360,21 @@ export default function BarrasPage() {
     <div className="space-y-6">
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/admin/silos')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Voltar">
-          <ArrowLeft size={20} />
-        </button>
-        <div>
+        <div className="flex-1">
+          <nav className="flex items-center gap-1 text-sm mb-1">
+            <button
+              onClick={() => navigate('/admin/silos')}
+              className="inline-flex items-center gap-1 text-gray-500 hover:text-green-700 font-medium transition-colors"
+            >
+              <ArrowLeft size={14} /> Silos
+            </button>
+            {silo && (
+              <>
+                <ChevronRight size={13} className="text-gray-400" />
+                <span className="font-semibold text-gray-900">{silo.nome}</span>
+              </>
+            )}
+          </nav>
           <h1 className="text-2xl font-bold text-gray-900">Barras{silo ? ` — ${silo.nome}` : ''}</h1>
           {silo?.cidade && <p className="text-sm text-gray-500">{[silo.cidade, silo.estado].filter(Boolean).join(' / ')}</p>}
         </div>

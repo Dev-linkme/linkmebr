@@ -76,8 +76,8 @@ function ViewModal({ silo, onClose }: { silo: Silo; onClose: () => void }) {
 
 export default function SilosPage() {
   const navigate = useNavigate();
-  const { isAdminEmpresa } = useAuth();
-  const podeEditar = isAdminEmpresa;
+  const { isAdminEmpresa, isAdminGeral } = useAuth();
+  const podeEditar = isAdminEmpresa || isAdminGeral;
 
   const [silos, setSilos] = useState<Silo[]>([]);
   const [loading, setLoading] = useState(true);
