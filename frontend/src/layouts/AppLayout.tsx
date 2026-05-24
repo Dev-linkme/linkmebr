@@ -85,6 +85,11 @@ export default function AppLayout() {
       icon: <MessageSquare size={16} />,
       perfis: ['administrador_geral'],
     },
+    {
+      to: '/saude-sistema',
+      label: t('nav.saude_sistema'),
+      icon: <Activity size={16} />,
+    },
   ];
 
   const canSeeItem = (item: NavItem) => {

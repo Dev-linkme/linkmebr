@@ -84,8 +84,9 @@ model Barra {
   atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
   id_labrador     Int?
 
-  silo            Silo      @relation(fields: [silo_id], references: [id])
+  silo            Silo                @relation(fields: [silo_id], references: [id])
   sensores        Sensor[]
+  comunicacoes    ComunicacaoStatus[]
 
   @@map("barras")
   @@schema("silos")
@@ -143,6 +144,20 @@ model LeituraExterna {
 
   @@unique([sensor_id, timestamp], name: "leitura_externa_sensor_timestamp_uq")
   @@map("leitura_externa")
+  @@schema("silos")
+}
+
+model ComunicacaoStatus {
+  id              BigInt    @id @default(autoincrement())
+  barra_id        Int
+  timestamp       DateTime  @db.Timestamptz()
+  ptime_esp32_s   Int?
+  rssi_dbm        Int?
+  snr_db          Float?
+
+  barra           Barra     @relation(fields: [barra_id], references: [id])
+
+  @@map("comunicacao_status")
   @@schema("silos")
 }
 

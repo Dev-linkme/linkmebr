@@ -83,6 +83,16 @@ export interface LeituraExterna {
   };
 }
 
+export interface ComunicacaoStatus {
+  id: string;
+  barra_id: number;
+  barra_identificacao: string;
+  timestamp: string;
+  ptime_esp32_s: number | null;
+  rssi_dbm: number | null;
+  snr_db: number | null;
+}
+
 export interface LabradorStatus {
   id: string;
   received_at: string;

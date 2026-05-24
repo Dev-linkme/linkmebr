@@ -8,7 +8,8 @@
     "silos": "Silos",
     "relatorios": "Leituras",
     "admin": "Administração",
-    "cadastros": "Consultar Configurações"
+    "cadastros": "Consultar Configurações",
+    "saude_sistema": "Saúde do Sistema"
   },
   "cadastros": {
     "empresas": "Empresas",

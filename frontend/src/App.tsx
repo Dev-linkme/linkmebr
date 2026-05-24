@@ -13,6 +13,7 @@ import UsuariosPage from './pages/UsuariosPage';
 import FaqAdminPage from './pages/FaqAdminPage';
 import ContatosPage from './pages/ContatosPage';
 import CadastrosPage from './pages/CadastrosPage';
+import SaudeSistemaPage from './pages/SaudeSistemaPage';
 
 export default function App() {
   return (
@@ -105,6 +106,18 @@ export default function App() {
         }
       >
         <Route index element={<ContatosPage />} />
+      </Route>
+
+      {/* Saúde do Sistema — todos os perfis autenticados */}
+      <Route
+        path="/saude-sistema"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<SaudeSistemaPage />} />
       </Route>
 
       {/* Cadastros — visualização hierárquica (todos os perfis autenticados) */}

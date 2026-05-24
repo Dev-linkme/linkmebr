@@ -10,7 +10,7 @@ import {
   BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search,
 } from 'lucide-react';
 import api from '../services/api';
-import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna, LabradorStatus } from '../types/index';
+import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna } from '../types/index';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -31,14 +31,13 @@ interface FiltrosForm {
 type SortField = 'valor_avg' | 'valor_max' | 'valor_min';
 type SortDir   = 'asc' | 'desc';
 type ValorTipo = 'avg' | 'min' | 'max';
-type AbaAtiva  = 'interna' | 'externa' | 'operacional';
+type AbaAtiva  = 'interna' | 'externa';
 type SubAba    = 'tabela'  | 'grafico';
 
 const VALOR_LABELS: Record<ValorTipo, string> = { avg: 'Média', min: 'Mínimo', max: 'Máximo' };
 
 interface RelatorioResponse         { dados: LeituraInterna[];  pagina: number; total_paginas: number; total: number; }
 interface RelatorioExternoResponse  { dados: LeituraExterna[];  pagina: number; total_paginas: number; total: number; }
-interface LabradorRelatorioResponse { dados: LabradorStatus[];  pagina: number; total_paginas: number; total: number; }
 
 interface GraficoSerie   { sensor_id: number; bucket: string; avg: number; max: number; min: number; }
 interface GraficoSensor  { id: number; identificacao: string; tipo_grandeza: GrandezaTipo; unidade_medida: string; altura_solo_m: number; }
@@ -47,9 +46,6 @@ interface GraficoResponse { series: GraficoSerie[]; sensores: GraficoSensor[]; }
 interface GraficoExternoSerie   { sensor_id: number; bucket: string; avg_temp: number | null; avg_umid: number | null; }
 interface GraficoExternoSensor  { id: number; identificacao: string; altura_solo_m: number; }
 interface GraficoExternoResponse { series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[]; }
-
-interface LabradorGraficoSerie    { bucket: string; avg_cpu: number | null; avg_ram: number | null; avg_disk: number | null; }
-interface LabradorGraficoResponse { series: LabradorGraficoSerie[]; }
 
 type RangeHint = { data_inicio: string | null; data_fim: string | null } | null;
 
@@ -151,38 +147,6 @@ function ExternoChart({ campo, label, unidade, series, sensores }: {
   );
 }
 
-// ─── LabradorChart ───────────────────────────────────────────────────────────────
-
-const LABRADOR_SERIES = [
-  { key: 'avg_cpu'  as const, label: 'CPU (%)',  color: '#22c55e' },
-  { key: 'avg_ram'  as const, label: 'RAM (%)',  color: '#3b82f6' },
-  { key: 'avg_disk' as const, label: 'Disco (%)', color: '#f59e0b' },
-];
-
-function LabradorChart({ series }: { series: LabradorGraficoSerie[] }) {
-  if (series.length === 0) return null;
-  return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Uso de Recursos (%)</h3>
-      <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={series} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
-          <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-          <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
-            const s = LABRADOR_SERIES.find((x) => x.key === name);
-            return [`${typeof val === 'number' ? val.toFixed(1) : val}%`, s?.label ?? String(name)];
-          }} />
-          <Legend formatter={(v) => LABRADOR_SERIES.find((x) => x.key === v)?.label ?? v} />
-          {LABRADOR_SERIES.map((s) => (
-            <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} dot={false} strokeWidth={2} connectNulls />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 // ─── Paginacao ───────────────────────────────────────────────────────────────────
 
 function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: {
@@ -225,20 +189,17 @@ export default function RelatoriosPage() {
   const [sensores, setSensores] = useState<Sensor[]>([]);
 
   // Derived tab visibility
-  const hasInterna    = barras.some((b) => b.local === 'interno ao silo');
-  const hasExterna    = barras.some((b) => b.local === 'externo ao silo');
-  const hasLabrador   = !!siloId;
+  const hasInterna = barras.some((b) => b.local === 'interno ao silo');
+  const hasExterna = barras.some((b) => b.local === 'externo ao silo');
 
   // Tabs
-  const [abaAtiva,         setAbaAtiva]         = useState<AbaAtiva>('interna');
-  const [subAbaInterna,    setSubAbaInterna]    = useState<SubAba>('tabela');
-  const [subAbaExterna,    setSubAbaExterna]    = useState<SubAba>('tabela');
-  const [subAbaOperacional,setSubAbaOperacional]= useState<SubAba>('tabela');
+  const [abaAtiva,      setAbaAtiva]      = useState<AbaAtiva>('interna');
+  const [subAbaInterna, setSubAbaInterna] = useState<SubAba>('tabela');
+  const [subAbaExterna, setSubAbaExterna] = useState<SubAba>('tabela');
 
   // Range hints
-  const [rangeInterna,    setRangeInterna]    = useState<RangeHint>(null);
-  const [rangeExterna,    setRangeExterna]    = useState<RangeHint>(null);
-  const [rangeLabrador,   setRangeLabrador]   = useState<RangeHint>(null);
+  const [rangeInterna, setRangeInterna] = useState<RangeHint>(null);
+  const [rangeExterna, setRangeExterna] = useState<RangeHint>(null);
 
   // Leituras Internas
   const [dados,              setDados]              = useState<LeituraInterna[]>([]);
@@ -255,14 +216,6 @@ export default function RelatoriosPage() {
   const [loadingGrafExterna, setLoadingGrafExterna] = useState(false);
   const [paginaExterna,      setPaginaExterna]      = useState(1);
   const [totalPagExterna,    setTotalPagExterna]    = useState(0);
-
-  // Condições Operacionais
-  const [dadosLabrador,      setDadosLabrador]      = useState<LabradorStatus[]>([]);
-  const [graficoLabrador,    setGraficoLabrador]    = useState<LabradorGraficoResponse | null>(null);
-  const [loadingLabrador,    setLoadingLabrador]    = useState(false);
-  const [loadingGrafLabrador,setLoadingGrafLabrador]= useState(false);
-  const [paginaLabrador,     setPaginaLabrador]     = useState(1);
-  const [totalPagLabrador,   setTotalPagLabrador]   = useState(0);
 
   // Export
   const [loadingExportInt, setLoadingExportInt] = useState(false);
@@ -286,10 +239,9 @@ export default function RelatoriosPage() {
   useEffect(() => {
     setBarras([]); setSensores([]);
     setValue('barra_id', ''); setValue('sensor_id', '');
-    setRangeInterna(null); setRangeExterna(null); setRangeLabrador(null);
+    setRangeInterna(null); setRangeExterna(null);
     setDados([]); setGrafico(null);
     setDadosExternos([]); setGraficoExterno(null);
-    setDadosLabrador([]); setGraficoLabrador(null);
     setLastFiltros(null);
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
@@ -301,8 +253,8 @@ export default function RelatoriosPage() {
   useEffect(() => {
     if (!siloId) return;
     setAbaAtiva((prev) => {
-      if (prev === 'interna'    && !barras.some((b) => b.local === 'interno ao silo')) return barras.some((b) => b.local === 'externo ao silo') ? 'externa' : 'operacional';
-      if (prev === 'externa'    && !barras.some((b) => b.local === 'externo ao silo')) return barras.some((b) => b.local === 'interno ao silo') ? 'interna'  : 'operacional';
+      if (prev === 'interna' && !barras.some((b) => b.local === 'interno ao silo')) return 'externa';
+      if (prev === 'externa' && !barras.some((b) => b.local === 'externo ao silo')) return 'interna';
       return prev;
     });
   }, [barras, siloId]);
@@ -312,7 +264,6 @@ export default function RelatoriosPage() {
     setSensores([]); setValue('sensor_id', '');
     setDados([]); setGrafico(null);
     setDadosExternos([]); setGraficoExterno(null);
-    setDadosLabrador([]); setGraficoLabrador(null);
     setLastFiltros(null);
     if (!barraId) return;
     api.get<{ data: Sensor[] }>(`/barras/${barraId}/sensores?per_page=200`)
@@ -324,7 +275,6 @@ export default function RelatoriosPage() {
   useEffect(() => {
     setDados([]); setGrafico(null);
     setDadosExternos([]); setGraficoExterno(null);
-    setDadosLabrador([]); setGraficoLabrador(null);
     setLastFiltros(null);
   }, [sensorId]);
 
@@ -339,7 +289,6 @@ export default function RelatoriosPage() {
       api.get<RangeHint>('/relatorios/leituras/range', { params: p }).then((r) => setRangeInterna(r.data)).catch(() => {});
     if (hasExterna)
       api.get<RangeHint>('/relatorios/leituras-externas/range', { params: p }).then((r) => setRangeExterna(r.data)).catch(() => {});
-    api.get<RangeHint>('/relatorios/labrador-status/range', { params: p }).then((r) => setRangeLabrador(r.data)).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siloId, barraId, sensorId, hasInterna, hasExterna]);
 
@@ -405,43 +354,15 @@ export default function RelatoriosPage() {
     finally  { setLoadingGrafExterna(false); }
   }, []);
 
-  const fetchLabrador = useCallback(async (filtros: FiltrosForm, page: number) => {
-    setLoadingLabrador(true);
-    try {
-      const params: Record<string, string | number> = { silo_id: filtros.silo_id, page, limit: 50 };
-      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
-      const res = await api.get<LabradorRelatorioResponse>('/relatorios/labrador-status', { params });
-      setDadosLabrador(res.data.dados);
-      setPaginaLabrador(res.data.pagina);
-      setTotalPagLabrador(res.data.total_paginas);
-    } catch { toast.error('Erro ao consultar condições operacionais'); }
-    finally  { setLoadingLabrador(false); }
-  }, []);
-
-  const fetchGraficoLabrador = useCallback(async (filtros: FiltrosForm) => {
-    setLoadingGrafLabrador(true);
-    try {
-      const params: Record<string, string> = { silo_id: filtros.silo_id };
-      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
-      const res = await api.get<LabradorGraficoResponse>('/relatorios/labrador-status/grafico', { params });
-      setGraficoLabrador(res.data);
-    } catch { toast.error('Erro ao carregar gráfico operacional'); }
-    finally  { setLoadingGrafLabrador(false); }
-  }, []);
-
   // ── Submit ───────────────────────────────────────────────────────────────────
 
   const onSubmit = (filtros: FiltrosForm) => {
     setLastFiltros(filtros);
     setSortField(null);
-    setPaginaInterna(1); setPaginaExterna(1); setPaginaLabrador(1);
+    setPaginaInterna(1); setPaginaExterna(1);
 
     if (hasInterna) { fetchInterna(filtros, 1); fetchGraficoInterna(filtros); }
     if (hasExterna) { fetchExterna(filtros, 1); fetchGraficoExterna(filtros); }
-    fetchLabrador(filtros, 1);
-    fetchGraficoLabrador(filtros);
   };
 
   // ── Page change handlers ──────────────────────────────────────────────────────
@@ -456,12 +377,6 @@ export default function RelatoriosPage() {
     setPaginaExterna(p);
     fetchExterna(lastFiltros, p);
   };
-  const handlePageLabrador = (p: number) => {
-    if (!lastFiltros) return;
-    setPaginaLabrador(p);
-    fetchLabrador(lastFiltros, p);
-  };
-
   // ── Export ────────────────────────────────────────────────────────────────────
 
   const handleExportInterna = async () => {
@@ -525,7 +440,7 @@ export default function RelatoriosPage() {
 
   // ── Range hint for active tab ─────────────────────────────────────────────────
 
-  const activeRange = abaAtiva === 'interna' ? rangeInterna : abaAtiva === 'externa' ? rangeExterna : rangeLabrador;
+  const activeRange = abaAtiva === 'interna' ? rangeInterna : rangeExterna;
 
   // ── Tab style helpers ─────────────────────────────────────────────────────────
 
@@ -607,10 +522,10 @@ export default function RelatoriosPage() {
 
           {/* Botão consultar */}
           <div className="xl:col-span-1">
-            <button type="submit" disabled={loadingInterna || loadingExterna || loadingLabrador}
+            <button type="submit" disabled={loadingInterna || loadingExterna}
               className="w-full flex items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
               <Search size={15} />
-              {(loadingInterna || loadingExterna || loadingLabrador) ? t('geral.carregando') : t('relatorios.consultar')}
+              {(loadingInterna || loadingExterna) ? t('geral.carregando') : t('relatorios.consultar')}
             </button>
           </div>
         </div>
@@ -629,11 +544,6 @@ export default function RelatoriosPage() {
             {hasExterna && (
               <button onClick={() => setAbaAtiva('externa')} className={mainTabCls('externa')}>
                 Leituras Externas
-              </button>
-            )}
-            {hasLabrador && (
-              <button onClick={() => setAbaAtiva('operacional')} className={mainTabCls('operacional')}>
-                Condições Operacionais
               </button>
             )}
           </div>
@@ -835,83 +745,6 @@ export default function RelatoriosPage() {
             </div>
           )}
 
-          {/* ── ABA: Condições Operacionais ── */}
-          {abaAtiva === 'operacional' && (
-            <div className="p-4 space-y-4">
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-                <button onClick={() => setSubAbaOperacional('tabela')}  className={subTabCls('tabela',  subAbaOperacional)}>Tabela</button>
-                <button onClick={() => setSubAbaOperacional('grafico')} className={subTabCls('grafico', subAbaOperacional)}>Gráfico</button>
-              </div>
-
-              {subAbaOperacional === 'tabela' && (
-                !lastFiltros ? (
-                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
-                ) : loadingLabrador ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
-                ) : dadosLabrador.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
-                ) : (
-                  <div className="rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Timestamp</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">CPU (%)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">RAM (%)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Disco (%)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Recebido em</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {dadosLabrador.map((row) => (
-                            <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(row.timestamp)}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
-                                {row.cpu_percent != null ? (
-                                  <span className={row.cpu_percent > 80 ? 'text-red-600' : row.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-700'}>
-                                    {row.cpu_percent.toFixed(1)}%
-                                  </span>
-                                ) : '—'}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
-                                {row.ram_percent != null ? (
-                                  <span className={row.ram_percent > 80 ? 'text-red-600' : row.ram_percent > 60 ? 'text-yellow-600' : 'text-green-700'}>
-                                    {row.ram_percent.toFixed(1)}%
-                                  </span>
-                                ) : '—'}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
-                                {row.disk_percent != null ? (
-                                  <span className={row.disk_percent > 80 ? 'text-red-600' : row.disk_percent > 60 ? 'text-yellow-600' : 'text-green-700'}>
-                                    {row.disk_percent.toFixed(1)}%
-                                  </span>
-                                ) : '—'}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-400 text-xs">{formatFullTimestamp(row.received_at)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {totalPagLabrador > 1 && <Paginacao pagina={paginaLabrador} totalPaginas={totalPagLabrador} loading={loadingLabrador} onPageChange={handlePageLabrador} t={t} />}
-                  </div>
-                )
-              )}
-
-              {subAbaOperacional === 'grafico' && (
-                !lastFiltros ? (
-                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
-                ) : loadingGrafLabrador ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
-                ) : !graficoLabrador || graficoLabrador.series.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
-                ) : (
-                  <LabradorChart series={graficoLabrador.series} />
-                )
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
