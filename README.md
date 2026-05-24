@@ -2,7 +2,9 @@
 
 Sistema multi-tenant para monitoramento de silos de soja via sensores (temperatura, umidade, CO₂) e inteligência artificial.
 
-> Deploy automático via DigitalOcean App Platform.
+> Deploy automático via GitHub Actions em Droplet DigitalOcean.
+> A cada push em `main`, o workflow `.github/workflows/deploy.yml` conecta ao Droplet via SSH,
+> executa `git pull` e sobe os containers com `docker compose -f docker-compose.prod.yml up -d --build`.
 
 ## Estrutura
 

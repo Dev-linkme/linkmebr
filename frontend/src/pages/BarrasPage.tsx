@@ -15,12 +15,14 @@ interface BarraComSensores extends Barra {
 interface BarraForm {
   identificacao: string;
   local: 'interno ao silo' | 'externo ao silo';
+  id_labrador?: string;
 }
 
 interface SensorForm {
   identificacao: string;
   altura_solo_m: string;
   tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
+  id_labrador?: string;
 }
 
 const TIPO_LABELS: Record<string, string> = {
@@ -45,6 +47,7 @@ function SensorEditModal({
       identificacao: sensor.identificacao,
       altura_solo_m: String(sensor.altura_solo_m),
       tipo_grandeza: sensor.tipo_grandeza,
+      id_labrador: sensor.id_labrador != null ? String(sensor.id_labrador) : '',
     },
   });
 
@@ -53,7 +56,11 @@ function SensorEditModal({
 
   async function onSubmit(data: SensorForm) {
     try {
-      await api.put(`/sensores/${sensor.id}`, { ...data, altura_solo_m: parseFloat(data.altura_solo_m) });
+      await api.put(`/sensores/${sensor.id}`, {
+        ...data,
+        altura_solo_m: parseFloat(data.altura_solo_m),
+        id_labrador: data.id_labrador ? parseInt(data.id_labrador) : undefined,
+      });
       toast.success('Sensor atualizado com sucesso!');
       onSaved();
       onClose();
@@ -100,6 +107,10 @@ function SensorEditModal({
             </select>
             {errors.tipo_grandeza && <p className="text-red-500 text-xs mt-1">{errors.tipo_grandeza.message}</p>}
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">ID Labrador</label>
+            <input {...register('id_labrador')} type="number" min="1" className={clsInput(false)} placeholder="Opcional" />
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" disabled={isSubmitting} className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
@@ -121,6 +132,7 @@ function SensorViewModal({ sensor, onClose }: { sensor: Sensor; onClose: () => v
     { label: 'Tipo', value: TIPO_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza },
     { label: 'Altura (m)', value: String(sensor.altura_solo_m) },
     { label: 'Unidade', value: sensor.unidade_medida },
+    { label: 'ID Labrador', value: sensor.id_labrador != null ? String(sensor.id_labrador) : '—' },
     {
       label: 'Status',
       value: sensor.status === 'ativo' ? 'Ativo' : 'Inativo',
@@ -241,7 +253,11 @@ export default function BarrasPage() {
 
   async function onSubmitBarra(data: BarraForm) {
     try {
-      await api.post(`/silos/${siloId}/barras`, { identificacao: data.identificacao, local: data.local });
+      await api.post(`/silos/${siloId}/barras`, {
+        identificacao: data.identificacao,
+        local: data.local,
+        id_labrador: data.id_labrador ? parseInt(data.id_labrador) : undefined,
+      });
       toast.success('Barra criada com sucesso!');
       setShowBarraForm(false);
       resetBarra();
@@ -254,13 +270,20 @@ export default function BarrasPage() {
 
   function startEditBarra(barra: BarraComSensores) {
     setEditingBarraId(barra.id);
-    resetEditBarra({ identificacao: barra.identificacao, local: barra.local });
+    resetEditBarra({
+      identificacao: barra.identificacao,
+      local: barra.local,
+      id_labrador: barra.id_labrador != null ? String(barra.id_labrador) : '',
+    });
   }
 
   async function onSubmitEditBarra(data: BarraForm) {
     if (!editingBarraId) return;
     try {
-      await api.put(`/barras/${editingBarraId}`, data);
+      await api.put(`/barras/${editingBarraId}`, {
+        ...data,
+        id_labrador: data.id_labrador ? parseInt(data.id_labrador) : undefined,
+      });
       toast.success('Barra atualizada com sucesso!');
       setEditingBarraId(null);
       await fetchBarras();
@@ -296,7 +319,11 @@ export default function BarrasPage() {
   async function onSubmitSensor(data: SensorForm) {
     if (!sensorFormBarraId) return;
     try {
-      await api.post(`/barras/${sensorFormBarraId}/sensores`, { ...data, altura_solo_m: parseFloat(data.altura_solo_m) });
+      await api.post(`/barras/${sensorFormBarraId}/sensores`, {
+        ...data,
+        altura_solo_m: parseFloat(data.altura_solo_m),
+        id_labrador: data.id_labrador ? parseInt(data.id_labrador) : undefined,
+      });
       toast.success('Sensor criado com sucesso!');
       closeSensorForm();
       fetchSensores(sensorFormBarraId);
@@ -377,6 +404,10 @@ export default function BarrasPage() {
                 <option value="externo ao silo">Externo ao silo</option>
               </select>
               {errBarra.local && <p className="text-red-500 text-xs mt-1">{errBarra.local.message}</p>}
+            </div>
+            <div className="w-32">
+              <label className="block text-xs font-medium text-gray-600 mb-1">ID Labrador</label>
+              <input {...regBarra('id_labrador')} type="number" min="1" className={clsInput(false)} placeholder="Opcional" />
             </div>
             <div className="flex gap-2 sm:pt-5">
               <button type="button" onClick={() => setShowBarraForm(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancelar</button>
@@ -459,6 +490,10 @@ export default function BarrasPage() {
                       </select>
                       {errEditBarra.local && <p className="text-red-500 text-xs mt-1">{errEditBarra.local.message}</p>}
                     </div>
+                    <div className="w-32">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">ID Labrador</label>
+                      <input {...regEditBarra('id_labrador')} type="number" min="1" className={clsInput(false)} placeholder="Opcional" />
+                    </div>
                     <div className="flex gap-2 sm:pt-5">
                       <button type="button" onClick={() => setEditingBarraId(null)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors">Cancelar</button>
                       <button type="submit" disabled={submittingEditBarra} className="inline-flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
@@ -478,7 +513,7 @@ export default function BarrasPage() {
                     </h3>
                     <button onClick={closeSensorForm} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
                   </div>
-                  <form onSubmit={handleSensor(onSubmitSensor)} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <form onSubmit={handleSensor(onSubmitSensor)} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Identificação <span className="text-red-500">*</span></label>
                       <input {...regSensor('identificacao', { required: 'Identificação é obrigatória.' })} className={clsInput(!!errSensor.identificacao)} placeholder="Ex: T1" />
@@ -506,7 +541,11 @@ export default function BarrasPage() {
                       </select>
                       {errSensor.tipo_grandeza && <p className="text-red-500 text-xs mt-1">{errSensor.tipo_grandeza.message}</p>}
                     </div>
-                    <div className="sm:col-span-3 flex justify-end gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">ID Labrador</label>
+                      <input {...regSensor('id_labrador')} type="number" min="1" className={clsInput(false)} placeholder="Opcional" />
+                    </div>
+                    <div className="sm:col-span-4 flex justify-end gap-3">
                       <button type="button" onClick={closeSensorForm} className="px-3 py-1.5 text-sm font-semibold text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors">Cancelar</button>
                       <button type="submit" disabled={submittingSensor} className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors">
                         <Check size={14} />{submittingSensor ? 'Criando...' : 'Criar Sensor'}
@@ -534,6 +573,7 @@ export default function BarrasPage() {
                             <th className="px-5 py-2 text-left text-xs font-semibold text-gray-400 uppercase">Tipo</th>
                             <th className="px-5 py-2 text-left text-xs font-semibold text-gray-400 uppercase">Altura (m)</th>
                             <th className="px-5 py-2 text-left text-xs font-semibold text-gray-400 uppercase">Unidade</th>
+                            <th className="px-5 py-2 text-left text-xs font-semibold text-gray-400 uppercase">ID Labrador</th>
                             <th className="px-5 py-2 text-left text-xs font-semibold text-gray-400 uppercase">Status</th>
                             <th className="px-5 py-2 text-right text-xs font-semibold text-gray-400 uppercase">Ações</th>
                           </tr>
@@ -545,6 +585,7 @@ export default function BarrasPage() {
                               <td className="px-5 py-3 text-sm text-gray-600">{TIPO_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza}</td>
                               <td className="px-5 py-3 text-sm text-gray-600">{sensor.altura_solo_m}</td>
                               <td className="px-5 py-3 text-sm text-gray-600">{sensor.unidade_medida}</td>
+                              <td className="px-5 py-3 text-sm text-gray-600">{sensor.id_labrador != null ? String(sensor.id_labrador) : '—'}</td>
                               <td className="px-5 py-3">
                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${sensor.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                   {sensor.status}

@@ -113,11 +113,11 @@ function TableHeaders({ nivel }: { nivel: Nivel }) {
     case 'empresas':
       return <>{th('Nome Fantasia', 'nf')}{th('Razão Social', 'rs')}{th('Status', 'st')}</>;
     case 'silos':
-      return <>{th('Nome', 'nm')}{th('Localização', 'loc')}{th('Status', 'st')}</>;
+      return <>{th('Nome', 'nm')}{th('Localização', 'loc')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
     case 'barras':
-      return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Local', 'loc')}{th('Status', 'st')}</>;
+      return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Local', 'loc')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
     case 'sensores':
-      return <>{th('Identificação', 'id')}{th('Barra', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('Status', 'st')}</>;
+      return <>{th('Identificação', 'id')}{th('Barra', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
   }
 }
 
@@ -141,6 +141,7 @@ function TableCells({ nivel, item }: { nivel: Nivel; item: AnyItem }) {
         <>
           {td(<span className="font-medium text-gray-900">{item.nome as string}</span>, 'nm')}
           {td([(item.cidade as string), (item.estado as string)].filter(Boolean).join(' / ') || '—', 'loc')}
+          {td(item.id_labrador != null ? String(item.id_labrador) : '—', 'lab')}
           {td(<StatusBadge status={item.status} />, 'st')}
         </>
       );
@@ -156,6 +157,7 @@ function TableCells({ nivel, item }: { nivel: Nivel; item: AnyItem }) {
             </span>,
             'loc',
           )}
+          {td(item.id_labrador != null ? String(item.id_labrador) : '—', 'lab')}
           {td(<StatusBadge status={item.status} />, 'st')}
         </>
       );
@@ -169,6 +171,7 @@ function TableCells({ nivel, item }: { nivel: Nivel; item: AnyItem }) {
           {td(item.tipo_grandeza as string, 'tp')}
           {td((item.unidade_medida as string) || '—', 'un')}
           {td(item.altura_solo_m != null ? `${item.altura_solo_m} m` : '—', 'alt')}
+          {td(item.id_labrador != null ? String(item.id_labrador) : '—', 'lab')}
           {td(<StatusBadge status={item.status} />, 'st')}
         </>
       );

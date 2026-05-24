@@ -15,6 +15,7 @@ export const criarBarraSchema = z.object({
       errorMap: () => ({ message: 'Status deve ser "ativa" ou "inativa"' }),
     })
     .default('ativa'),
+  id_labrador: z.number({ coerce: true }).int().positive().optional(),
 });
 
 export const atualizarBarraSchema = criarBarraSchema.partial();

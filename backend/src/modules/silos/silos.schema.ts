@@ -29,6 +29,7 @@ export const criarSiloSchema = z.object({
       errorMap: () => ({ message: 'Status deve ser "ativo" ou "inativo"' }),
     })
     .default('ativo'),
+  id_labrador: z.number({ coerce: true }).int().positive().optional(),
 });
 
 export const atualizarSiloSchema = criarSiloSchema.partial().omit({ empresa_id: true });

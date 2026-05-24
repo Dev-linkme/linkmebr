@@ -21,6 +21,7 @@ export const criarSensorSchema = z.object({
       errorMap: () => ({ message: 'Status deve ser "ativo" ou "inativo"' }),
     })
     .default('ativo'),
+  id_labrador: z.number({ coerce: true }).int().positive().optional(),
 });
 
 export const atualizarSensorSchema = criarSensorSchema.partial().omit({ tipo_grandeza: true }).extend({

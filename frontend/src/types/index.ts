@@ -27,6 +27,7 @@ export interface Silo {
   longitude?: number;
   descricao?: string;
   status: string;
+  id_labrador?: number | null;
   total_barras_ativas?: number;
   total_sensores_ativos?: number;
   alertas_ativos?: number;
@@ -39,6 +40,7 @@ export interface Barra {
   identificacao: string;
   local: 'interno ao silo' | 'externo ao silo';
   status: string;
+  id_labrador?: number | null;
 }
 
 export interface Sensor {
@@ -49,6 +51,7 @@ export interface Sensor {
   tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
   unidade_medida: string;
   status: string;
+  id_labrador?: number | null;
   barra?: Pick<Barra, 'id' | 'identificacao'>;
 }
 
