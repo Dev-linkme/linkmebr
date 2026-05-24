@@ -165,32 +165,33 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
+    type SensorEntry = {
+      local: string; altura_solo_m: number; tipo_grandeza: string;
+      unidade_medida: string; valor_avg: number; valor_max: number; valor_min: number;
+      timestamp: Date;
+    };
+
     // Flattens sensores com última leitura, preservando o local da barra
-    const sensoresFlat = silo.barras.flatMap((b) => {
+    const sensoresFlat: SensorEntry[] = silo.barras.flatMap((b) => {
       if (b.local === 'externo ao silo') {
         return b.sensores
           .filter((s) => s.leituras_externas.length > 0)
-          .map((s) => {
+          .flatMap((s): SensorEntry[] => {
             const l = s.leituras_externas[0];
-            return {
-              local: b.local,
-              altura_solo_m: Number(s.altura_solo_m),
-              tipo_grandeza: s.tipo_grandeza,
-              unidade_medida: s.unidade_medida,
-              valor_avg: l.temp_avg ?? 0,
-              valor_max: l.temp_avg ?? 0,
-              valor_min: l.temp_avg ?? 0,
-              umid_avg: l.umid_avg,
-              rele: l.rele,
-              sht_online: l.sht_online,
-              fw: l.fw,
-              timestamp: l.timestamp,
-            };
+            const base = { local: b.local, altura_solo_m: Number(s.altura_solo_m), timestamp: l.timestamp };
+            const entries: SensorEntry[] = [];
+            if (l.temp_avg != null) {
+              entries.push({ ...base, tipo_grandeza: 'temperatura', unidade_medida: '°C', valor_avg: l.temp_avg, valor_max: l.temp_avg, valor_min: l.temp_avg });
+            }
+            if (l.umid_avg != null) {
+              entries.push({ ...base, tipo_grandeza: 'umidade', unidade_medida: '%', valor_avg: l.umid_avg, valor_max: l.umid_avg, valor_min: l.umid_avg });
+            }
+            return entries;
           });
       }
       return b.sensores
         .filter((s) => s.leituras_internas.length > 0)
-        .map((s) => ({
+        .map((s): SensorEntry => ({
           local: b.local,
           altura_solo_m: Number(s.altura_solo_m),
           tipo_grandeza: s.tipo_grandeza,
