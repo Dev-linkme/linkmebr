@@ -83,6 +83,16 @@ export interface LeituraExterna {
   };
 }
 
+export interface LabradorStatus {
+  id: string;
+  received_at: string;
+  silo_id: number;
+  timestamp: string;
+  cpu_percent: number | null;
+  ram_percent: number | null;
+  disk_percent: number | null;
+}
+
 export interface Faq {
   id: number;
   pergunta_pt: string;

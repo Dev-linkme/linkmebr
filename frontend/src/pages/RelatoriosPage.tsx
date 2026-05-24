@@ -2,229 +2,110 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import Papa from 'papaparse';
 import toast from 'react-hot-toast';
 import {
-  BarChart2,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Search,
+  BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search,
 } from 'lucide-react';
 import api from '../services/api';
-import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna } from '../types/index';
+import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna, LabradorStatus } from '../types/index';
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────────
 
 const LINE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 type GrandezaTipo = 'temperatura' | 'umidade' | 'co2';
-
 const GRANDEZA_LABELS: Record<GrandezaTipo, string> = {
-  temperatura: 'Temperatura',
-  umidade: 'Umidade',
-  co2: 'CO₂',
+  temperatura: 'Temperatura', umidade: 'Umidade', co2: 'CO₂',
 };
 
-// ─── Types ──────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────────
 
 interface FiltrosForm {
-  silo_id: string;
-  barra_id: string;
-  sensor_id: string;
-  data_inicio: string;
-  data_fim: string;
+  silo_id: string; barra_id: string; sensor_id: string;
+  data_inicio: string; data_fim: string;
 }
 
 type SortField = 'valor_avg' | 'valor_max' | 'valor_min';
-type SortDir = 'asc' | 'desc';
+type SortDir   = 'asc' | 'desc';
+type ValorTipo = 'avg' | 'min' | 'max';
+type AbaAtiva  = 'interna' | 'externa' | 'operacional';
+type SubAba    = 'tabela'  | 'grafico';
 
-type TipoLeitura = 'interna' | 'externa';
+const VALOR_LABELS: Record<ValorTipo, string> = { avg: 'Média', min: 'Mínimo', max: 'Máximo' };
 
-interface RelatorioResponse {
-  dados: LeituraInterna[];
-  pagina: number;
-  total_paginas: number;
-  total: number;
-}
+interface RelatorioResponse         { dados: LeituraInterna[];  pagina: number; total_paginas: number; total: number; }
+interface RelatorioExternoResponse  { dados: LeituraExterna[];  pagina: number; total_paginas: number; total: number; }
+interface LabradorRelatorioResponse { dados: LabradorStatus[];  pagina: number; total_paginas: number; total: number; }
 
-interface RelatorioExternoResponse {
-  dados: LeituraExterna[];
-  pagina: number;
-  total_paginas: number;
-  total: number;
-}
+interface GraficoSerie   { sensor_id: number; bucket: string; avg: number; max: number; min: number; }
+interface GraficoSensor  { id: number; identificacao: string; tipo_grandeza: GrandezaTipo; unidade_medida: string; altura_solo_m: number; }
+interface GraficoResponse { series: GraficoSerie[]; sensores: GraficoSensor[]; }
 
-interface GraficoExternoSerie {
-  sensor_id: number;
-  bucket: string;
-  avg_temp: number | null;
-  avg_umid: number | null;
-}
+interface GraficoExternoSerie   { sensor_id: number; bucket: string; avg_temp: number | null; avg_umid: number | null; }
+interface GraficoExternoSensor  { id: number; identificacao: string; altura_solo_m: number; }
+interface GraficoExternoResponse { series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[]; }
 
-interface GraficoExternoSensor {
-  id: number;
-  identificacao: string;
-  altura_solo_m: number;
-}
+interface LabradorGraficoSerie    { bucket: string; avg_cpu: number | null; avg_ram: number | null; avg_disk: number | null; }
+interface LabradorGraficoResponse { series: LabradorGraficoSerie[]; }
 
-interface GraficoExternoResponse {
-  series: GraficoExternoSerie[];
-  sensores: GraficoExternoSensor[];
-}
+type RangeHint = { data_inicio: string | null; data_fim: string | null } | null;
 
-interface GraficoSerie {
-  sensor_id: number;
-  bucket: string;
-  avg: number;
-  max: number;
-  min: number;
-}
-
-interface GraficoSensor {
-  id: number;
-  identificacao: string;
-  tipo_grandeza: GrandezaTipo;
-  unidade_medida: string;
-  altura_solo_m: number;
-}
-
-interface GraficoResponse {
-  series: GraficoSerie[];
-  sensores: GraficoSensor[];
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────────
 
 function formatTimestamp(ts: string): string {
   const d = new Date(ts);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const MM = String(d.getMonth() + 1).padStart(2, '0');
-  const HH = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${MM} ${HH}:${mm}`;
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
-
 function formatFullTimestamp(ts: string): string {
   const d = new Date(ts);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const MM = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const HH = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${MM}/${yyyy} ${HH}:${mm}`;
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
-
 function formatRangeDate(ts: string | null | undefined): string {
   if (!ts) return '—';
-  const d = new Date(ts);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const MM = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const HH = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${MM}/${yyyy} ${HH}:${mm}`;
+  return formatFullTimestamp(ts);
 }
-
 function formatNum(val: number | undefined | null, decimals = 2): string {
   if (val == null) return '—';
   return val.toFixed(decimals);
 }
 
-// ─── Chart per grandeza ────────────────────────────────────────────────────────
+// ─── GrandezaChart ───────────────────────────────────────────────────────────────
 
-type ValorTipo = 'avg' | 'min' | 'max';
-
-const VALOR_LABELS: Record<ValorTipo, string> = {
-  avg: 'Média',
-  min: 'Mínimo',
-  max: 'Máximo',
-};
-
-interface GrandezaChartProps {
-  grandeza: GrandezaTipo;
-  series: GraficoSerie[];
-  sensores: GraficoSensor[];
-  valor: ValorTipo;
-}
-
-function GrandezaChart({ grandeza, series, sensores, valor }: GrandezaChartProps) {
-  const sensoresDaGrandeza = sensores.filter((s) => s.tipo_grandeza === grandeza);
-  if (sensoresDaGrandeza.length === 0) return null;
-
-  const seriesDaGrandeza = series.filter((s) =>
-    sensoresDaGrandeza.some((sensor) => sensor.id === s.sensor_id)
-  );
-  if (seriesDaGrandeza.length === 0) return null;
-
-  const buckets = Array.from(new Set(seriesDaGrandeza.map((s) => s.bucket))).sort();
-
+function GrandezaChart({ grandeza, series, sensores, valor }: {
+  grandeza: GrandezaTipo; series: GraficoSerie[]; sensores: GraficoSensor[]; valor: ValorTipo;
+}) {
+  const sens = sensores.filter((s) => s.tipo_grandeza === grandeza);
+  if (sens.length === 0) return null;
+  const seriesFilt = series.filter((s) => sens.some((x) => x.id === s.sensor_id));
+  if (seriesFilt.length === 0) return null;
+  const buckets = Array.from(new Set(seriesFilt.map((s) => s.bucket))).sort();
   const chartData = buckets.map((bucket) => {
     const row: Record<string, unknown> = { bucket };
-    sensoresDaGrandeza.forEach((s) => {
-      const ponto = seriesDaGrandeza.find((d) => d.bucket === bucket && d.sensor_id === s.id);
-      if (ponto) row[String(s.id)] = ponto[valor];
+    sens.forEach((s) => {
+      const p = seriesFilt.find((d) => d.bucket === bucket && d.sensor_id === s.id);
+      if (p) row[String(s.id)] = p[valor];
     });
     return row;
   });
-
-  const unidade = sensoresDaGrandeza[0]?.unidade_medida ?? '';
-
+  const unidade = sens[0]?.unidade_medida ?? '';
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">
-        {GRANDEZA_LABELS[grandeza]}
-        {unidade ? ` (${unidade})` : ''}
-      </h3>
-      <ResponsiveContainer width="100%" height={260}>
+      <h3 className="text-sm font-semibold text-gray-700 mb-3">{GRANDEZA_LABELS[grandeza]}{unidade ? ` (${unidade})` : ''}</h3>
+      <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis
-            dataKey="bucket"
-            tickFormatter={formatTimestamp}
-            tick={{ fontSize: 11 }}
-            minTickGap={40}
-          />
-          <YAxis
-            tick={{ fontSize: 11 }}
-            label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
-          />
-          <Tooltip
-            labelFormatter={(val) => formatTimestamp(String(val))}
-            formatter={(val, name) => {
-              const sensor = sensoresDaGrandeza.find((s) => String(s.id) === String(name));
-              const label = sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : String(name);
-              const numVal = typeof val === 'number' ? val.toFixed(2) : val;
-              return [`${numVal} ${unidade}`, label];
-            }}
-          />
-          <Legend
-            formatter={(value) => {
-              const sensor = sensoresDaGrandeza.find((s) => String(s.id) === value);
-              return sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : value;
-            }}
-          />
-          {sensoresDaGrandeza.map((s, idx) => (
-            <Line
-              key={s.id}
-              type="monotone"
-              dataKey={String(s.id)}
-              stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-              dot={false}
-              strokeWidth={2}
-              connectNulls
-            />
+          <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
+          <YAxis tick={{ fontSize: 11 }} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
+          <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
+            const s = sens.find((x) => String(x.id) === String(name));
+            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? `${s.identificacao} (${s.altura_solo_m}m)` : String(name)];
+          }} />
+          <Legend formatter={(v) => { const s = sens.find((x) => String(x.id) === v); return s ? `${s.identificacao} (${s.altura_solo_m}m)` : v; }} />
+          {sens.map((s, idx) => (
+            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]} dot={false} strokeWidth={2} connectNulls />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -232,90 +113,35 @@ function GrandezaChart({ grandeza, series, sensores, valor }: GrandezaChartProps
   );
 }
 
-// ─── Paginação ─────────────────────────────────────────────────────────────────
+// ─── ExternoChart ────────────────────────────────────────────────────────────────
 
-interface PaginacaoProps {
-  pagina: number;
-  totalPaginas: number;
-  loading: boolean;
-  onPageChange: (p: number) => void;
-  t: (key: string) => string;
-}
-
-function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: PaginacaoProps) {
-  return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-      <p className="text-sm text-gray-600">
-        {t('geral.pagina')} {pagina} / {totalPaginas}
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onPageChange(pagina - 1)}
-          disabled={pagina <= 1 || loading}
-          className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronLeft size={15} />
-          {t('geral.anterior')}
-        </button>
-        <button
-          onClick={() => onPageChange(pagina + 1)}
-          disabled={pagina >= totalPaginas || loading}
-          className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {t('geral.proximo')}
-          <ChevronRight size={15} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Gráfico Externo ───────────────────────────────────────────────────────────
-
-interface ExternoChartProps {
-  campo: 'avg_temp' | 'avg_umid';
-  label: string;
-  unidade: string;
-  series: GraficoExternoSerie[];
-  sensores: GraficoExternoSensor[];
-}
-
-function ExternoChart({ campo, label, unidade, series, sensores }: ExternoChartProps) {
+function ExternoChart({ campo, label, unidade, series, sensores }: {
+  campo: 'avg_temp' | 'avg_umid'; label: string; unidade: string;
+  series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[];
+}) {
   const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
   if (buckets.length === 0) return null;
-
   const chartData = buckets.map((bucket) => {
     const row: Record<string, unknown> = { bucket };
     sensores.forEach((s) => {
-      const ponto = series.find((d) => d.bucket === bucket && d.sensor_id === s.id);
-      if (ponto) row[String(s.id)] = ponto[campo];
+      const p = series.find((d) => d.bucket === bucket && d.sensor_id === s.id);
+      if (p) row[String(s.id)] = p[campo];
     });
     return row;
   });
-
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">
-        {label}{unidade ? ` (${unidade})` : ''}
-      </h3>
-      <ResponsiveContainer width="100%" height={260}>
+      <h3 className="text-sm font-semibold text-gray-700 mb-3">{label}{unidade ? ` (${unidade})` : ''}</h3>
+      <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
-          <YAxis tick={{ fontSize: 11 }} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
-          <Tooltip
-            labelFormatter={(val) => formatTimestamp(String(val))}
-            formatter={(val, name) => {
-              const sensor = sensores.find((s) => String(s.id) === String(name));
-              const lbl = sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : String(name);
-              const numVal = typeof val === 'number' ? val.toFixed(2) : val;
-              return [`${numVal} ${unidade}`, lbl];
-            }}
-          />
-          <Legend formatter={(value) => {
-            const sensor = sensores.find((s) => String(s.id) === value);
-            return sensor ? `${sensor.identificacao} (${sensor.altura_solo_m}m)` : value;
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
+            const s = sensores.find((x) => String(x.id) === String(name));
+            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? `${s.identificacao} (${s.altura_solo_m}m)` : String(name)];
           }} />
+          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? `${s.identificacao} (${s.altura_solo_m}m)` : v; }} />
           {sensores.map((s, idx) => (
             <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]} dot={false} strokeWidth={2} connectNulls />
           ))}
@@ -325,241 +151,344 @@ function ExternoChart({ campo, label, unidade, series, sensores }: ExternoChartP
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── LabradorChart ───────────────────────────────────────────────────────────────
+
+const LABRADOR_SERIES = [
+  { key: 'avg_cpu'  as const, label: 'CPU (%)',  color: '#22c55e' },
+  { key: 'avg_ram'  as const, label: 'RAM (%)',  color: '#3b82f6' },
+  { key: 'avg_disk' as const, label: 'Disco (%)', color: '#f59e0b' },
+];
+
+function LabradorChart({ series }: { series: LabradorGraficoSerie[] }) {
+  if (series.length === 0) return null;
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <h3 className="text-sm font-semibold text-gray-700 mb-3">Uso de Recursos (%)</h3>
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={series} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
+          <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
+          <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
+            const s = LABRADOR_SERIES.find((x) => x.key === name);
+            return [`${typeof val === 'number' ? val.toFixed(1) : val}%`, s?.label ?? String(name)];
+          }} />
+          <Legend formatter={(v) => LABRADOR_SERIES.find((x) => x.key === v)?.label ?? v} />
+          {LABRADOR_SERIES.map((s) => (
+            <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} dot={false} strokeWidth={2} connectNulls />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Paginacao ───────────────────────────────────────────────────────────────────
+
+function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: {
+  pagina: number; totalPaginas: number; loading: boolean;
+  onPageChange: (p: number) => void; t: (k: string) => string;
+}) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+      <p className="text-sm text-gray-600">{t('geral.pagina')} {pagina} / {totalPaginas}</p>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onPageChange(pagina - 1)} disabled={pagina <= 1 || loading}
+          className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <ChevronLeft size={15} />{t('geral.anterior')}
+        </button>
+        <button onClick={() => onPageChange(pagina + 1)} disabled={pagina >= totalPaginas || loading}
+          className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          {t('geral.proximo')}<ChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────────
 
 export default function RelatoriosPage() {
   const { t } = useTranslation();
-
-  // Form
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<FiltrosForm>({
-    defaultValues: {
-      silo_id: '',
-      barra_id: '',
-      sensor_id: '',
-      data_inicio: '',
-      data_fim: '',
-    },
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FiltrosForm>({
+    defaultValues: { silo_id: '', barra_id: '', sensor_id: '', data_inicio: '', data_fim: '' },
   });
 
-  const siloId = watch('silo_id');
-  const barraId = watch('barra_id');
-  const sensorId = watch('sensor_id');
+  const siloId    = watch('silo_id');
+  const barraId   = watch('barra_id');
+  const sensorId  = watch('sensor_id');
   const dataInicio = watch('data_inicio');
 
   // Select options
-  const [silos, setSilos] = useState<Silo[]>([]);
-  const [barras, setBarras] = useState<Barra[]>([]);
+  const [silos,    setSilos]    = useState<Silo[]>([]);
+  const [barras,   setBarras]   = useState<Barra[]>([]);
   const [sensores, setSensores] = useState<Sensor[]>([]);
 
-  // Date range hint
-  const [range, setRange] = useState<{ data_inicio: string | null; data_fim: string | null } | null>(null);
+  // Derived tab visibility
+  const hasInterna    = barras.some((b) => b.local === 'interno ao silo');
+  const hasExterna    = barras.some((b) => b.local === 'externo ao silo');
+  const hasLabrador   = !!siloId;
 
-  // Tipo de leitura
-  const [tipoLeitura, setTipoLeitura] = useState<TipoLeitura>('interna');
+  // Tabs
+  const [abaAtiva,         setAbaAtiva]         = useState<AbaAtiva>('interna');
+  const [subAbaInterna,    setSubAbaInterna]    = useState<SubAba>('tabela');
+  const [subAbaExterna,    setSubAbaExterna]    = useState<SubAba>('tabela');
+  const [subAbaOperacional,setSubAbaOperacional]= useState<SubAba>('tabela');
 
-  // Results
-  const [dados, setDados] = useState<LeituraInterna[]>([]);
-  const [dadosExternos, setDadosExternos] = useState<LeituraExterna[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingExport, setLoadingExport] = useState(false);
-  const [pagina, setPagina] = useState(1);
-  const [totalPaginas, setTotalPaginas] = useState(0);
-  const [lastFiltros, setLastFiltros] = useState<FiltrosForm | null>(null);
+  // Range hints
+  const [rangeInterna,    setRangeInterna]    = useState<RangeHint>(null);
+  const [rangeExterna,    setRangeExterna]    = useState<RangeHint>(null);
+  const [rangeLabrador,   setRangeLabrador]   = useState<RangeHint>(null);
 
-  // Tab
-  const [activeTab, setActiveTab] = useState<'tabela' | 'grafico'>('tabela');
+  // Leituras Internas
+  const [dados,              setDados]              = useState<LeituraInterna[]>([]);
+  const [grafico,            setGrafico]            = useState<GraficoResponse | null>(null);
+  const [loadingInterna,     setLoadingInterna]     = useState(false);
+  const [loadingGrafInterna, setLoadingGrafInterna] = useState(false);
+  const [paginaInterna,      setPaginaInterna]      = useState(1);
+  const [totalPagInterna,    setTotalPagInterna]    = useState(0);
 
-  // Chart data (aggregated)
-  const [grafico, setGrafico] = useState<GraficoResponse | null>(null);
-  const [graficoExterno, setGraficoExterno] = useState<GraficoExternoResponse | null>(null);
-  const [loadingGrafico, setLoadingGrafico] = useState(false);
+  // Leituras Externas
+  const [dadosExternos,      setDadosExternos]      = useState<LeituraExterna[]>([]);
+  const [graficoExterno,     setGraficoExterno]     = useState<GraficoExternoResponse | null>(null);
+  const [loadingExterna,     setLoadingExterna]     = useState(false);
+  const [loadingGrafExterna, setLoadingGrafExterna] = useState(false);
+  const [paginaExterna,      setPaginaExterna]      = useState(1);
+  const [totalPagExterna,    setTotalPagExterna]    = useState(0);
+
+  // Condições Operacionais
+  const [dadosLabrador,      setDadosLabrador]      = useState<LabradorStatus[]>([]);
+  const [graficoLabrador,    setGraficoLabrador]    = useState<LabradorGraficoResponse | null>(null);
+  const [loadingLabrador,    setLoadingLabrador]    = useState(false);
+  const [loadingGrafLabrador,setLoadingGrafLabrador]= useState(false);
+  const [paginaLabrador,     setPaginaLabrador]     = useState(1);
+  const [totalPagLabrador,   setTotalPagLabrador]   = useState(0);
+
+  // Export
+  const [loadingExportInt, setLoadingExportInt] = useState(false);
+  const [loadingExportExt, setLoadingExportExt] = useState(false);
+
+  // Sort (interna)
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir,   setSortDir]   = useState<SortDir>('asc');
   const [valorTipo, setValorTipo] = useState<ValorTipo>('avg');
 
-  // Sort
-  const [sortField, setSortField] = useState<SortField | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [lastFiltros, setLastFiltros] = useState<FiltrosForm | null>(null);
 
-  // ── Load silos ──────────────────────────────────────────────────────────────
+  // ── Load silos ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    api
-      .get<{ data: Silo[] }>('/silos?per_page=200')
-      .then((res) => {
-        const ativos = (res.data.data ?? []).filter((s) => s.status === 'ativo');
-        setSilos(ativos);
-      })
+    api.get<{ data: Silo[] }>('/silos?per_page=200')
+      .then((res) => setSilos((res.data.data ?? []).filter((s) => s.status === 'ativo')))
       .catch(() => toast.error('Erro ao carregar silos'));
   }, []);
 
-  // ── Load barras when silo changes ──────────────────────────────────────────
+  // ── Load barras when silo changes ────────────────────────────────────────────
   useEffect(() => {
-    setBarras([]);
-    setSensores([]);
-    setValue('barra_id', '');
-    setValue('sensor_id', '');
+    setBarras([]); setSensores([]);
+    setValue('barra_id', ''); setValue('sensor_id', '');
+    setRangeInterna(null); setRangeExterna(null); setRangeLabrador(null);
     if (!siloId) return;
-    api
-      .get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
+    api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
       .catch(() => toast.error('Erro ao carregar barras'));
   }, [siloId, setValue]);
 
-  // ── Load sensores when barra changes ──────────────────────────────────────
+  // ── Auto-select valid tab when barras load ───────────────────────────────────
   useEffect(() => {
-    setSensores([]);
-    setValue('sensor_id', '');
+    if (!siloId) return;
+    setAbaAtiva((prev) => {
+      if (prev === 'interna'    && !barras.some((b) => b.local === 'interno ao silo')) return barras.some((b) => b.local === 'externo ao silo') ? 'externa' : 'operacional';
+      if (prev === 'externa'    && !barras.some((b) => b.local === 'externo ao silo')) return barras.some((b) => b.local === 'interno ao silo') ? 'interna'  : 'operacional';
+      return prev;
+    });
+  }, [barras, siloId]);
+
+  // ── Load sensores when barra changes ─────────────────────────────────────────
+  useEffect(() => {
+    setSensores([]); setValue('sensor_id', '');
     if (!barraId) return;
-    api
-      .get<{ data: Sensor[] }>(`/barras/${barraId}/sensores?per_page=200`)
+    api.get<{ data: Sensor[] }>(`/barras/${barraId}/sensores?per_page=200`)
       .then((res) => setSensores(res.data.data ?? []))
       .catch(() => toast.error('Erro ao carregar sensores'));
   }, [barraId, setValue]);
 
-  // ── Fetch date range when silo/barra/sensor/tipo changes ─────────────────
+  // ── Fetch ranges ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    setRange(null);
     if (!siloId) return;
-    const params: Record<string, string> = { silo_id: siloId };
-    if (barraId) params.barra_id = barraId;
-    if (sensorId) params.sensor_id = sensorId;
-    const endpoint = tipoLeitura === 'externa'
-      ? '/relatorios/leituras-externas/range'
-      : '/relatorios/leituras/range';
-    api
-      .get<{ data_inicio: string | null; data_fim: string | null }>(endpoint, { params })
-      .then((res) => setRange(res.data))
-      .catch(() => {});
-  }, [siloId, barraId, sensorId, tipoLeitura]);
+    const p: Record<string, string> = { silo_id: siloId };
+    if (barraId)  p.barra_id  = barraId;
+    if (sensorId) p.sensor_id = sensorId;
 
-  // ── Query ──────────────────────────────────────────────────────────────────
-  const fetchDados = useCallback(
-    async (filtros: FiltrosForm, page: number, tipo: TipoLeitura) => {
-      setLoading(true);
-      try {
-        const params: Record<string, string | number> = {
-          silo_id: filtros.silo_id,
-          page,
-          limit: 50,
-        };
-        if (filtros.barra_id) params.barra_id = filtros.barra_id;
-        if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
-        if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-        if (filtros.data_fim) params.data_fim = filtros.data_fim;
+    if (hasInterna)
+      api.get<RangeHint>('/relatorios/leituras/range', { params: p }).then((r) => setRangeInterna(r.data)).catch(() => {});
+    if (hasExterna)
+      api.get<RangeHint>('/relatorios/leituras-externas/range', { params: p }).then((r) => setRangeExterna(r.data)).catch(() => {});
+    api.get<RangeHint>('/relatorios/labrador-status/range', { params: p }).then((r) => setRangeLabrador(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siloId, barraId, sensorId, hasInterna, hasExterna]);
 
-        if (tipo === 'externa') {
-          const res = await api.get<RelatorioExternoResponse>('/relatorios/leituras-externas', { params });
-          setDadosExternos(res.data.dados);
-          setDados([]);
-          setPagina(res.data.pagina);
-          setTotalPaginas(res.data.total_paginas);
-        } else {
-          const res = await api.get<RelatorioResponse>('/relatorios/leituras', { params });
-          setDados(res.data.dados);
-          setDadosExternos([]);
-          setPagina(res.data.pagina);
-          setTotalPaginas(res.data.total_paginas);
-        }
-      } catch {
-        toast.error('Erro ao consultar leituras');
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  // ── Fetch functions ───────────────────────────────────────────────────────────
 
-  const fetchGrafico = useCallback(async (filtros: FiltrosForm, tipo: TipoLeitura) => {
-    setLoadingGrafico(true);
+  const fetchInterna = useCallback(async (filtros: FiltrosForm, page: number) => {
+    setLoadingInterna(true);
+    try {
+      const params: Record<string, string | number> = { silo_id: filtros.silo_id, page, limit: 50 };
+      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
+      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
+      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
+      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const res = await api.get<RelatorioResponse>('/relatorios/leituras', { params });
+      setDados(res.data.dados);
+      setPaginaInterna(res.data.pagina);
+      setTotalPagInterna(res.data.total_paginas);
+    } catch { toast.error('Erro ao consultar leituras internas'); }
+    finally  { setLoadingInterna(false); }
+  }, []);
+
+  const fetchGraficoInterna = useCallback(async (filtros: FiltrosForm) => {
+    setLoadingGrafInterna(true);
     try {
       const params: Record<string, string> = { silo_id: filtros.silo_id };
-      if (filtros.barra_id) params.barra_id = filtros.barra_id;
-      if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
+      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
+      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
       if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-      if (filtros.data_fim) params.data_fim = filtros.data_fim;
-
-      if (tipo === 'externa') {
-        const res = await api.get<GraficoExternoResponse>('/relatorios/leituras-externas/grafico', { params });
-        setGraficoExterno(res.data);
-        setGrafico(null);
-      } else {
-        const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
-        setGrafico(res.data);
-        setGraficoExterno(null);
-      }
-    } catch {
-      toast.error('Erro ao carregar gráfico');
-    } finally {
-      setLoadingGrafico(false);
-    }
+      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
+      setGrafico(res.data);
+    } catch { toast.error('Erro ao carregar gráfico interno'); }
+    finally  { setLoadingGrafInterna(false); }
   }, []);
+
+  const fetchExterna = useCallback(async (filtros: FiltrosForm, page: number) => {
+    setLoadingExterna(true);
+    try {
+      const params: Record<string, string | number> = { silo_id: filtros.silo_id, page, limit: 50 };
+      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
+      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
+      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
+      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const res = await api.get<RelatorioExternoResponse>('/relatorios/leituras-externas', { params });
+      setDadosExternos(res.data.dados);
+      setPaginaExterna(res.data.pagina);
+      setTotalPagExterna(res.data.total_paginas);
+    } catch { toast.error('Erro ao consultar leituras externas'); }
+    finally  { setLoadingExterna(false); }
+  }, []);
+
+  const fetchGraficoExterna = useCallback(async (filtros: FiltrosForm) => {
+    setLoadingGrafExterna(true);
+    try {
+      const params: Record<string, string> = { silo_id: filtros.silo_id };
+      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
+      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
+      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
+      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const res = await api.get<GraficoExternoResponse>('/relatorios/leituras-externas/grafico', { params });
+      setGraficoExterno(res.data);
+    } catch { toast.error('Erro ao carregar gráfico externo'); }
+    finally  { setLoadingGrafExterna(false); }
+  }, []);
+
+  const fetchLabrador = useCallback(async (filtros: FiltrosForm, page: number) => {
+    setLoadingLabrador(true);
+    try {
+      const params: Record<string, string | number> = { silo_id: filtros.silo_id, page, limit: 50 };
+      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
+      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const res = await api.get<LabradorRelatorioResponse>('/relatorios/labrador-status', { params });
+      setDadosLabrador(res.data.dados);
+      setPaginaLabrador(res.data.pagina);
+      setTotalPagLabrador(res.data.total_paginas);
+    } catch { toast.error('Erro ao consultar condições operacionais'); }
+    finally  { setLoadingLabrador(false); }
+  }, []);
+
+  const fetchGraficoLabrador = useCallback(async (filtros: FiltrosForm) => {
+    setLoadingGrafLabrador(true);
+    try {
+      const params: Record<string, string> = { silo_id: filtros.silo_id };
+      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
+      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const res = await api.get<LabradorGraficoResponse>('/relatorios/labrador-status/grafico', { params });
+      setGraficoLabrador(res.data);
+    } catch { toast.error('Erro ao carregar gráfico operacional'); }
+    finally  { setLoadingGrafLabrador(false); }
+  }, []);
+
+  // ── Submit ───────────────────────────────────────────────────────────────────
 
   const onSubmit = (filtros: FiltrosForm) => {
     setLastFiltros(filtros);
     setSortField(null);
-    fetchDados(filtros, 1, tipoLeitura);
-    fetchGrafico(filtros, tipoLeitura);
+    setPaginaInterna(1); setPaginaExterna(1); setPaginaLabrador(1);
+
+    if (hasInterna) { fetchInterna(filtros, 1); fetchGraficoInterna(filtros); }
+    if (hasExterna) { fetchExterna(filtros, 1); fetchGraficoExterna(filtros); }
+    fetchLabrador(filtros, 1);
+    fetchGraficoLabrador(filtros);
   };
 
-  const handlePageChange = (newPage: number) => {
+  // ── Page change handlers ──────────────────────────────────────────────────────
+
+  const handlePageInterna = (p: number) => {
     if (!lastFiltros) return;
-    fetchDados(lastFiltros, newPage, tipoLeitura);
+    setPaginaInterna(p);
+    fetchInterna(lastFiltros, p);
+  };
+  const handlePageExterna = (p: number) => {
+    if (!lastFiltros) return;
+    setPaginaExterna(p);
+    fetchExterna(lastFiltros, p);
+  };
+  const handlePageLabrador = (p: number) => {
+    if (!lastFiltros) return;
+    setPaginaLabrador(p);
+    fetchLabrador(lastFiltros, p);
   };
 
-  // ── Export CSV ─────────────────────────────────────────────────────────────
-  const handleExportCSV = async () => {
-    if (!lastFiltros) {
-      toast.error('Execute uma consulta antes de exportar');
-      return;
-    }
-    setLoadingExport(true);
+  // ── Export ────────────────────────────────────────────────────────────────────
+
+  const handleExportInterna = async () => {
+    if (!lastFiltros) { toast.error('Execute uma consulta antes de exportar'); return; }
+    setLoadingExportInt(true);
     try {
       const params: Record<string, string> = { silo_id: lastFiltros.silo_id };
       if (lastFiltros.data_inicio) params.data_inicio = lastFiltros.data_inicio;
-      if (lastFiltros.data_fim) params.data_fim = lastFiltros.data_fim;
-
-      const endpoint = tipoLeitura === 'externa'
-        ? '/relatorios/leituras-externas/export'
-        : '/relatorios/leituras/export';
-      const res = await api.get<string>(endpoint, {
-        params,
-        responseType: 'text',
-      });
-
-      const csvText: string =
-        typeof res.data === 'string'
-          ? res.data
-          : Papa.unparse(res.data as unknown as object[]);
-
-      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
+      if (lastFiltros.data_fim)    params.data_fim    = lastFiltros.data_fim;
+      const res = await api.get<string>('/relatorios/leituras/export', { params, responseType: 'text' });
+      const csvText = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `leituras_silo_${lastFiltros.silo_id}_${Date.now()}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success('CSV exportado com sucesso');
-    } catch {
-      toast.error('Erro ao exportar CSV');
-    } finally {
-      setLoadingExport(false);
-    }
+      a.href = URL.createObjectURL(new Blob([csvText], { type: 'text/csv;charset=utf-8;' }));
+      a.download = `leituras_internas_silo_${lastFiltros.silo_id}_${Date.now()}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast.success('CSV exportado');
+    } catch { toast.error('Erro ao exportar CSV'); }
+    finally   { setLoadingExportInt(false); }
   };
 
-  // ── Sort ───────────────────────────────────────────────────────────────────
+  const handleExportExterna = async () => {
+    if (!lastFiltros) { toast.error('Execute uma consulta antes de exportar'); return; }
+    setLoadingExportExt(true);
+    try {
+      const params: Record<string, string> = { silo_id: lastFiltros.silo_id };
+      if (lastFiltros.data_inicio) params.data_inicio = lastFiltros.data_inicio;
+      if (lastFiltros.data_fim)    params.data_fim    = lastFiltros.data_fim;
+      const res = await api.get<string>('/relatorios/leituras-externas/export', { params, responseType: 'text' });
+      const csvText = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csvText], { type: 'text/csv;charset=utf-8;' }));
+      a.download = `leituras_externas_silo_${lastFiltros.silo_id}_${Date.now()}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast.success('CSV exportado');
+    } catch { toast.error('Erro ao exportar CSV'); }
+    finally   { setLoadingExportExt(false); }
+  };
+
+  // ── Sort ──────────────────────────────────────────────────────────────────────
+
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
+    if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('asc'); }
   };
 
   const sortedDados = [...dados].sort((a, b) => {
@@ -569,376 +498,403 @@ export default function RelatoriosPage() {
     return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
   });
 
-  // ── Chart data ─────────────────────────────────────────────────────────────
-  const grandezasPresentes = Array.from(
-    new Set((grafico?.sensores ?? []).map((s) => s.tipo_grandeza))
-  ) as GrandezaTipo[];
-
-  // ── Sort Icon helper ───────────────────────────────────────────────────────
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field)
-      return <ChevronDown size={14} className="text-gray-300 inline ml-1" />;
-    return sortDir === 'asc' ? (
-      <ChevronUp size={14} className="text-primary-600 inline ml-1" />
-    ) : (
-      <ChevronDown size={14} className="text-primary-600 inline ml-1" />
-    );
+    if (sortField !== field) return <ChevronDown size={14} className="text-gray-300 inline ml-1" />;
+    return sortDir === 'asc'
+      ? <ChevronUp   size={14} className="text-primary-600 inline ml-1" />
+      : <ChevronDown size={14} className="text-primary-600 inline ml-1" />;
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  const grandezasPresentes = Array.from(new Set((grafico?.sensores ?? []).map((s) => s.tipo_grandeza))) as GrandezaTipo[];
+
+  // ── Range hint for active tab ─────────────────────────────────────────────────
+
+  const activeRange = abaAtiva === 'interna' ? rangeInterna : abaAtiva === 'externa' ? rangeExterna : rangeLabrador;
+
+  // ── Tab style helpers ─────────────────────────────────────────────────────────
+
+  const mainTabCls = (aba: AbaAtiva) =>
+    `px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+      abaAtiva === aba
+        ? 'border-primary-600 text-primary-600 bg-white'
+        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+    }`;
+
+  const subTabCls = (sub: SubAba, active: SubAba) =>
+    `px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+      sub === active
+        ? 'bg-primary-600 text-white'
+        : 'text-gray-600 hover:bg-gray-100'
+    }`;
+
+  // ─── Render ────────────────────────────────────────────────────────────────────
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
         <BarChart2 size={28} className="text-primary-600" />
         <h1 className="text-2xl font-bold text-gray-900">{t('relatorios.titulo')}</h1>
       </div>
 
-      {/* Tipo de leitura */}
-      <div className="flex gap-1 bg-white rounded-lg shadow px-4 py-3 w-fit">
-        {(['interna', 'externa'] as TipoLeitura[]).map((tipo) => (
-          <button
-            key={tipo}
-            type="button"
-            onClick={() => {
-              setTipoLeitura(tipo);
-              setLastFiltros(null);
-              setDados([]);
-              setDadosExternos([]);
-              setGrafico(null);
-              setGraficoExterno(null);
-            }}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              tipoLeitura === tipo
-                ? 'bg-primary-600 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            {tipo === 'interna' ? 'Leituras Internas' : 'Leituras Externas'}
-          </button>
-        ))}
-      </div>
-
       {/* Filter form */}
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="bg-white rounded-lg shadow p-4"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
           {/* Silo */}
           <div className="xl:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              {t('relatorios.silo')} *
-            </label>
-            <select
-              {...register('silo_id', { required: t('erros.campo_obrigatorio') })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.silo')} *</label>
+            <select {...register('silo_id', { required: t('erros.campo_obrigatorio') })}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option value="">Selecione...</option>
-              {silos.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nome}
-                </option>
-              ))}
+              {silos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
-            {errors.silo_id && (
-              <p className="text-xs text-red-500 mt-1">{errors.silo_id.message}</p>
-            )}
+            {errors.silo_id && <p className="text-xs text-red-500 mt-1">{errors.silo_id.message}</p>}
           </div>
 
           {/* Barra */}
           <div className="xl:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              {t('relatorios.barra')}
-            </label>
-            <select
-              {...register('barra_id')}
-              disabled={!siloId}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.barra')}</label>
+            <select {...register('barra_id')} disabled={!siloId}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
               <option value="">{t('relatorios.todas_barras')}</option>
-              {barras.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.identificacao}
-                </option>
-              ))}
+              {barras.map((b) => <option key={b.id} value={b.id}>{b.identificacao}</option>)}
             </select>
           </div>
 
           {/* Sensor */}
           <div className="xl:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              {t('relatorios.sensor')}
-            </label>
-            <select
-              {...register('sensor_id')}
-              disabled={!barraId}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.sensor')}</label>
+            <select {...register('sensor_id')} disabled={!barraId}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
               <option value="">{t('relatorios.todos_sensores')}</option>
-              {sensores.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.identificacao} ({s.altura_solo_m}m)
-                </option>
-              ))}
+              {sensores.map((s) => <option key={s.id} value={s.id}>{s.identificacao} ({s.altura_solo_m}m)</option>)}
             </select>
           </div>
 
           {/* Data início */}
           <div className="xl:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              {t('relatorios.data_inicio')}
-            </label>
-            <input
-              type="datetime-local"
-              {...register('data_inicio')}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            {range && (
-              <p className="text-xs text-gray-400 mt-1">
-                Disponível: {formatRangeDate(range.data_inicio)}
-              </p>
-            )}
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.data_inicio')}</label>
+            <input type="datetime-local" {...register('data_inicio')}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            {activeRange && <p className="text-xs text-gray-400 mt-1">Disponível: {formatRangeDate(activeRange.data_inicio)}</p>}
           </div>
 
           {/* Data fim */}
           <div className="xl:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              {t('relatorios.data_fim')}
-            </label>
-            <input
-              type="datetime-local"
-              {...register('data_fim', {
-                validate: (val) => {
-                  if (!val || !dataInicio) return true;
-                  return (
-                    new Date(val) >= new Date(dataInicio) || t('erros.data_invalida')
-                  );
-                },
-              })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            {range && (
-              <p className="text-xs text-gray-400 mt-1">
-                Disponível: {formatRangeDate(range.data_fim)}
-              </p>
-            )}
-            {errors.data_fim && (
-              <p className="text-xs text-red-500 mt-1">{errors.data_fim.message}</p>
-            )}
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.data_fim')}</label>
+            <input type="datetime-local" {...register('data_fim', {
+              validate: (val) => !val || !dataInicio || new Date(val) >= new Date(dataInicio) || t('erros.data_invalida'),
+            })} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            {activeRange && <p className="text-xs text-gray-400 mt-1">Disponível: {formatRangeDate(activeRange.data_fim)}</p>}
+            {errors.data_fim && <p className="text-xs text-red-500 mt-1">{errors.data_fim.message}</p>}
           </div>
 
-          {/* Buttons */}
-          <div className="xl:col-span-1 flex gap-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-            >
+          {/* Botão consultar */}
+          <div className="xl:col-span-1">
+            <button type="submit" disabled={loadingInterna || loadingExterna || loadingLabrador}
+              className="w-full flex items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
               <Search size={15} />
-              {loading ? t('geral.carregando') : t('relatorios.consultar')}
-            </button>
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              disabled={loadingExport || !lastFiltros}
-              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-            >
-              <Download size={15} />
-              {loadingExport ? t('geral.carregando') : t('relatorios.exportar_csv')}
+              {(loadingInterna || loadingExterna || loadingLabrador) ? t('geral.carregando') : t('relatorios.consultar')}
             </button>
           </div>
         </div>
       </form>
 
-      {/* Tabs */}
-      {lastFiltros && (
-        <div className="flex gap-1 border-b border-gray-200">
-          {(['tabela', 'grafico'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab === 'tabela' ? 'Tabela' : 'Gráfico'}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Main tabs — visible after silo selected */}
+      {siloId && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {/* Tab bar */}
+          <div className="flex border-b border-gray-200">
+            {hasInterna && (
+              <button onClick={() => setAbaAtiva('interna')} className={mainTabCls('interna')}>
+                Leituras Internas
+              </button>
+            )}
+            {hasExterna && (
+              <button onClick={() => setAbaAtiva('externa')} className={mainTabCls('externa')}>
+                Leituras Externas
+              </button>
+            )}
+            {hasLabrador && (
+              <button onClick={() => setAbaAtiva('operacional')} className={mainTabCls('operacional')}>
+                Condições Operacionais
+              </button>
+            )}
+          </div>
 
-      {/* Charts */}
-      {activeTab === 'grafico' && lastFiltros && (
-        <div>
-          {loadingGrafico ? (
-            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
-              {t('geral.carregando')}
-            </div>
-          ) : tipoLeitura === 'interna' && grafico && grafico.series.length > 0 ? (
-            <>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-sm text-gray-500">Exibindo:</span>
-                <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-                  {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setValorTipo(v)}
-                      className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                        valorTipo === v
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-white text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      {VALOR_LABELS[v]}
-                    </button>
-                  ))}
+          {/* ── ABA: Leituras Internas ── */}
+          {abaAtiva === 'interna' && (
+            <div className="p-4 space-y-4">
+              {/* Sub-tab bar */}
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                  <button onClick={() => setSubAbaInterna('tabela')}  className={subTabCls('tabela',  subAbaInterna)}>Tabela</button>
+                  <button onClick={() => setSubAbaInterna('grafico')} className={subTabCls('grafico', subAbaInterna)}>Gráfico</button>
                 </div>
+                {lastFiltros && subAbaInterna === 'tabela' && (
+                  <button onClick={handleExportInterna} disabled={loadingExportInt}
+                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    <Download size={14} />{loadingExportInt ? 'Exportando...' : 'Exportar CSV'}
+                  </button>
+                )}
               </div>
-              {grandezasPresentes.map((grandeza) => (
-                <GrandezaChart
-                  key={grandeza}
-                  grandeza={grandeza}
-                  series={grafico.series}
-                  sensores={grafico.sensores}
-                  valor={valorTipo}
-                />
-              ))}
-            </>
-          ) : tipoLeitura === 'externa' && graficoExterno && graficoExterno.series.length > 0 ? (
-            <>
-              <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} />
-              <ExternoChart campo="avg_umid" label="Umidade" unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} />
-            </>
-          ) : (
-            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
-              {t('relatorios.sem_dados')}
+
+              {/* Tabela interna */}
+              {subAbaInterna === 'tabela' && (
+                !lastFiltros ? (
+                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                ) : loadingInterna ? (
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                ) : dados.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                ) : (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_grandeza')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_avg')}>
+                              {t('relatorios.coluna_avg')}<SortIcon field="valor_avg" />
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_max')}>
+                              {t('relatorios.coluna_max')}<SortIcon field="valor_max" />
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_min')}>
+                              {t('relatorios.coluna_min')}<SortIcon field="valor_min" />
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {sortedDados.map((leitura) => {
+                            const sensor = leitura.sensor;
+                            const barra  = leitura.sensor?.barra;
+                            return (
+                              <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700 capitalize">{sensor ? (GRANDEZA_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza) : '—'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.valor_avg)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_max)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {totalPagInterna > 1 && <Paginacao pagina={paginaInterna} totalPaginas={totalPagInterna} loading={loadingInterna} onPageChange={handlePageInterna} t={t} />}
+                  </div>
+                )
+              )}
+
+              {/* Gráfico interno */}
+              {subAbaInterna === 'grafico' && (
+                !lastFiltros ? (
+                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                ) : loadingGrafInterna ? (
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                ) : !grafico || grafico.series.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">Exibindo:</span>
+                      <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                        {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
+                          <button key={v} onClick={() => setValorTipo(v)}
+                            className={`px-4 py-1.5 text-sm font-medium transition-colors ${valorTipo === v ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                            {VALOR_LABELS[v]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {grandezasPresentes.map((g) => (
+                      <GrandezaChart key={g} grandeza={g} series={grafico.series} sensores={grafico.sensores} valor={valorTipo} />
+                    ))}
+                  </>
+                )
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Table */}
-      {lastFiltros && activeTab === 'tabela' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
-              {t('geral.carregando')}
-            </div>
-          ) : tipoLeitura === 'interna' && dados.length === 0 ? (
-            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
-              {t('relatorios.sem_dados')}
-            </div>
-          ) : tipoLeitura === 'externa' && dadosExternos.length === 0 ? (
-            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
-              {t('relatorios.sem_dados')}
-            </div>
-          ) : tipoLeitura === 'interna' ? (
-            <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_data')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_grandeza')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_avg')}>
-                        {t('relatorios.coluna_avg')}<SortIcon field="valor_avg" />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_max')}>
-                        {t('relatorios.coluna_max')}<SortIcon field="valor_max" />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_min')}>
-                        {t('relatorios.coluna_min')}<SortIcon field="valor_min" />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {sortedDados.map((leitura) => {
-                      const sensor = leitura.sensor;
-                      const barra = leitura.sensor?.barra;
-                      const isInativo = sensor?.status === 'inativo';
-                      return (
-                        <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">
-                            <span>{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</span>
-                            {isInativo && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">(inativo)</span>}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700 capitalize">
-                            {sensor ? GRANDEZA_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza : '—'}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.valor_avg)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_max)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {/* ── ABA: Leituras Externas ── */}
+          {abaAtiva === 'externa' && (
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                  <button onClick={() => setSubAbaExterna('tabela')}  className={subTabCls('tabela',  subAbaExterna)}>Tabela</button>
+                  <button onClick={() => setSubAbaExterna('grafico')} className={subTabCls('grafico', subAbaExterna)}>Gráfico</button>
+                </div>
+                {lastFiltros && subAbaExterna === 'tabela' && (
+                  <button onClick={handleExportExterna} disabled={loadingExportExt}
+                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    <Download size={14} />{loadingExportExt ? 'Exportando...' : 'Exportar CSV'}
+                  </button>
+                )}
               </div>
-              {totalPaginas > 1 && <Paginacao pagina={pagina} totalPaginas={totalPaginas} loading={loading} onPageChange={handlePageChange} t={t} />}
-            </>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_data')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Temp. Média (°C)</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Umid. Média (%)</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Amostras</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Relé</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">SHT Online</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">Firmware</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {dadosExternos.map((leitura) => {
-                      const sensor = leitura.sensor;
-                      const barra = sensor?.barra;
-                      return (
-                        <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.temp_avg)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.umid_avg)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.n_amostras}</td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {leitura.rele === null ? '—' : leitura.rele
-                              ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Ligado</span>
-                              : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">Desligado</span>
-                            }
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {leitura.sht_online === null ? '—' : leitura.sht_online
-                              ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Online</span>
-                              : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-600">Offline</span>
-                            }
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.fw}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+
+              {subAbaExterna === 'tabela' && (
+                !lastFiltros ? (
+                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                ) : loadingExterna ? (
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                ) : dadosExternos.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                ) : (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Temp. Média (°C)</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Umid. Média (%)</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Amostras</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Relé</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">SHT Online</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Firmware</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {dadosExternos.map((leitura) => {
+                            const sensor = leitura.sensor;
+                            const barra  = sensor?.barra;
+                            return (
+                              <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.temp_avg)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.umid_avg)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.n_amostras}</td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {leitura.rele === null ? '—' : leitura.rele
+                                    ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Ligado</span>
+                                    : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">Desligado</span>}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  {leitura.sht_online === null ? '—' : leitura.sht_online
+                                    ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Online</span>
+                                    : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-600">Offline</span>}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.fw}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {totalPagExterna > 1 && <Paginacao pagina={paginaExterna} totalPaginas={totalPagExterna} loading={loadingExterna} onPageChange={handlePageExterna} t={t} />}
+                  </div>
+                )
+              )}
+
+              {subAbaExterna === 'grafico' && (
+                !lastFiltros ? (
+                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                ) : loadingGrafExterna ? (
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                ) : !graficoExterno || graficoExterno.series.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                ) : (
+                  <>
+                    <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} />
+                    <ExternoChart campo="avg_umid" label="Umidade"     unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} />
+                  </>
+                )
+              )}
+            </div>
+          )}
+
+          {/* ── ABA: Condições Operacionais ── */}
+          {abaAtiva === 'operacional' && (
+            <div className="p-4 space-y-4">
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+                <button onClick={() => setSubAbaOperacional('tabela')}  className={subTabCls('tabela',  subAbaOperacional)}>Tabela</button>
+                <button onClick={() => setSubAbaOperacional('grafico')} className={subTabCls('grafico', subAbaOperacional)}>Gráfico</button>
               </div>
-              {totalPaginas > 1 && <Paginacao pagina={pagina} totalPaginas={totalPaginas} loading={loading} onPageChange={handlePageChange} t={t} />}
-            </>
+
+              {subAbaOperacional === 'tabela' && (
+                !lastFiltros ? (
+                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                ) : loadingLabrador ? (
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                ) : dadosLabrador.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                ) : (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Timestamp</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">CPU (%)</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">RAM (%)</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Disco (%)</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Recebido em</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {dadosLabrador.map((row) => (
+                            <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(row.timestamp)}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
+                                {row.cpu_percent != null ? (
+                                  <span className={row.cpu_percent > 80 ? 'text-red-600' : row.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-700'}>
+                                    {row.cpu_percent.toFixed(1)}%
+                                  </span>
+                                ) : '—'}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
+                                {row.ram_percent != null ? (
+                                  <span className={row.ram_percent > 80 ? 'text-red-600' : row.ram_percent > 60 ? 'text-yellow-600' : 'text-green-700'}>
+                                    {row.ram_percent.toFixed(1)}%
+                                  </span>
+                                ) : '—'}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
+                                {row.disk_percent != null ? (
+                                  <span className={row.disk_percent > 80 ? 'text-red-600' : row.disk_percent > 60 ? 'text-yellow-600' : 'text-green-700'}>
+                                    {row.disk_percent.toFixed(1)}%
+                                  </span>
+                                ) : '—'}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-400 text-xs">{formatFullTimestamp(row.received_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {totalPagLabrador > 1 && <Paginacao pagina={paginaLabrador} totalPaginas={totalPagLabrador} loading={loadingLabrador} onPageChange={handlePageLabrador} t={t} />}
+                  </div>
+                )
+              )}
+
+              {subAbaOperacional === 'grafico' && (
+                !lastFiltros ? (
+                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                ) : loadingGrafLabrador ? (
+                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                ) : !graficoLabrador || graficoLabrador.series.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                ) : (
+                  <LabradorChart series={graficoLabrador.series} />
+                )
+              )}
+            </div>
           )}
         </div>
       )}
