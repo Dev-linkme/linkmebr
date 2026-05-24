@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import {
   AlertTriangle, CheckCircle, Database, MapPin,
-  Thermometer, Droplets, Wind,
+  Thermometer, Droplets, Wind, Maximize2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -25,11 +25,34 @@ const redIcon = new L.Icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
 });
 
+// ── Ajusta mapa para exibir todos os silos ──────────────────────────────────
+
+function MapFitAll({ silos, trigger }: { silos: Silo[]; trigger: number }) {
+  const map = useMap();
+  const silosRef = useRef(silos);
+  silosRef.current = silos;
+  useEffect(() => {
+    const s = silosRef.current;
+    if (s.length === 0) return;
+    if (s.length === 1) {
+      map.setView([Number(s[0].latitude!), Number(s[0].longitude!)], 13, { animate: trigger > 0 });
+    } else {
+      const bounds = L.latLngBounds(s.map((x) => [Number(x.latitude), Number(x.longitude)] as [number, number]));
+      map.fitBounds(bounds, { padding: [50, 50], animate: trigger > 0 });
+    }
+  }, [trigger, map]);
+  return null;
+}
+
 // ── Centraliza mapa no silo selecionado ─────────────────────────────────────
 
 function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
-  useEffect(() => { map.flyTo([lat, lng], 13, { duration: 1 }); }, [lat, lng, map]);
+  const isFirst = useRef(true);
+  useEffect(() => {
+    if (isFirst.current) { isFirst.current = false; return; }
+    map.flyTo([lat, lng], 13, { duration: 1 });
+  }, [lat, lng, map]);
   return null;
 }
 
@@ -105,6 +128,7 @@ export default function DashboardPage() {
   const [siloSelecionado, setSiloSelecionado] = useState<number | null>(null);
   const [painel, setPainel] = useState<PainelResponse | null>(null);
   const [loadingPainel, setLoadingPainel] = useState(false);
+  const [fitAllTrigger, setFitAllTrigger] = useState(0);
 
   // Carrega lista de silos
   useEffect(() => {
@@ -137,15 +161,12 @@ export default function DashboardPage() {
   const emAlerta = silos.filter((s) => (s.alertas_ativos ?? 0) > 0).length;
   const normais  = total - emAlerta;
 
-  const silosComCoordenadas = silos.filter(
-    (s) => s.latitude != null && s.longitude != null,
+  const silosComCoordenadas = useMemo(
+    () => silos.filter((s) => s.latitude != null && s.longitude != null),
+    [silos],
   );
 
   const siloAtual = silos.find((s) => s.id === siloSelecionado);
-  const mapCenter: [number, number] =
-    siloAtual?.latitude && siloAtual?.longitude
-      ? [Number(siloAtual.latitude), Number(siloAtual.longitude)]
-      : [-15, -55];
 
   if (loading) {
     return (
@@ -195,20 +216,18 @@ export default function DashboardPage() {
         <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
           <MapPin size={18} className="text-gray-400" />
           <span className="font-semibold text-gray-700">Mapa de Silos</span>
-          {siloAtual && (
-            <span className="ml-2 text-sm text-gray-500">— clique em outro marcador para selecionar</span>
-          )}
         </div>
-        <div className="h-[360px]">
+        <div className="h-[360px] relative">
           <MapContainer
-            center={mapCenter}
-            zoom={silosComCoordenadas.length === 1 ? 13 : 4}
+            center={[-15, -55]}
+            zoom={4}
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            <MapFitAll silos={silosComCoordenadas} trigger={fitAllTrigger} />
             {siloAtual?.latitude && siloAtual?.longitude && (
               <MapFlyTo lat={Number(siloAtual.latitude)} lng={Number(siloAtual.longitude)} />
             )}
@@ -250,6 +269,31 @@ export default function DashboardPage() {
               );
             })}
           </MapContainer>
+
+          {/* Controles sobrepostos ao mapa */}
+          {silosComCoordenadas.length > 0 && (
+            <div className="absolute top-2 left-2 right-14 z-[1000] flex items-center gap-2 pointer-events-none">
+              {silos.length > 1 && (
+                <select
+                  value={siloSelecionado ?? ''}
+                  onChange={(e) => setSiloSelecionado(Number(e.target.value))}
+                  className="pointer-events-auto text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 max-w-[220px]"
+                >
+                  <option value="" disabled>Ir para silo...</option>
+                  {silos.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={() => setFitAllTrigger((n) => n + 1)}
+                className="pointer-events-auto ml-auto inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white shadow-md hover:bg-gray-50 text-gray-700 transition-colors"
+                title="Zoom inicial — todos os silos"
+              >
+                <Maximize2 size={13} /> Todos os silos
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
