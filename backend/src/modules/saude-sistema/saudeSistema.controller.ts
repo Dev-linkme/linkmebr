@@ -206,9 +206,9 @@ export async function buscarComunicacao(
     params.push(limit, offset);
     const rows = await prisma.$queryRawUnsafe<Array<{
       id: bigint; barra_id: number; timestamp: Date;
-      ptime_esp32_s: number | null; rssi_dbm: number | null; snr_db: number | null;
+      uptime_esp32_s: number | null; rssi_dbm: number | null; snr_db: number | null;
     }>>(
-      `SELECT c.id, c.barra_id, c.timestamp, c.ptime_esp32_s, c.rssi_dbm, c.snr_db
+      `SELECT c.id, c.barra_id, c.timestamp, c.uptime_esp32_s, c.rssi_dbm, c.snr_db
        FROM silos.comunicacao_status c
        WHERE ${whereStr}
        ORDER BY c.timestamp DESC
@@ -229,7 +229,7 @@ export async function buscarComunicacao(
         barra_id:      r.barra_id,
         barra_identificacao: barraMap.get(r.barra_id) ?? String(r.barra_id),
         timestamp:     r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
-        ptime_esp32_s: r.ptime_esp32_s != null ? Number(r.ptime_esp32_s) : null,
+        uptime_esp32_s: r.uptime_esp32_s != null ? Number(r.uptime_esp32_s) : null,
         rssi_dbm:      r.rssi_dbm      != null ? Number(r.rssi_dbm)      : null,
         snr_db:        r.snr_db        != null ? Number(r.snr_db)        : null,
       })),
@@ -300,13 +300,13 @@ export async function buscarGraficoComunicacao(
 
     const rows = await prisma.$queryRawUnsafe<Array<{
       barra_id: number; bucket: Date;
-      avg_rssi: number | null; avg_snr: number | null; avg_ptime: number | null;
+      avg_rssi: number | null; avg_snr: number | null; avg_uptime: number | null;
     }>>(
       `SELECT barra_id,
               to_timestamp(floor(extract(epoch from timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
               AVG(rssi_dbm)::float      AS avg_rssi,
               AVG(snr_db)::float        AS avg_snr,
-              AVG(ptime_esp32_s)::float AS avg_ptime
+              AVG(uptime_esp32_s)::float AS avg_uptime
        FROM silos.comunicacao_status
        WHERE ${where.join(' AND ')}
        GROUP BY barra_id, bucket
@@ -325,7 +325,7 @@ export async function buscarGraficoComunicacao(
         bucket:    r.bucket instanceof Date ? r.bucket.toISOString() : r.bucket,
         avg_rssi:  r.avg_rssi  != null ? Number(r.avg_rssi)  : null,
         avg_snr:   r.avg_snr   != null ? Number(r.avg_snr)   : null,
-        avg_ptime: r.avg_ptime != null ? Number(r.avg_ptime) : null,
+        avg_uptime: r.avg_uptime != null ? Number(r.avg_uptime) : null,
       })),
       barras: barrasInfo,
     });

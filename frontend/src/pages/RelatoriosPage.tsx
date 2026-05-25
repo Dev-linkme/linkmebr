@@ -594,6 +594,8 @@ export default function RelatoriosPage() {
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Sum</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Sum²</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
                           </tr>
                         </thead>
@@ -612,6 +614,8 @@ export default function RelatoriosPage() {
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.sum ?? '—'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.sum2 ?? '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
                               </tr>
                             );

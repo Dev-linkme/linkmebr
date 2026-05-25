@@ -64,6 +64,8 @@ export interface LeituraInterna {
   valor_min: number;
   num_amostras: number;
   desvio_padrao?: number;
+  sum: string | null;
+  sum2: string | null;
   sensor?: Sensor;
   barra?: Barra;
 }
@@ -88,7 +90,7 @@ export interface ComunicacaoStatus {
   barra_id: number;
   barra_identificacao: string;
   timestamp: string;
-  ptime_esp32_s: number | null;
+  uptime_esp32_s: number | null;
   rssi_dbm: number | null;
   snr_db: number | null;
 }

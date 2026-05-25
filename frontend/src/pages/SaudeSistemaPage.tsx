@@ -34,7 +34,7 @@ interface ComunicacaoResponse {
 }
 interface ComunicacaoGraficoSerie {
   barra_id: number; bucket: string;
-  avg_rssi: number | null; avg_snr: number | null; avg_ptime: number | null;
+  avg_rssi: number | null; avg_snr: number | null; avg_uptime: number | null;
 }
 interface ComunicacaoGraficoResponse {
   series: ComunicacaoGraficoSerie[];
@@ -107,7 +107,7 @@ function LabradorChart({ series }: { series: LabradorGraficoSerie[] }) {
 }
 
 function ComunicacaoChart({ campo, label, unidade, series, barras }: {
-  campo: 'avg_rssi' | 'avg_snr' | 'avg_ptime';
+  campo: 'avg_rssi' | 'avg_snr' | 'avg_uptime';
   label: string; unidade: string;
   series: ComunicacaoGraficoSerie[];
   barras: { id: number; identificacao: string }[];
@@ -522,7 +522,7 @@ export default function SaudeSistemaPage() {
                             <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                               <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(row.timestamp)}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.barra_identificacao}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.ptime_esp32_s ?? '—'}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.uptime_esp32_s ?? '—'}</td>
                               <td className="px-4 py-3 whitespace-nowrap font-medium">
                                 <span className={rssiColor(row.rssi_dbm)}>{row.rssi_dbm != null ? `${row.rssi_dbm} dBm` : '—'}</span>
                               </td>
@@ -550,7 +550,7 @@ export default function SaudeSistemaPage() {
                   <>
                     <ComunicacaoChart campo="avg_rssi"  label="Sinal RSSI"        unidade="dBm" series={graficoComunicacao.series} barras={graficoComunicacao.barras} />
                     <ComunicacaoChart campo="avg_snr"   label="Relação Sinal/Ruído (SNR)" unidade="dB"  series={graficoComunicacao.series} barras={graficoComunicacao.barras} />
-                    <ComunicacaoChart campo="avg_ptime" label="Tempo de Processamento ESP32" unidade="s" series={graficoComunicacao.series} barras={graficoComunicacao.barras} />
+                    <ComunicacaoChart campo="avg_uptime" label="Tempo de Processamento ESP32" unidade="s" series={graficoComunicacao.series} barras={graficoComunicacao.barras} />
                   </>
                 )
               )}
