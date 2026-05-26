@@ -123,6 +123,7 @@ model LeituraInterna {
   desvio_padrao   Decimal?  @db.Decimal(10, 4)
   sum             BigInt?
   sum2            BigInt?
+  status_analise  String?
 
   sensor          Sensor    @relation(fields: [sensor_id], references: [id])
 

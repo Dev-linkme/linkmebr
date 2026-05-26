@@ -10,7 +10,7 @@ import {
   BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search,
 } from 'lucide-react';
 import api from '../services/api';
-import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna } from '../types/index';
+import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna, Regra } from '../types/index';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -170,6 +170,46 @@ function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: {
   );
 }
 
+// ─── Status Análise ───────────────────────────────────────────────────────────────
+
+function resolveStatusAnalise(status: string | null | undefined, regras: Regra[]) {
+  if (!status) return [];
+  return status.split(',').map((c) => c.trim()).filter(Boolean).map((codigo) => {
+    const r = regras.find((x) => x.codigo === codigo);
+    return r ?? { codigo, criterio: codigo, logica: '', severidade: 'erro' as const };
+  });
+}
+
+function StatusAnaliseBadge({ status, regras }: { status: string | null | undefined; regras: Regra[] }) {
+  const itens = resolveStatusAnalise(status, regras);
+  if (itens.length === 0) return <span className="text-gray-300">—</span>;
+
+  const temErro = itens.some((i) => i.severidade === 'erro');
+  const badgeCls = temErro
+    ? 'bg-red-100 text-red-700 border border-red-200'
+    : 'bg-yellow-100 text-yellow-700 border border-yellow-200';
+
+  const tooltipText = itens.map((i) => `[${i.codigo}] ${i.criterio}: ${i.logica}`).join('\n');
+
+  return (
+    <div className="relative group inline-flex">
+      <span className={`px-2 py-0.5 rounded text-xs font-medium cursor-help ${badgeCls}`} title={tooltipText}>
+        {itens.map((i) => i.codigo).join(', ')}
+      </span>
+      <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-20 w-72 bg-gray-900 text-white text-xs rounded p-2 shadow-xl whitespace-pre-line pointer-events-none">
+        {itens.map((i) => (
+          <p key={i.codigo} className="mb-1 last:mb-0">
+            <span className={i.severidade === 'erro' ? 'text-red-400 font-semibold' : 'text-yellow-400 font-semibold'}>
+              [{i.codigo}]
+            </span>{' '}
+            <span className="font-medium">{i.criterio}:</span> {i.logica}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────────
 
 export default function RelatoriosPage() {
@@ -187,6 +227,9 @@ export default function RelatoriosPage() {
   const [silos,    setSilos]    = useState<Silo[]>([]);
   const [barras,   setBarras]   = useState<Barra[]>([]);
   const [sensores, setSensores] = useState<Sensor[]>([]);
+
+  // Catálogo de regras de análise
+  const [regras, setRegras] = useState<Regra[]>([]);
 
   // Derived tab visibility
   const hasInterna = barras.some((b) => b.local === 'interno ao silo');
@@ -228,11 +271,14 @@ export default function RelatoriosPage() {
 
   const [lastFiltros, setLastFiltros] = useState<FiltrosForm | null>(null);
 
-  // ── Load silos ───────────────────────────────────────────────────────────────
+  // ── Load silos + regras ───────────────────────────────────────────────────────
   useEffect(() => {
     api.get<{ data: Silo[] }>('/silos?per_page=200')
       .then((res) => setSilos((res.data.data ?? []).filter((s) => s.status === 'ativo')))
       .catch(() => toast.error('Erro ao carregar silos'));
+    api.get<Regra[]>('/regras')
+      .then((res) => setRegras(res.data))
+      .catch(() => {});
   }, []);
 
   // ── Load barras when silo changes ────────────────────────────────────────────
@@ -597,6 +643,7 @@ export default function RelatoriosPage() {
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Sum</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Sum²</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -617,6 +664,7 @@ export default function RelatoriosPage() {
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.sum ?? '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.sum2 ?? '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
                               </tr>
                             );
                           })}

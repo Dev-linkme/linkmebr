@@ -66,6 +66,7 @@ export interface LeituraInterna {
   desvio_padrao?: number;
   sum: string | null;
   sum2: string | null;
+  status_analise: string | null;
   sensor?: Sensor;
   barra?: Barra;
 }
@@ -127,6 +128,13 @@ export interface SolicitacaoContato {
   data_hora: string;
   status: string;
   observacoes_internas?: string;
+}
+
+export interface Regra {
+  codigo: string;
+  criterio: string;
+  logica: string;
+  severidade: 'erro' | 'advertência';
 }
 
 export interface AuthUser {

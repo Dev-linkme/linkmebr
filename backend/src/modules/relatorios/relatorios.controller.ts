@@ -126,7 +126,7 @@ export async function exportarCSV(req: Request, res: Response, next: NextFunctio
     const cabecalho = [
       'id_leitura', 'sensor_id', 'sensor_identificacao', 'barra_id', 'barra_identificacao',
       'tipo_grandeza', 'unidade_medida', 'timestamp',
-      'valor_avg', 'valor_max', 'valor_min', 'num_amostras', 'desvio_padrao', 'sum', 'sum2',
+      'valor_avg', 'valor_max', 'valor_min', 'num_amostras', 'desvio_padrao', 'sum', 'sum2', 'status_analise',
     ].join(',');
 
     const linhas = leituras.map((l) =>
@@ -146,6 +146,7 @@ export async function exportarCSV(req: Request, res: Response, next: NextFunctio
         l.desvio_padrao !== null ? l.desvio_padrao.toString() : '',
         l.sum !== null ? l.sum.toString() : '',
         l.sum2 !== null ? l.sum2.toString() : '',
+        l.status_analise ?? '',
       ].join(','),
     );
 
@@ -682,6 +683,7 @@ function serializeLeituraInterna(l: {
   desvio_padrao: { toNumber(): number } | null;
   sum: bigint | null;
   sum2: bigint | null;
+  status_analise: string | null;
   sensor: {
     id: number;
     identificacao: string;
@@ -703,6 +705,7 @@ function serializeLeituraInterna(l: {
     desvio_padrao: l.desvio_padrao ? l.desvio_padrao.toNumber() : null,
     sum: l.sum !== null ? l.sum.toString() : null,
     sum2: l.sum2 !== null ? l.sum2.toString() : null,
+    status_analise: l.status_analise ?? null,
     sensor: {
       ...l.sensor,
       altura_solo_m: l.sensor.altura_solo_m.toNumber(),
