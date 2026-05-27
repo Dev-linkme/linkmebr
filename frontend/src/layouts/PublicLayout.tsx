@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Outlet, Link as ScrollLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Menu, X, Leaf } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import LanguageSelector from '../components/LanguageSelector';
 import LoginModal from '../components/LoginModal';
+import logoImg from '../assets/logo.png';
 
 export default function PublicLayout() {
   const { t } = useTranslation();
@@ -24,11 +25,8 @@ export default function PublicLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <a href="#" className="flex items-center gap-2 font-bold text-xl text-primary-700">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <Leaf size={16} className="text-white" />
-              </div>
-              LinkMe BR
+            <a href="#">
+              <img src={logoImg} alt="LinkMe BR" className="h-10 w-auto" />
             </a>
 
             {/* Desktop nav */}
@@ -102,12 +100,7 @@ export default function PublicLayout() {
       {/* Footer */}
       <footer className="bg-gray-900 text-gray-400 py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-white font-bold text-lg">
-            <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Leaf size={14} className="text-white" />
-            </div>
-            LinkMe BR
-          </div>
+          <img src={logoImg} alt="LinkMe BR" className="h-8 w-auto brightness-0 invert" />
           <p className="text-sm">
             &copy; {new Date().getFullYear()} LinkMe BR. {t('rodape.direitos')}
           </p>

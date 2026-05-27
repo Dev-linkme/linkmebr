@@ -12,11 +12,11 @@ import {
   LogOut,
   Menu,
   X,
-  Leaf,
   ChevronDown,
   Layers,
   Activity,
 } from 'lucide-react';
+import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -135,11 +135,8 @@ export default function AppLayout() {
   const Sidebar = () => (
     <aside className="flex flex-col h-full bg-white border-r border-gray-200 w-64">
       {/* Brand */}
-      <div className="flex items-center gap-2 px-5 py-5 border-b border-gray-100">
-        <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Leaf size={16} className="text-white" />
-        </div>
-        <span className="font-bold text-gray-900 text-lg">LinkMe BR</span>
+      <div className="flex items-center justify-center px-5 py-4 border-b border-gray-100">
+        <img src={logoImg} alt="LinkMe BR" className="h-14 w-auto" />
       </div>
 
       {/* Nav */}
