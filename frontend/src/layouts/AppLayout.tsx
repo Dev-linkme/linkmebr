@@ -136,7 +136,7 @@ export default function AppLayout() {
     <aside className="flex flex-col h-full bg-white border-r border-gray-200 w-64">
       {/* Brand */}
       <div className="flex items-center justify-center px-5 py-4 border-b border-gray-100">
-        <img src={logoImg} alt="LinkMe BR" className="h-14 w-auto" />
+        <img src={logoImg} alt="LinkMe BR" className="h-28 w-auto" />
       </div>
 
       {/* Nav */}

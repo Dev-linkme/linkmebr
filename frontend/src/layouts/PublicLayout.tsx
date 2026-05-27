@@ -26,7 +26,7 @@ export default function PublicLayout() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <a href="#">
-              <img src={logoImg} alt="LinkMe BR" className="h-10 w-auto" />
+              <img src={logoImg} alt="LinkMe BR" className="h-16 w-auto" />
             </a>
 
             {/* Desktop nav */}
