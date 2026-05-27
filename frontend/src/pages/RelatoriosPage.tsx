@@ -130,11 +130,22 @@ function ExternoChart({ campo, label, unidade, series, sensores }: {
   const chartData = buckets.map((bucket) => {
     const row: Record<string, unknown> = { bucket };
     sensores.forEach((s) => {
-      const p = series.find((d) => d.bucket === bucket && d.sensor_id === s.id);
-      if (p) row[String(s.id)] = p[campo];
+      const p = series.find((d) => d.bucket === bucket && Number(d.sensor_id) === Number(s.id));
+      if (p && p[campo] != null) row[String(s.id)] = p[campo];
     });
     return row;
   });
+  const yValues = chartData.flatMap((row) =>
+    sensores.map((s) => row[String(s.id)] as number | undefined).filter((v): v is number => v != null)
+  );
+  const yMin = yValues.length > 0 ? Math.min(...yValues) : 0;
+  const yMax = yValues.length > 0 ? Math.max(...yValues) : 100;
+  const yPad = Math.max((yMax - yMin) * 0.1, 0.5);
+  const yDomain: [number, number] = [
+    Math.floor((yMin - yPad) * 10) / 10,
+    Math.ceil((yMax + yPad) * 10) / 10,
+  ];
+  if (yValues.length === 0) return null;
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">{label}{unidade ? ` (${unidade})` : ''}</h3>
@@ -142,7 +153,7 @@ function ExternoChart({ campo, label, unidade, series, sensores }: {
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
-          <YAxis tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} domain={yDomain} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
             const s = sensores.find((x) => String(x.id) === String(name));
             return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? `${s.identificacao} (${s.altura_solo_m}m)` : String(name)];

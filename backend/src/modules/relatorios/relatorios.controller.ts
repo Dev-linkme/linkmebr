@@ -496,7 +496,7 @@ export async function buscarGraficoExterno(
 
     res.json({
       series: rows.map((r) => ({
-        sensor_id: r.sensor_id,
+        sensor_id: Number(r.sensor_id),
         bucket: r.bucket instanceof Date ? r.bucket.toISOString() : r.bucket,
         avg_temp: r.avg_temp !== null ? Number(r.avg_temp) : null,
         avg_umid: r.avg_umid !== null ? Number(r.avg_umid) : null,
