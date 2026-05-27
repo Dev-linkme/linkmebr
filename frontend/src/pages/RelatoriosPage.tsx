@@ -87,6 +87,16 @@ function GrandezaChart({ grandeza, series, sensores, valor }: {
     return row;
   });
   const unidade = sens[0]?.unidade_medida ?? '';
+  const yValues = chartData.flatMap((row) =>
+    sens.map((s) => row[String(s.id)] as number | undefined).filter((v): v is number => v != null)
+  );
+  const yMin = yValues.length > 0 ? Math.min(...yValues) : 0;
+  const yMax = yValues.length > 0 ? Math.max(...yValues) : 100;
+  const yPad = Math.max((yMax - yMin) * 0.1, 0.5);
+  const yDomain: [number, number] = [
+    Math.floor((yMin - yPad) * 10) / 10,
+    Math.ceil((yMax + yPad) * 10) / 10,
+  ];
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">{GRANDEZA_LABELS[grandeza]}{unidade ? ` (${unidade})` : ''}</h3>
@@ -94,7 +104,7 @@ function GrandezaChart({ grandeza, series, sensores, valor }: {
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
-          <YAxis tick={{ fontSize: 11 }} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
+          <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
             const s = sens.find((x) => String(x.id) === String(name));
             return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? `${s.identificacao} (${s.altura_solo_m}m)` : String(name)];
@@ -628,7 +638,9 @@ export default function RelatoriosPage() {
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Altura (m)</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_grandeza')}</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_avg')}>
                               {t('relatorios.coluna_avg')}<SortIcon field="valor_avg" />
                             </th>
@@ -640,9 +652,6 @@ export default function RelatoriosPage() {
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Sum</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Sum²</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Status</th>
                           </tr>
                         </thead>
@@ -655,15 +664,14 @@ export default function RelatoriosPage() {
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.altura_solo_m != null ? `${sensor.altura_solo_m} m` : '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700 capitalize">{sensor ? (GRANDEZA_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza) : '—'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.valor_avg)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_max)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.sum ?? '—'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.sum2 ?? '—'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
                               </tr>
                             );
