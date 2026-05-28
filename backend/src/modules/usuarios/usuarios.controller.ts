@@ -80,19 +80,17 @@ export async function criar(req: Request, res: Response, next: NextFunction): Pr
 
     // Regras de perfil por quem está criando
     if (req.user?.perfil === 'administrador_empresa') {
-      // adm_empresa só pode criar operador_empresa na própria empresa
-      if (perfil !== 'operador_empresa') {
-        throw new AppError(403, 'Administrador de empresa só pode criar usuários do tipo operador');
+      // pode criar administrador_empresa ou operador_empresa — nunca administrador_geral
+      if (perfil === 'administrador_geral') {
+        throw new AppError(403, 'Administrador de empresa não pode criar administrador geral');
       }
-      if (!empresa_id || empresa_id !== req.user.empresa_id) {
-        throw new AppError(403, 'Administrador de empresa só pode criar usuários para sua própria empresa');
-      }
+      // empresa sempre é a do próprio criador — ignora qualquer empresa_id enviado
     }
 
     if (req.user?.perfil === 'administrador_geral') {
-      // adm_geral não pode criar operador sem empresa vinculada
-      if (perfil === 'operador_empresa' && !empresa_id) {
-        throw new AppError(400, 'Operador de empresa deve ter uma empresa vinculada');
+      // não pode criar operador_empresa
+      if (perfil === 'operador_empresa') {
+        throw new AppError(403, 'Administrador geral não pode criar operador de empresa');
       }
       if (perfil === 'administrador_empresa' && !empresa_id) {
         throw new AppError(400, 'Administrador de empresa deve ter uma empresa vinculada');
@@ -102,6 +100,12 @@ export async function criar(req: Request, res: Response, next: NextFunction): Pr
       }
     }
 
+    // administrador_empresa sempre cria na própria empresa
+    const empresaIdFinal =
+      req.user?.perfil === 'administrador_empresa'
+        ? (req.user.empresa_id ?? null)
+        : (empresa_id ?? null);
+
     // Verifica email duplicado
     const emailExistente = await prisma.usuario.findUnique({ where: { email } });
     if (emailExistente) {
@@ -109,8 +113,8 @@ export async function criar(req: Request, res: Response, next: NextFunction): Pr
     }
 
     // Verifica se empresa existe quando informada
-    if (empresa_id) {
-      const empresa = await prisma.empresa.findUnique({ where: { id: empresa_id } });
+    if (empresaIdFinal) {
+      const empresa = await prisma.empresa.findUnique({ where: { id: empresaIdFinal } });
       if (!empresa) throw new AppError(404, 'Empresa não encontrada');
       if (empresa.status === 'inativa') throw new AppError(400, 'Não é possível vincular usuário a uma empresa inativa');
     }
@@ -123,7 +127,7 @@ export async function criar(req: Request, res: Response, next: NextFunction): Pr
         email,
         senha_hash,
         perfil,
-        empresa_id: empresa_id ?? null,
+        empresa_id: empresaIdFinal,
         status,
       },
       select: {
@@ -201,8 +205,20 @@ export async function atualizar(req: Request, res: Response, next: NextFunction)
       throw new AppError(403, 'Acesso negado a este usuário');
     }
 
-    const { senha, ...resto } = data.data;
+    const { senha, perfil: novoPerfil, ...resto } = data.data;
+
+    // Mesmas restrições de perfil da criação
+    if (novoPerfil) {
+      if (req.user?.perfil === 'administrador_empresa' && novoPerfil === 'administrador_geral') {
+        throw new AppError(403, 'Administrador de empresa não pode atribuir perfil de administrador geral');
+      }
+      if (req.user?.perfil === 'administrador_geral' && novoPerfil === 'operador_empresa') {
+        throw new AppError(403, 'Administrador geral não pode atribuir perfil de operador de empresa');
+      }
+    }
+
     const dadosAtualizacao: Record<string, unknown> = { ...resto };
+    if (novoPerfil) dadosAtualizacao.perfil = novoPerfil;
 
     if (senha) {
       dadosAtualizacao.senha_hash = await bcrypt.hash(senha, 12);
