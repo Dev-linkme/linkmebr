@@ -50,7 +50,7 @@ export async function buscarLeituras(
         skip,
         take: limit,
         orderBy: [
-          { timestamp: 'asc' },
+          { timestamp: 'desc' },
           { sensor: { barra: { identificacao: 'asc' } } },
         ],
         include: {

@@ -257,9 +257,10 @@ export default function RelatoriosPage() {
   const hasExterna = barras.some((b) => b.local === 'externo ao silo');
 
   // Tabs
-  const [abaAtiva,      setAbaAtiva]      = useState<AbaAtiva>('interna');
-  const [subAbaInterna, setSubAbaInterna] = useState<SubAba>('tabela');
-  const [subAbaExterna, setSubAbaExterna] = useState<SubAba>('tabela');
+  const [abaAtiva,        setAbaAtiva]        = useState<AbaAtiva>('interna');
+  const [grandezaInterna, setGrandezaInterna] = useState<GrandezaTipo>('temperatura');
+  const [subAbaInterna,   setSubAbaInterna]   = useState<SubAba>('tabela');
+  const [subAbaExterna,   setSubAbaExterna]   = useState<SubAba>('tabela');
 
   // Range hints
   const [rangeInterna, setRangeInterna] = useState<RangeHint>(null);
@@ -618,110 +619,143 @@ export default function RelatoriosPage() {
           {/* ── ABA: Leituras Internas ── */}
           {abaAtiva === 'interna' && (
             <div className="p-4 space-y-4">
-              {/* Sub-tab bar */}
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                  <button onClick={() => setSubAbaInterna('tabela')}  className={subTabCls('tabela',  subAbaInterna)}>Tabela</button>
-                  <button onClick={() => setSubAbaInterna('grafico')} className={subTabCls('grafico', subAbaInterna)}>Gráfico</button>
-                </div>
-                {lastFiltros && subAbaInterna === 'tabela' && (
-                  <button onClick={handleExportInterna} disabled={loadingExportInt}
-                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
-                    <Download size={14} />{loadingExportInt ? 'Exportando...' : 'Exportar CSV'}
-                  </button>
-                )}
-              </div>
-
-              {/* Tabela interna */}
-              {subAbaInterna === 'tabela' && (
-                !lastFiltros ? (
-                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
-                ) : loadingInterna ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
-                ) : dados.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
-                ) : (
-                  <div className="rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Altura (m)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_grandeza')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_avg')}>
-                              {t('relatorios.coluna_avg')}<SortIcon field="valor_avg" />
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_max')}>
-                              {t('relatorios.coluna_max')}<SortIcon field="valor_max" />
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_min')}>
-                              {t('relatorios.coluna_min')}<SortIcon field="valor_min" />
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {sortedDados.map((leitura) => {
-                            const sensor = leitura.sensor;
-                            const barra  = leitura.sensor?.barra;
-                            return (
-                              <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.altura_solo_m != null ? `${sensor.altura_solo_m} m` : '—'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700 capitalize">{sensor ? (GRANDEZA_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza) : '—'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.valor_avg)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_max)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {totalPagInterna > 1 && <Paginacao pagina={paginaInterna} totalPaginas={totalPagInterna} loading={loadingInterna} onPageChange={handlePageInterna} t={t} />}
-                  </div>
-                )
-              )}
-
-              {/* Gráfico interno */}
-              {subAbaInterna === 'grafico' && (
-                !lastFiltros ? (
-                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
-                ) : loadingGrafInterna ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
-                ) : !grafico || grafico.series.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
-                ) : (
+              {/* Grandeza tabs */}
+              {(() => {
+                const grandezasComDados = new Set(dados.map((l) => l.sensor?.tipo_grandeza).filter(Boolean)) as Set<GrandezaTipo>;
+                const GRANDEZA_TABS: { key: GrandezaTipo; label: string }[] = [
+                  { key: 'temperatura', label: 'Temperatura' },
+                  { key: 'umidade',     label: 'Umidade' },
+                  { key: 'co2',         label: 'CO₂' },
+                ];
+                const grandezaTabCls = (g: GrandezaTipo) =>
+                  `px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                    grandezaInterna === g
+                      ? 'border-primary-500 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`;
+                const dadosFiltrados  = sortedDados.filter((l) => l.sensor?.tipo_grandeza === grandezaInterna);
+                const serieFiltrada   = grafico?.series.filter((s) =>
+                  (grafico?.sensores ?? []).find((x) => x.id === s.sensor_id && x.tipo_grandeza === grandezaInterna)
+                ) ?? [];
+                const sensoresFiltrados = (grafico?.sensores ?? []).filter((s) => s.tipo_grandeza === grandezaInterna);
+                return (
                   <>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Exibindo:</span>
-                      <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-                        {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
-                          <button key={v} onClick={() => setValorTipo(v)}
-                            className={`px-4 py-1.5 text-sm font-medium transition-colors ${valorTipo === v ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                            {VALOR_LABELS[v]}
+                    {/* Grandeza selector */}
+                    <div className="flex border-b border-gray-100 -mt-1">
+                      {GRANDEZA_TABS.map(({ key, label }) => {
+                        const temDados = lastFiltros ? grandezasComDados.has(key) : true;
+                        return (
+                          <button key={key} onClick={() => setGrandezaInterna(key)}
+                            className={`${grandezaTabCls(key)} ${!temDados && lastFiltros ? 'opacity-40' : ''}`}>
+                            {label}
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                    {grandezasPresentes.map((g) => (
-                      <GrandezaChart key={g} grandeza={g} series={grafico.series} sensores={grafico.sensores} valor={valorTipo} />
-                    ))}
+
+                    {/* Tabela/Gráfico selector + export */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                        <button onClick={() => setSubAbaInterna('tabela')}  className={subTabCls('tabela',  subAbaInterna)}>Tabela</button>
+                        <button onClick={() => setSubAbaInterna('grafico')} className={subTabCls('grafico', subAbaInterna)}>Gráfico</button>
+                      </div>
+                      {lastFiltros && subAbaInterna === 'tabela' && (
+                        <button onClick={handleExportInterna} disabled={loadingExportInt}
+                          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                          <Download size={14} />{loadingExportInt ? 'Exportando...' : 'Exportar CSV'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Tabela */}
+                    {subAbaInterna === 'tabela' && (
+                      !lastFiltros ? (
+                        <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                      ) : loadingInterna ? (
+                        <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                      ) : dadosFiltrados.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                      ) : (
+                        <div className="rounded-lg border border-gray-200 overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Altura (m)</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_avg')}>
+                                    {t('relatorios.coluna_avg')}<SortIcon field="valor_avg" />
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_max')}>
+                                    {t('relatorios.coluna_max')}<SortIcon field="valor_max" />
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_min')}>
+                                    {t('relatorios.coluna_min')}<SortIcon field="valor_min" />
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {dadosFiltrados.map((leitura) => {
+                                  const sensor = leitura.sensor;
+                                  const barra  = sensor?.barra;
+                                  return (
+                                    <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.altura_solo_m != null ? `${sensor.altura_solo_m} m` : '—'}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.valor_avg)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_max)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          {totalPagInterna > 1 && <Paginacao pagina={paginaInterna} totalPaginas={totalPagInterna} loading={loadingInterna} onPageChange={handlePageInterna} t={t} />}
+                        </div>
+                      )
+                    )}
+
+                    {/* Gráfico */}
+                    {subAbaInterna === 'grafico' && (
+                      !lastFiltros ? (
+                        <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                      ) : loadingGrafInterna ? (
+                        <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                      ) : serieFiltrada.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">Exibindo:</span>
+                            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                              {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
+                                <button key={v} onClick={() => setValorTipo(v)}
+                                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${valorTipo === v ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                                  {VALOR_LABELS[v]}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <GrandezaChart grandeza={grandezaInterna} series={serieFiltrada} sensores={sensoresFiltrados} valor={valorTipo} />
+                        </>
+                      )
+                    )}
                   </>
-                )
-              )}
+                );
+              })()}
             </div>
           )}
 
