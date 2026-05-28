@@ -14,6 +14,7 @@ import FaqAdminPage from './pages/FaqAdminPage';
 import ContatosPage from './pages/ContatosPage';
 import CadastrosPage from './pages/CadastrosPage';
 import SaudeSistemaPage from './pages/SaudeSistemaPage';
+import ExportacaoPage from './pages/ExportacaoPage';
 
 export default function App() {
   return (
@@ -118,6 +119,18 @@ export default function App() {
         }
       >
         <Route index element={<SaudeSistemaPage />} />
+      </Route>
+
+      {/* Exportação — todos os perfis autenticados */}
+      <Route
+        path="/exportacao"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<ExportacaoPage />} />
       </Route>
 
       {/* Cadastros — visualização hierárquica (todos os perfis autenticados) */}

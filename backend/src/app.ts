@@ -17,6 +17,7 @@ import { saudeSistemaRoutes } from './modules/saude-sistema/saudeSistema.routes'
 import { regrasRoutes } from './modules/regras/regras.routes';
 import { faqPublicoRoutes, faqAdminRoutes } from './modules/faq/faq.routes';
 import { contatoPublicoRoutes, contatoAdminRoutes } from './modules/contato/contato.routes';
+import { exportRoutes } from './modules/export/export.routes';
 
 const app = express();
 
@@ -88,6 +89,7 @@ api.use('/faq', faqPublicoRoutes);
 api.use('/contato', contatoPublicoRoutes);
 api.use('/admin/faq', faqAdminRoutes);
 api.use('/admin/contatos', contatoAdminRoutes);
+api.use('/export', exportRoutes);
 
 app.use('/api/v1', api);
 

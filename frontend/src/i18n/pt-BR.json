@@ -9,7 +9,8 @@
     "relatorios": "Leituras",
     "admin": "Administração",
     "cadastros": "Consultar Configurações",
-    "saude_sistema": "Saúde do Sistema"
+    "saude_sistema": "Saúde Do Sistema",
+    "exportacao": "Exportação"
   },
   "cadastros": {
     "empresas": "Empresas",

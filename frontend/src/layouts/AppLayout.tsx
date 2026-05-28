@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Layers,
   Activity,
+  Download,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +52,11 @@ export default function AppLayout() {
       to: '/relatorios',
       label: t('nav.relatorios'),
       icon: <BarChart2 size={18} />,
+    },
+    {
+      to: '/exportacao',
+      label: t('nav.exportacao'),
+      icon: <Download size={18} />,
     },
   ];
 
@@ -157,7 +163,7 @@ export default function AppLayout() {
           <div className="pt-3">
             <button
               onClick={() => setAdminExpanded(!adminExpanded)}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 tracking-wider hover:text-gray-600 transition-colors"
             >
               <span>{t('nav.admin')}</span>
               <ChevronDown
@@ -193,7 +199,7 @@ export default function AppLayout() {
           <div className="pt-3">
             <button
               onClick={() => setCadastrosExpanded(!cadastrosExpanded)}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 tracking-wider hover:text-gray-600 transition-colors"
             >
               <span>{t('nav.cadastros')}</span>
               <ChevronDown
@@ -236,7 +242,9 @@ export default function AppLayout() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">{user?.nome_completo}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.perfil?.replace(/_/g, ' ')}</p>
+            <p className="text-xs text-gray-500 truncate">
+              {user?.perfil?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+            </p>
           </div>
           <button
             onClick={handleLogout}
