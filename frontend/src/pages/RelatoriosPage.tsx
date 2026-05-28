@@ -603,7 +603,7 @@ export default function RelatoriosPage() {
           <label className="block text-xs font-medium text-gray-700">Período</label>
           <div className="flex flex-wrap gap-2">
             {(['24h', '72h', 'semana', 'mes', 'custom'] as PeriodoPreset[]).map((p) => (
-              <button key={p} type="button" onClick={() => setPeriodoPreset(p)}
+              <button key={p} type="button" onClick={() => { setPeriodoPreset(p); setLastFiltros(null); }}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
                   periodoPreset === p
                     ? 'bg-primary-600 text-white border-primary-600'
