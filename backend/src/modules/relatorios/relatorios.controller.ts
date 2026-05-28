@@ -206,35 +206,49 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
     const diffHoras = data_inicio && data_fim
       ? (data_fim.getTime() - data_inicio.getTime()) / 3_600_000
       : 24 * 7;
-    const bucketSec = diffHoras <= 24 ? 600 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
     const whereClause: string[] = [`l.sensor_id = ANY($1::int[])`];
     const params: unknown[] = [sensorIds];
     if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
     if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
 
-    const rows = await prisma.$queryRawUnsafe<Array<{
-      sensor_id: number;
-      bucket: Date;
-      avg: number;
-      max: number;
-      min: number;
-    }>>(
-      `SELECT l.sensor_id,
-              to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
-              AVG(l.valor_avg)::float AS avg,
-              MAX(l.valor_max)::float AS max,
-              MIN(l.valor_min)::float AS min
-       FROM silos.leitura_interna l
-       WHERE ${whereClause.join(' AND ')}
-       GROUP BY l.sensor_id, bucket
-       ORDER BY l.sensor_id, bucket`,
-      ...params,
-    );
+    type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
+    let rows: GraficoRow[];
+
+    if (diffHoras <= 72) {
+      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
+        `SELECT l.sensor_id,
+                l.timestamp AS bucket,
+                l.valor_avg::float AS avg,
+                l.valor_max::float AS max,
+                l.valor_min::float AS min
+         FROM silos.leitura_interna l
+         WHERE ${whereClause.join(' AND ')}
+         ORDER BY l.sensor_id, l.timestamp`,
+        ...params,
+      );
+    } else {
+      const bucketSec = diffHoras <= 24 * 7 ? 3600 : 10800;
+      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
+        `SELECT l.sensor_id,
+                to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
+                AVG(l.valor_avg)::float AS avg,
+                MAX(l.valor_max)::float AS max,
+                MIN(l.valor_min)::float AS min
+         FROM silos.leitura_interna l
+         WHERE ${whereClause.join(' AND ')}
+         GROUP BY l.sensor_id, bucket
+         ORDER BY l.sensor_id, bucket`,
+        ...params,
+      );
+    }
 
     const sensores = await prisma.sensor.findMany({
       where: { id: { in: sensorIds } },
-      select: { id: true, identificacao: true, tipo_grandeza: true, unidade_medida: true, altura_solo_m: true },
+      select: {
+        id: true, identificacao: true, tipo_grandeza: true, unidade_medida: true, altura_solo_m: true,
+        barra: { select: { id: true, identificacao: true } },
+      },
       orderBy: { id: 'asc' },
     });
 
@@ -246,7 +260,15 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
         max: Number(r.max),
         min: Number(r.min),
       })),
-      sensores: sensores.map((s) => ({ ...s, altura_solo_m: Number(s.altura_solo_m) })),
+      sensores: sensores.map((s) => ({
+        id: s.id,
+        identificacao: s.identificacao,
+        tipo_grandeza: s.tipo_grandeza,
+        unidade_medida: s.unidade_medida,
+        altura_solo_m: Number(s.altura_solo_m),
+        barra_id: s.barra.id,
+        barra_identificacao: s.barra.identificacao,
+      })),
     });
   } catch (err) {
     next(err);
@@ -464,29 +486,40 @@ export async function buscarGraficoExterno(
     const diffHoras = data_inicio && data_fim
       ? (data_fim.getTime() - data_inicio.getTime()) / 3_600_000
       : 24 * 7;
-    const bucketSec = diffHoras <= 24 ? 600 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
     const whereClause: string[] = [`l.sensor_id = ANY($1::int[])`];
     const params: unknown[] = [sensorIds];
     if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
     if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
 
-    const rows = await prisma.$queryRawUnsafe<Array<{
-      sensor_id: number;
-      bucket: Date;
-      avg_temp: number | null;
-      avg_umid: number | null;
-    }>>(
-      `SELECT l.sensor_id,
-              to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
-              AVG(l.temp_avg)::float AS avg_temp,
-              AVG(l.umid_avg)::float AS avg_umid
-       FROM silos.leitura_externa l
-       WHERE ${whereClause.join(' AND ')}
-       GROUP BY l.sensor_id, bucket
-       ORDER BY l.sensor_id, bucket`,
-      ...params,
-    );
+    type GraficoExternoRow = { sensor_id: number; bucket: Date; avg_temp: number | null; avg_umid: number | null };
+    let rows: GraficoExternoRow[];
+
+    if (diffHoras <= 72) {
+      rows = await prisma.$queryRawUnsafe<GraficoExternoRow[]>(
+        `SELECT l.sensor_id,
+                l.timestamp AS bucket,
+                l.temp_avg::float AS avg_temp,
+                l.umid_avg::float AS avg_umid
+         FROM silos.leitura_externa l
+         WHERE ${whereClause.join(' AND ')}
+         ORDER BY l.sensor_id, l.timestamp`,
+        ...params,
+      );
+    } else {
+      const bucketSec = diffHoras <= 24 * 7 ? 3600 : 10800;
+      rows = await prisma.$queryRawUnsafe<GraficoExternoRow[]>(
+        `SELECT l.sensor_id,
+                to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
+                AVG(l.temp_avg)::float AS avg_temp,
+                AVG(l.umid_avg)::float AS avg_umid
+         FROM silos.leitura_externa l
+         WHERE ${whereClause.join(' AND ')}
+         GROUP BY l.sensor_id, bucket
+         ORDER BY l.sensor_id, bucket`,
+        ...params,
+      );
+    }
 
     const sensores = await prisma.sensor.findMany({
       where: { id: { in: sensorIds } },

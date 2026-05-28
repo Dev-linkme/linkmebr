@@ -12,7 +12,7 @@ import {
 import api from '../services/api';
 import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna, Regra } from '../types/index';
 
-// ─── Constants ──────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const LINE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
@@ -21,26 +21,37 @@ const GRANDEZA_LABELS: Record<GrandezaTipo, string> = {
   temperatura: 'Temperatura', umidade: 'Umidade', co2: 'CO₂',
 };
 
-// ─── Types ───────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface FiltrosForm {
-  silo_id: string; barra_id: string; sensor_id: string;
-  data_inicio: string; data_fim: string;
-}
+interface FiltrosForm { silo_id: string; barra_id: string; sensor_id: string; }
 
-type SortField = 'valor_avg' | 'valor_max' | 'valor_min';
-type SortDir   = 'asc' | 'desc';
-type ValorTipo = 'avg' | 'min' | 'max';
-type AbaAtiva  = 'interna' | 'externa';
-type SubAba    = 'tabela'  | 'grafico';
+interface FiltrosComDatas extends FiltrosForm { data_inicio: string; data_fim: string; }
+
+type SortField           = 'valor_avg' | 'valor_max' | 'valor_min';
+type SortDir             = 'asc' | 'desc';
+type ValorTipo           = 'avg' | 'min' | 'max';
+type AbaAtiva            = 'interna' | 'externa';
+type SubAba              = 'tabela'  | 'grafico';
+type PeriodoPreset       = '24h' | '72h' | 'semana' | 'mes' | 'custom';
+type AgrupamentoGrafico  = 'silo' | 'barra' | 'sensor' | 'altura';
 
 const VALOR_LABELS: Record<ValorTipo, string> = { avg: 'Média', min: 'Mínimo', max: 'Máximo' };
+const PERIODO_LABELS: Record<PeriodoPreset, string> = {
+  '24h': 'Últimas 24h', '72h': 'Últimas 72h', semana: 'Última semana', mes: 'Último mês', custom: 'Personalizado',
+};
+const AGRUPAMENTO_LABELS: Record<AgrupamentoGrafico, string> = {
+  silo: 'Silo', barra: 'Barra', sensor: 'Sensor', altura: 'Altura',
+};
 
-interface RelatorioResponse         { dados: LeituraInterna[];  pagina: number; total_paginas: number; total: number; }
-interface RelatorioExternoResponse  { dados: LeituraExterna[];  pagina: number; total_paginas: number; total: number; }
+interface RelatorioResponse        { dados: LeituraInterna[]; pagina: number; total_paginas: number; total: number; }
+interface RelatorioExternoResponse { dados: LeituraExterna[]; pagina: number; total_paginas: number; total: number; }
 
 interface GraficoSerie   { sensor_id: number; bucket: string; avg: number; max: number; min: number; }
-interface GraficoSensor  { id: number; identificacao: string; tipo_grandeza: GrandezaTipo; unidade_medida: string; altura_solo_m: number; }
+interface GraficoSensor  {
+  id: number; identificacao: string; tipo_grandeza: GrandezaTipo;
+  unidade_medida: string; altura_solo_m: number;
+  barra_id: number; barra_identificacao: string;
+}
 interface GraficoResponse { series: GraficoSerie[]; sensores: GraficoSensor[]; }
 
 interface GraficoExternoSerie   { sensor_id: number; bucket: string; avg_temp: number | null; avg_umid: number | null; }
@@ -49,7 +60,7 @@ interface GraficoExternoResponse { series: GraficoExternoSerie[]; sensores: Graf
 
 type RangeHint = { data_inicio: string | null; data_fim: string | null } | null;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTimestamp(ts: string): string {
   const d = new Date(ts);
@@ -68,50 +79,68 @@ function formatNum(val: number | undefined | null, decimals = 2): string {
   return val.toFixed(decimals);
 }
 
-// ─── GrandezaChart ───────────────────────────────────────────────────────────────
+function computePeriodo(
+  preset: PeriodoPreset,
+  customInicio: string,
+  customFim: string,
+): { data_inicio: string; data_fim: string } | null {
+  const now = new Date();
+  const h = (hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
+  if (preset === '24h')    return { data_inicio: h(24),  data_fim: now.toISOString() };
+  if (preset === '72h')    return { data_inicio: h(72),  data_fim: now.toISOString() };
+  if (preset === 'semana') return { data_inicio: h(168), data_fim: now.toISOString() };
+  if (preset === 'mes')    return { data_inicio: h(720), data_fim: now.toISOString() };
+  if (!customInicio || !customFim) return null;
+  const ini = new Date(customInicio);
+  const fim = new Date(customFim);
+  if (isNaN(ini.getTime()) || isNaN(fim.getTime()) || fim <= ini) return null;
+  if (fim.getTime() - ini.getTime() > 30 * 24 * 3_600_000) return null;
+  return { data_inicio: ini.toISOString(), data_fim: fim.toISOString() };
+}
 
-function GrandezaChart({ grandeza, series, sensores, valor }: {
-  grandeza: GrandezaTipo; series: GraficoSerie[]; sensores: GraficoSensor[]; valor: ValorTipo;
+function yDomainFrom(values: (number | undefined)[]): [number, number] {
+  const nums = values.filter((v): v is number => v != null);
+  const yMin = nums.length > 0 ? Math.min(...nums) : 0;
+  const yMax = nums.length > 0 ? Math.max(...nums) : 100;
+  const yPad = Math.max((yMax - yMin) * 0.1, 0.5);
+  return [Math.floor((yMin - yPad) * 10) / 10, Math.ceil((yMax + yPad) * 10) / 10];
+}
+
+// ─── MultiSensorChart ─────────────────────────────────────────────────────────
+
+function MultiSensorChart({ titulo, series, sensores, valor, unidade, isRaw }: {
+  titulo?: string; series: GraficoSerie[]; sensores: GraficoSensor[];
+  valor: ValorTipo; unidade: string; isRaw: boolean;
 }) {
-  const sens = sensores.filter((s) => s.tipo_grandeza === grandeza);
-  if (sens.length === 0) return null;
-  const seriesFilt = series.filter((s) => sens.some((x) => x.id === s.sensor_id));
-  if (seriesFilt.length === 0) return null;
-  const buckets = Array.from(new Set(seriesFilt.map((s) => s.bucket))).sort();
+  if (sensores.length === 0 || series.length === 0) return null;
+  const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
   const chartData = buckets.map((bucket) => {
     const row: Record<string, unknown> = { bucket };
-    sens.forEach((s) => {
-      const p = seriesFilt.find((d) => d.bucket === bucket && d.sensor_id === s.id);
+    sensores.forEach((s) => {
+      const p = series.find((d) => d.bucket === bucket && d.sensor_id === s.id);
       if (p) row[String(s.id)] = p[valor];
     });
     return row;
   });
-  const unidade = sens[0]?.unidade_medida ?? '';
-  const yValues = chartData.flatMap((row) =>
-    sens.map((s) => row[String(s.id)] as number | undefined).filter((v): v is number => v != null)
+  const yDomain = yDomainFrom(
+    chartData.flatMap((row) => sensores.map((s) => row[String(s.id)] as number | undefined))
   );
-  const yMin = yValues.length > 0 ? Math.min(...yValues) : 0;
-  const yMax = yValues.length > 0 ? Math.max(...yValues) : 100;
-  const yPad = Math.max((yMax - yMin) * 0.1, 0.5);
-  const yDomain: [number, number] = [
-    Math.floor((yMin - yPad) * 10) / 10,
-    Math.ceil((yMax + yPad) * 10) / 10,
-  ];
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">{GRANDEZA_LABELS[grandeza]}{unidade ? ` (${unidade})` : ''}</h3>
+      {titulo && <h3 className="text-sm font-semibold text-gray-700 mb-3">{titulo}</h3>}
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
-            const s = sens.find((x) => String(x.id) === String(name));
+            const s = sensores.find((x) => String(x.id) === String(name));
             return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? `${s.identificacao} (${s.altura_solo_m}m)` : String(name)];
           }} />
-          <Legend formatter={(v) => { const s = sens.find((x) => String(x.id) === v); return s ? `${s.identificacao} (${s.altura_solo_m}m)` : v; }} />
-          {sens.map((s, idx) => (
-            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]} dot={false} strokeWidth={2} connectNulls />
+          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? `${s.identificacao} (${s.altura_solo_m}m)` : v; }} />
+          {sensores.map((s, idx) => (
+            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+              dot={isRaw ? { r: 2 } : false} strokeWidth={2} connectNulls />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -119,11 +148,53 @@ function GrandezaChart({ grandeza, series, sensores, valor }: {
   );
 }
 
-// ─── ExternoChart ────────────────────────────────────────────────────────────────
+// ─── SingleSensorChart ────────────────────────────────────────────────────────
 
-function ExternoChart({ campo, label, unidade, series, sensores }: {
+function SingleSensorChart({ sensor, series, unidade, isRaw, colorIdx }: {
+  sensor: GraficoSensor; series: GraficoSerie[]; unidade: string; isRaw: boolean; colorIdx: number;
+}) {
+  const mine = series.filter((d) => d.sensor_id === sensor.id);
+  if (mine.length === 0) return null;
+  const buckets = Array.from(new Set(mine.map((d) => d.bucket))).sort();
+  const chartData = buckets.map((bucket) => {
+    const row: Record<string, unknown> = { bucket };
+    const p = mine.find((d) => d.bucket === bucket);
+    if (p) { row.avg = p.avg; row.max = p.max; row.min = p.min; }
+    return row;
+  });
+  const yDomain = yDomainFrom(
+    chartData.flatMap((r) => [r.avg, r.max, r.min] as (number | undefined)[])
+  );
+  const color = LINE_COLORS[colorIdx % LINE_COLORS.length];
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <h3 className="text-sm font-semibold text-gray-700 mb-3">
+        {sensor.identificacao} — {sensor.altura_solo_m} m{unidade ? ` (${unidade})` : ''}
+      </h3>
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
+          <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
+          <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
+            const labels: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' };
+            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, labels[String(name)] ?? String(name)];
+          }} />
+          <Legend formatter={(v) => { const l: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' }; return l[String(v)] ?? String(v); }} />
+          <Line type="monotone" dataKey="avg" stroke={color} strokeWidth={2} dot={isRaw ? { r: 2 } : false} connectNulls />
+          <Line type="monotone" dataKey="max" stroke={color} strokeWidth={1.5} strokeDasharray="5 3" dot={false} opacity={0.65} connectNulls />
+          <Line type="monotone" dataKey="min" stroke={color} strokeWidth={1.5} strokeDasharray="5 3" dot={false} opacity={0.65} connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── ExternoChart ─────────────────────────────────────────────────────────────
+
+function ExternoChart({ campo, label, unidade, series, sensores, isRaw }: {
   campo: 'avg_temp' | 'avg_umid'; label: string; unidade: string;
-  series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[];
+  series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[]; isRaw: boolean;
 }) {
   const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
   if (buckets.length === 0) return null;
@@ -135,17 +206,11 @@ function ExternoChart({ campo, label, unidade, series, sensores }: {
     });
     return row;
   });
-  const yValues = chartData.flatMap((row) =>
-    sensores.map((s) => row[String(s.id)] as number | undefined).filter((v): v is number => v != null)
+  const yDomain = yDomainFrom(
+    chartData.flatMap((row) => sensores.map((s) => row[String(s.id)] as number | undefined))
   );
-  const yMin = yValues.length > 0 ? Math.min(...yValues) : 0;
-  const yMax = yValues.length > 0 ? Math.max(...yValues) : 100;
-  const yPad = Math.max((yMax - yMin) * 0.1, 0.5);
-  const yDomain: [number, number] = [
-    Math.floor((yMin - yPad) * 10) / 10,
-    Math.ceil((yMax + yPad) * 10) / 10,
-  ];
-  if (yValues.length === 0) return null;
+  const hasValues = chartData.some((row) => sensores.some((s) => row[String(s.id)] != null));
+  if (!hasValues) return null;
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">{label}{unidade ? ` (${unidade})` : ''}</h3>
@@ -160,7 +225,8 @@ function ExternoChart({ campo, label, unidade, series, sensores }: {
           }} />
           <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? `${s.identificacao} (${s.altura_solo_m}m)` : v; }} />
           {sensores.map((s, idx) => (
-            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]} dot={false} strokeWidth={2} connectNulls />
+            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+              dot={isRaw ? { r: 2 } : false} strokeWidth={2} connectNulls />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -168,7 +234,7 @@ function ExternoChart({ campo, label, unidade, series, sensores }: {
   );
 }
 
-// ─── Paginacao ───────────────────────────────────────────────────────────────────
+// ─── Paginacao ────────────────────────────────────────────────────────────────
 
 function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: {
   pagina: number; totalPaginas: number; loading: boolean;
@@ -191,7 +257,7 @@ function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: {
   );
 }
 
-// ─── Status Análise ───────────────────────────────────────────────────────────────
+// ─── Status Análise ───────────────────────────────────────────────────────────
 
 function resolveStatusAnalise(status: string | null | undefined, regras: Regra[]) {
   if (!status) return [];
@@ -204,14 +270,11 @@ function resolveStatusAnalise(status: string | null | undefined, regras: Regra[]
 function StatusAnaliseBadge({ status, regras }: { status: string | null | undefined; regras: Regra[] }) {
   const itens = resolveStatusAnalise(status, regras);
   if (itens.length === 0) return <span className="text-gray-300">—</span>;
-
   const temErro = itens.some((i) => i.severidade === 'erro');
   const badgeCls = temErro
     ? 'bg-red-100 text-red-700 border border-red-200'
     : 'bg-yellow-100 text-yellow-700 border border-yellow-200';
-
   const tooltipText = itens.map((i) => `[${i.codigo}] ${i.criterio}: ${i.logica}`).join('\n');
-
   return (
     <div className="relative group inline-flex">
       <span className={`px-2 py-0.5 rounded text-xs font-medium cursor-help ${badgeCls}`} title={tooltipText}>
@@ -220,9 +283,7 @@ function StatusAnaliseBadge({ status, regras }: { status: string | null | undefi
       <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-20 w-72 bg-gray-900 text-white text-xs rounded p-2 shadow-xl whitespace-pre-line pointer-events-none">
         {itens.map((i) => (
           <p key={i.codigo} className="mb-1 last:mb-0">
-            <span className={i.severidade === 'erro' ? 'text-red-400 font-semibold' : 'text-yellow-400 font-semibold'}>
-              [{i.codigo}]
-            </span>{' '}
+            <span className={i.severidade === 'erro' ? 'text-red-400 font-semibold' : 'text-yellow-400 font-semibold'}>[{i.codigo}]</span>{' '}
             <span className="font-medium">{i.criterio}:</span> {i.logica}
           </p>
         ))}
@@ -231,42 +292,41 @@ function StatusAnaliseBadge({ status, regras }: { status: string | null | undefi
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RelatoriosPage() {
   const { t } = useTranslation();
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FiltrosForm>({
-    defaultValues: { silo_id: '', barra_id: '', sensor_id: '', data_inicio: '', data_fim: '' },
+  const { register, handleSubmit, watch, setValue } = useForm<FiltrosForm>({
+    defaultValues: { silo_id: '', barra_id: '', sensor_id: '' },
   });
 
-  const siloId    = watch('silo_id');
-  const barraId   = watch('barra_id');
-  const sensorId  = watch('sensor_id');
-  const dataInicio = watch('data_inicio');
+  const siloId   = watch('silo_id');
+  const barraId  = watch('barra_id');
+  const sensorId = watch('sensor_id');
 
-  // Select options
   const [silos,    setSilos]    = useState<Silo[]>([]);
   const [barras,   setBarras]   = useState<Barra[]>([]);
   const [sensores, setSensores] = useState<Sensor[]>([]);
+  const [regras,   setRegras]   = useState<Regra[]>([]);
 
-  // Catálogo de regras de análise
-  const [regras, setRegras] = useState<Regra[]>([]);
+  // Period
+  const [periodoPreset, setPeriodoPreset] = useState<PeriodoPreset>('24h');
+  const [customInicio,  setCustomInicio]  = useState('');
+  const [customFim,     setCustomFim]     = useState('');
 
-  // Derived tab visibility
   const hasInterna = barras.some((b) => b.local === 'interno ao silo');
   const hasExterna = barras.some((b) => b.local === 'externo ao silo');
 
-  // Tabs
   const [abaAtiva,        setAbaAtiva]        = useState<AbaAtiva>('interna');
   const [grandezaInterna, setGrandezaInterna] = useState<GrandezaTipo>('temperatura');
   const [subAbaInterna,   setSubAbaInterna]   = useState<SubAba>('tabela');
   const [subAbaExterna,   setSubAbaExterna]   = useState<SubAba>('tabela');
+  const [agrupamento,     setAgrupamento]     = useState<AgrupamentoGrafico>('silo');
+  const [valorTipo,       setValorTipo]       = useState<ValorTipo>('avg');
 
-  // Range hints
   const [rangeInterna, setRangeInterna] = useState<RangeHint>(null);
   const [rangeExterna, setRangeExterna] = useState<RangeHint>(null);
 
-  // Leituras Internas
   const [dados,              setDados]              = useState<LeituraInterna[]>([]);
   const [grafico,            setGrafico]            = useState<GraficoResponse | null>(null);
   const [loadingInterna,     setLoadingInterna]     = useState(false);
@@ -274,7 +334,6 @@ export default function RelatoriosPage() {
   const [paginaInterna,      setPaginaInterna]      = useState(1);
   const [totalPagInterna,    setTotalPagInterna]    = useState(0);
 
-  // Leituras Externas
   const [dadosExternos,      setDadosExternos]      = useState<LeituraExterna[]>([]);
   const [graficoExterno,     setGraficoExterno]     = useState<GraficoExternoResponse | null>(null);
   const [loadingExterna,     setLoadingExterna]     = useState(false);
@@ -282,28 +341,22 @@ export default function RelatoriosPage() {
   const [paginaExterna,      setPaginaExterna]      = useState(1);
   const [totalPagExterna,    setTotalPagExterna]    = useState(0);
 
-  // Export
   const [loadingExportInt, setLoadingExportInt] = useState(false);
   const [loadingExportExt, setLoadingExportExt] = useState(false);
 
-  // Sort (interna)
-  const [sortField, setSortField] = useState<SortField | null>(null);
-  const [sortDir,   setSortDir]   = useState<SortDir>('asc');
-  const [valorTipo, setValorTipo] = useState<ValorTipo>('avg');
+  const [sortField,   setSortField]   = useState<SortField | null>(null);
+  const [sortDir,     setSortDir]     = useState<SortDir>('asc');
+  const [lastFiltros, setLastFiltros] = useState<FiltrosComDatas | null>(null);
 
-  const [lastFiltros, setLastFiltros] = useState<FiltrosForm | null>(null);
+  // ── Effects ───────────────────────────────────────────────────────────────
 
-  // ── Load silos + regras ───────────────────────────────────────────────────────
   useEffect(() => {
     api.get<{ data: Silo[] }>('/silos?per_page=200')
       .then((res) => setSilos((res.data.data ?? []).filter((s) => s.status === 'ativo')))
       .catch(() => toast.error('Erro ao carregar silos'));
-    api.get<Regra[]>('/regras')
-      .then((res) => setRegras(res.data))
-      .catch(() => {});
+    api.get<Regra[]>('/regras').then((res) => setRegras(res.data)).catch(() => {});
   }, []);
 
-  // ── Load barras when silo changes ────────────────────────────────────────────
   useEffect(() => {
     setBarras([]); setSensores([]);
     setValue('barra_id', ''); setValue('sensor_id', '');
@@ -317,7 +370,6 @@ export default function RelatoriosPage() {
       .catch(() => toast.error('Erro ao carregar barras'));
   }, [siloId, setValue]);
 
-  // ── Auto-select valid tab when barras load ───────────────────────────────────
   useEffect(() => {
     if (!siloId) return;
     setAbaAtiva((prev) => {
@@ -327,7 +379,6 @@ export default function RelatoriosPage() {
     });
   }, [barras, siloId]);
 
-  // ── Load sensores when barra changes ─────────────────────────────────────────
   useEffect(() => {
     setSensores([]); setValue('sensor_id', '');
     setDados([]); setGrafico(null);
@@ -339,20 +390,17 @@ export default function RelatoriosPage() {
       .catch(() => toast.error('Erro ao carregar sensores'));
   }, [barraId, setValue]);
 
-  // ── Clear data when sensor changes ───────────────────────────────────────────
   useEffect(() => {
     setDados([]); setGrafico(null);
     setDadosExternos([]); setGraficoExterno(null);
     setLastFiltros(null);
   }, [sensorId]);
 
-  // ── Fetch ranges ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!siloId) return;
     const p: Record<string, string> = { silo_id: siloId };
     if (barraId)  p.barra_id  = barraId;
     if (sensorId) p.sensor_id = sensorId;
-
     if (hasInterna)
       api.get<RangeHint>('/relatorios/leituras/range', { params: p }).then((r) => setRangeInterna(r.data)).catch(() => {});
     if (hasExterna)
@@ -360,143 +408,123 @@ export default function RelatoriosPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siloId, barraId, sensorId, hasInterna, hasExterna]);
 
-  // ── Fetch functions ───────────────────────────────────────────────────────────
+  // ── Fetch ─────────────────────────────────────────────────────────────────
 
-  const fetchInterna = useCallback(async (filtros: FiltrosForm, page: number) => {
+  const fetchInterna = useCallback(async (f: FiltrosComDatas, page: number) => {
     setLoadingInterna(true);
     try {
-      const params: Record<string, string | number> = { silo_id: filtros.silo_id, page, limit: 50 };
-      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
-      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
-      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const params: Record<string, string | number> = { silo_id: f.silo_id, page, limit: 50, data_inicio: f.data_inicio, data_fim: f.data_fim };
+      if (f.barra_id)  params.barra_id  = f.barra_id;
+      if (f.sensor_id) params.sensor_id = f.sensor_id;
       const res = await api.get<RelatorioResponse>('/relatorios/leituras', { params });
-      setDados(res.data.dados);
-      setPaginaInterna(res.data.pagina);
-      setTotalPagInterna(res.data.total_paginas);
+      setDados(res.data.dados); setPaginaInterna(res.data.pagina); setTotalPagInterna(res.data.total_paginas);
     } catch { toast.error('Erro ao consultar leituras internas'); }
     finally  { setLoadingInterna(false); }
   }, []);
 
-  const fetchGraficoInterna = useCallback(async (filtros: FiltrosForm) => {
+  const fetchGraficoInterna = useCallback(async (f: FiltrosComDatas) => {
     setLoadingGrafInterna(true);
     try {
-      const params: Record<string, string> = { silo_id: filtros.silo_id };
-      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
-      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
-      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const params: Record<string, string> = { silo_id: f.silo_id, data_inicio: f.data_inicio, data_fim: f.data_fim };
+      if (f.barra_id)  params.barra_id  = f.barra_id;
+      if (f.sensor_id) params.sensor_id = f.sensor_id;
       const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
       setGrafico(res.data);
     } catch { toast.error('Erro ao carregar gráfico interno'); }
     finally  { setLoadingGrafInterna(false); }
   }, []);
 
-  const fetchExterna = useCallback(async (filtros: FiltrosForm, page: number) => {
+  const fetchExterna = useCallback(async (f: FiltrosComDatas, page: number) => {
     setLoadingExterna(true);
     try {
-      const params: Record<string, string | number> = { silo_id: filtros.silo_id, page, limit: 50 };
-      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
-      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
-      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const params: Record<string, string | number> = { silo_id: f.silo_id, page, limit: 50, data_inicio: f.data_inicio, data_fim: f.data_fim };
+      if (f.barra_id)  params.barra_id  = f.barra_id;
+      if (f.sensor_id) params.sensor_id = f.sensor_id;
       const res = await api.get<RelatorioExternoResponse>('/relatorios/leituras-externas', { params });
-      setDadosExternos(res.data.dados);
-      setPaginaExterna(res.data.pagina);
-      setTotalPagExterna(res.data.total_paginas);
+      setDadosExternos(res.data.dados); setPaginaExterna(res.data.pagina); setTotalPagExterna(res.data.total_paginas);
     } catch { toast.error('Erro ao consultar leituras externas'); }
     finally  { setLoadingExterna(false); }
   }, []);
 
-  const fetchGraficoExterna = useCallback(async (filtros: FiltrosForm) => {
+  const fetchGraficoExterna = useCallback(async (f: FiltrosComDatas) => {
     setLoadingGrafExterna(true);
     try {
-      const params: Record<string, string> = { silo_id: filtros.silo_id };
-      if (filtros.barra_id)    params.barra_id    = filtros.barra_id;
-      if (filtros.sensor_id)   params.sensor_id   = filtros.sensor_id;
-      if (filtros.data_inicio) params.data_inicio = filtros.data_inicio;
-      if (filtros.data_fim)    params.data_fim    = filtros.data_fim;
+      const params: Record<string, string> = { silo_id: f.silo_id, data_inicio: f.data_inicio, data_fim: f.data_fim };
+      if (f.barra_id)  params.barra_id  = f.barra_id;
+      if (f.sensor_id) params.sensor_id = f.sensor_id;
       const res = await api.get<GraficoExternoResponse>('/relatorios/leituras-externas/grafico', { params });
       setGraficoExterno(res.data);
     } catch { toast.error('Erro ao carregar gráfico externo'); }
     finally  { setLoadingGrafExterna(false); }
   }, []);
 
-  // ── Submit ───────────────────────────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────
 
   const onSubmit = (filtros: FiltrosForm) => {
-    setLastFiltros(filtros);
-    setSortField(null);
-    setPaginaInterna(1); setPaginaExterna(1);
-
-    if (hasInterna) { fetchInterna(filtros, 1); fetchGraficoInterna(filtros); }
-    if (hasExterna) { fetchExterna(filtros, 1); fetchGraficoExterna(filtros); }
+    const periodo = computePeriodo(periodoPreset, customInicio, customFim);
+    if (!periodo) {
+      toast.error(periodoPreset === 'custom' ? 'Período inválido ou superior a 30 dias' : 'Período inválido');
+      return;
+    }
+    const f: FiltrosComDatas = { ...filtros, ...periodo };
+    setLastFiltros(f); setSortField(null); setPaginaInterna(1); setPaginaExterna(1);
+    if (hasInterna) { fetchInterna(f, 1); fetchGraficoInterna(f); }
+    if (hasExterna) { fetchExterna(f, 1); fetchGraficoExterna(f); }
   };
 
-  // ── Page change handlers ──────────────────────────────────────────────────────
+  const handlePageInterna = (p: number) => { if (lastFiltros) { setPaginaInterna(p); fetchInterna(lastFiltros, p); } };
+  const handlePageExterna = (p: number) => { if (lastFiltros) { setPaginaExterna(p); fetchExterna(lastFiltros, p); } };
 
-  const handlePageInterna = (p: number) => {
-    if (!lastFiltros) return;
-    setPaginaInterna(p);
-    fetchInterna(lastFiltros, p);
-  };
-  const handlePageExterna = (p: number) => {
-    if (!lastFiltros) return;
-    setPaginaExterna(p);
-    fetchExterna(lastFiltros, p);
-  };
-  // ── Export ────────────────────────────────────────────────────────────────────
+  // ── Export ────────────────────────────────────────────────────────────────
 
   const handleExportInterna = async () => {
     if (!lastFiltros) { toast.error('Execute uma consulta antes de exportar'); return; }
     setLoadingExportInt(true);
     try {
-      const params: Record<string, string> = { silo_id: lastFiltros.silo_id };
-      if (lastFiltros.data_inicio) params.data_inicio = lastFiltros.data_inicio;
-      if (lastFiltros.data_fim)    params.data_fim    = lastFiltros.data_fim;
+      const params: Record<string, string> = { silo_id: lastFiltros.silo_id, data_inicio: lastFiltros.data_inicio, data_fim: lastFiltros.data_fim };
+      if (lastFiltros.barra_id)  params.barra_id  = lastFiltros.barra_id;
+      if (lastFiltros.sensor_id) params.sensor_id = lastFiltros.sensor_id;
       const res = await api.get<string>('/relatorios/leituras/export', { params, responseType: 'text' });
-      const csvText = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
+      const csv = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([csvText], { type: 'text/csv;charset=utf-8;' }));
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
       a.download = `leituras_internas_silo_${lastFiltros.silo_id}_${Date.now()}.csv`;
       document.body.appendChild(a); a.click(); a.remove();
       toast.success('CSV exportado');
     } catch { toast.error('Erro ao exportar CSV'); }
-    finally   { setLoadingExportInt(false); }
+    finally { setLoadingExportInt(false); }
   };
 
   const handleExportExterna = async () => {
     if (!lastFiltros) { toast.error('Execute uma consulta antes de exportar'); return; }
     setLoadingExportExt(true);
     try {
-      const params: Record<string, string> = { silo_id: lastFiltros.silo_id };
-      if (lastFiltros.data_inicio) params.data_inicio = lastFiltros.data_inicio;
-      if (lastFiltros.data_fim)    params.data_fim    = lastFiltros.data_fim;
+      const params: Record<string, string> = { silo_id: lastFiltros.silo_id, data_inicio: lastFiltros.data_inicio, data_fim: lastFiltros.data_fim };
+      if (lastFiltros.barra_id)  params.barra_id  = lastFiltros.barra_id;
+      if (lastFiltros.sensor_id) params.sensor_id = lastFiltros.sensor_id;
       const res = await api.get<string>('/relatorios/leituras-externas/export', { params, responseType: 'text' });
-      const csvText = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
+      const csv = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([csvText], { type: 'text/csv;charset=utf-8;' }));
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
       a.download = `leituras_externas_silo_${lastFiltros.silo_id}_${Date.now()}.csv`;
       document.body.appendChild(a); a.click(); a.remove();
       toast.success('CSV exportado');
     } catch { toast.error('Erro ao exportar CSV'); }
-    finally   { setLoadingExportExt(false); }
+    finally { setLoadingExportExt(false); }
   };
 
-  // ── Sort ──────────────────────────────────────────────────────────────────────
+  // ── Sort ──────────────────────────────────────────────────────────────────
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDir('asc'); }
   };
-
   const sortedDados = [...dados].sort((a, b) => {
     if (!sortField) return 0;
     const va = a[sortField] ?? 0;
     const vb = b[sortField] ?? 0;
     return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
   });
-
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronDown size={14} className="text-gray-300 inline ml-1" />;
     return sortDir === 'asc'
@@ -504,11 +532,12 @@ export default function RelatoriosPage() {
       : <ChevronDown size={14} className="text-primary-600 inline ml-1" />;
   };
 
-  // ── Range hint for active tab ─────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
 
+  const isRaw      = periodoPreset === '24h' || periodoPreset === '72h';
   const activeRange = abaAtiva === 'interna' ? rangeInterna : rangeExterna;
 
-  // ── Tab style helpers ─────────────────────────────────────────────────────────
+  // ── CSS helpers ───────────────────────────────────────────────────────────
 
   const mainTabCls = (aba: AbaAtiva) =>
     `px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
@@ -516,15 +545,16 @@ export default function RelatoriosPage() {
         ? 'border-primary-600 text-primary-600 bg-white'
         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
     }`;
-
   const subTabCls = (sub: SubAba, active: SubAba) =>
     `px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-      sub === active
-        ? 'bg-primary-600 text-white'
-        : 'text-gray-600 hover:bg-gray-100'
+      sub === active ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+    }`;
+  const btnGroupCls = (active: boolean) =>
+    `px-3 py-1.5 text-sm font-medium transition-colors border ${
+      active ? 'bg-primary-600 text-white border-primary-600 z-10' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
     }`;
 
-  // ─── Render ────────────────────────────────────────────────────────────────────
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5">
@@ -535,21 +565,18 @@ export default function RelatoriosPage() {
       </div>
 
       {/* Filter form */}
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
-          {/* Silo */}
-          <div className="xl:col-span-1">
+      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow p-4 space-y-4">
+        {/* Silo / Barra / Sensor */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.silo')} *</label>
-            <select {...register('silo_id', { required: t('erros.campo_obrigatorio') })}
+            <select {...register('silo_id', { required: true })}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
               <option value="">Selecione...</option>
               {silos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
-            {errors.silo_id && <p className="text-xs text-red-500 mt-1">{errors.silo_id.message}</p>}
           </div>
-
-          {/* Barra */}
-          <div className="xl:col-span-1">
+          <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.barra')}</label>
             <select {...register('barra_id')} disabled={!siloId}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
@@ -557,9 +584,7 @@ export default function RelatoriosPage() {
               {barras.map((b) => <option key={b.id} value={b.id}>{b.identificacao}</option>)}
             </select>
           </div>
-
-          {/* Sensor */}
-          <div className="xl:col-span-1">
+          <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.sensor')}</label>
             <select {...register('sensor_id')} disabled={!barraId}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
@@ -567,57 +592,65 @@ export default function RelatoriosPage() {
               {sensores.map((s) => <option key={s.id} value={s.id}>{s.identificacao} ({s.altura_solo_m}m)</option>)}
             </select>
           </div>
+        </div>
 
-          {/* Data início */}
-          <div className="xl:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.data_inicio')}</label>
-            <input type="datetime-local" {...register('data_inicio')}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            {activeRange && <p className="text-xs text-gray-400 mt-1">Disponível: {formatRangeDate(activeRange.data_inicio)}</p>}
+        {/* Period selector */}
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-gray-700">Período</label>
+          <div className="flex flex-wrap gap-2">
+            {(['24h', '72h', 'semana', 'mes', 'custom'] as PeriodoPreset[]).map((p) => (
+              <button key={p} type="button" onClick={() => setPeriodoPreset(p)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
+                  periodoPreset === p
+                    ? 'bg-primary-600 text-white border-primary-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                }`}>
+                {PERIODO_LABELS[p]}
+              </button>
+            ))}
           </div>
+          {periodoPreset === 'custom' && (
+            <div className="flex flex-wrap gap-3 items-end pt-1">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">{t('relatorios.data_inicio')}</label>
+                <input type="datetime-local" value={customInicio} onChange={(e) => setCustomInicio(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">{t('relatorios.data_fim')}</label>
+                <input type="datetime-local" value={customFim} onChange={(e) => setCustomFim(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <p className="text-xs text-gray-400 pb-2">Máximo 30 dias</p>
+            </div>
+          )}
+          {activeRange && (
+            <p className="text-xs text-gray-400">
+              Dados disponíveis: {formatRangeDate(activeRange.data_inicio)} → {formatRangeDate(activeRange.data_fim)}
+            </p>
+          )}
+        </div>
 
-          {/* Data fim */}
-          <div className="xl:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1">{t('relatorios.data_fim')}</label>
-            <input type="datetime-local" {...register('data_fim', {
-              validate: (val) => !val || !dataInicio || new Date(val) >= new Date(dataInicio) || t('erros.data_invalida'),
-            })} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            {activeRange && <p className="text-xs text-gray-400 mt-1">Disponível: {formatRangeDate(activeRange.data_fim)}</p>}
-            {errors.data_fim && <p className="text-xs text-red-500 mt-1">{errors.data_fim.message}</p>}
-          </div>
-
-          {/* Botão consultar */}
-          <div className="xl:col-span-1">
-            <button type="submit" disabled={loadingInterna || loadingExterna}
-              className="w-full flex items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-              <Search size={15} />
-              {(loadingInterna || loadingExterna) ? t('geral.carregando') : t('relatorios.consultar')}
-            </button>
-          </div>
+        <div className="flex justify-end">
+          <button type="submit" disabled={loadingInterna || loadingExterna || !siloId}
+            className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors">
+            <Search size={15} />
+            {(loadingInterna || loadingExterna) ? t('geral.carregando') : t('relatorios.consultar')}
+          </button>
         </div>
       </form>
 
-      {/* Main tabs — visible after silo selected */}
+      {/* Main tabs */}
       {siloId && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {/* Tab bar */}
           <div className="flex border-b border-gray-200">
-            {hasInterna && (
-              <button onClick={() => setAbaAtiva('interna')} className={mainTabCls('interna')}>
-                Leituras Internas
-              </button>
-            )}
-            {hasExterna && (
-              <button onClick={() => setAbaAtiva('externa')} className={mainTabCls('externa')}>
-                Leituras Externas
-              </button>
-            )}
+            {hasInterna && <button onClick={() => setAbaAtiva('interna')} className={mainTabCls('interna')}>Leituras Internas</button>}
+            {hasExterna && <button onClick={() => setAbaAtiva('externa')} className={mainTabCls('externa')}>Leituras Externas</button>}
           </div>
 
           {/* ── ABA: Leituras Internas ── */}
           {abaAtiva === 'interna' && (
             <div className="p-4 space-y-4">
-              {/* Grandeza tabs */}
               {(() => {
                 const grandezasComDados = new Set(dados.map((l) => l.sensor?.tipo_grandeza).filter(Boolean)) as Set<GrandezaTipo>;
                 const GRANDEZA_TABS: { key: GrandezaTipo; label: string }[] = [
@@ -631,11 +664,12 @@ export default function RelatoriosPage() {
                       ? 'border-primary-500 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`;
-                const dadosFiltrados  = sortedDados.filter((l) => l.sensor?.tipo_grandeza === grandezaInterna);
-                const serieFiltrada   = grafico?.series.filter((s) =>
-                  (grafico?.sensores ?? []).find((x) => x.id === s.sensor_id && x.tipo_grandeza === grandezaInterna)
-                ) ?? [];
+                const dadosFiltrados    = sortedDados.filter((l) => l.sensor?.tipo_grandeza === grandezaInterna);
+                const serieFiltrada     = (grafico?.series ?? []).filter((s) =>
+                  (grafico?.sensores ?? []).some((x) => x.id === s.sensor_id && x.tipo_grandeza === grandezaInterna)
+                );
                 const sensoresFiltrados = (grafico?.sensores ?? []).filter((s) => s.tipo_grandeza === grandezaInterna);
+                const unidade           = sensoresFiltrados[0]?.unidade_medida ?? '';
                 return (
                   <>
                     {/* Grandeza selector */}
@@ -651,7 +685,7 @@ export default function RelatoriosPage() {
                       })}
                     </div>
 
-                    {/* Tabela/Gráfico selector + export */}
+                    {/* Tabela/Gráfico + export */}
                     <div className="flex items-center justify-between">
                       <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
                         <button onClick={() => setSubAbaInterna('tabela')}  className={subTabCls('tabela',  subAbaInterna)}>Tabela</button>
@@ -735,20 +769,79 @@ export default function RelatoriosPage() {
                       ) : serieFiltrada.length === 0 ? (
                         <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
                       ) : (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500">Exibindo:</span>
-                            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-                              {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
-                                <button key={v} onClick={() => setValorTipo(v)}
-                                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${valorTipo === v ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                                  {VALOR_LABELS[v]}
+                        <div className="space-y-3">
+                          {/* Agrupamento */}
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-500">Agrupar por:</span>
+                            <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                              {(['silo', 'barra', 'sensor', 'altura'] as AgrupamentoGrafico[]).map((ag) => (
+                                <button key={ag} type="button" onClick={() => setAgrupamento(ag)} className={btnGroupCls(agrupamento === ag)}>
+                                  {AGRUPAMENTO_LABELS[ag]}
                                 </button>
                               ))}
                             </div>
                           </div>
-                          <GrandezaChart grandeza={grandezaInterna} series={serieFiltrada} sensores={sensoresFiltrados} valor={valorTipo} />
-                        </>
+
+                          {/* Métrica (oculta no modo Sensor) */}
+                          {agrupamento !== 'sensor' && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">Exibindo:</span>
+                              <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                                {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
+                                  <button key={v} type="button" onClick={() => setValorTipo(v)}
+                                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${valorTipo === v ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                                    {VALOR_LABELS[v]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Silo: um gráfico com todos os sensores */}
+                          {agrupamento === 'silo' && (
+                            <MultiSensorChart
+                              titulo={`${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
+                              series={serieFiltrada} sensores={sensoresFiltrados}
+                              valor={valorTipo} unidade={unidade} isRaw={isRaw}
+                            />
+                          )}
+
+                          {/* Barra: um gráfico por barra */}
+                          {agrupamento === 'barra' && (() => {
+                            const barrasUnicas = [
+                              ...new Map(sensoresFiltrados.map((s) => [s.barra_id, { id: s.barra_id, identificacao: s.barra_identificacao }])).values()
+                            ];
+                            return barrasUnicas.map((barra) => (
+                              <MultiSensorChart key={barra.id}
+                                titulo={`${barra.identificacao} — ${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
+                                series={serieFiltrada}
+                                sensores={sensoresFiltrados.filter((s) => s.barra_id === barra.id)}
+                                valor={valorTipo} unidade={unidade} isRaw={isRaw}
+                              />
+                            ));
+                          })()}
+
+                          {/* Sensor: um gráfico por sensor com média+máx+mín */}
+                          {agrupamento === 'sensor' && sensoresFiltrados.map((sensor, idx) => (
+                            <SingleSensorChart key={sensor.id}
+                              sensor={sensor} series={serieFiltrada}
+                              unidade={unidade} isRaw={isRaw} colorIdx={idx}
+                            />
+                          ))}
+
+                          {/* Altura: um gráfico por altura */}
+                          {agrupamento === 'altura' && (() => {
+                            const alturas = [...new Set(sensoresFiltrados.map((s) => s.altura_solo_m))].sort((a, b) => a - b);
+                            return alturas.map((alt) => (
+                              <MultiSensorChart key={alt}
+                                titulo={`${alt} m — ${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
+                                series={serieFiltrada}
+                                sensores={sensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
+                                valor={valorTipo} unidade={unidade} isRaw={isRaw}
+                              />
+                            ));
+                          })()}
+                        </div>
                       )
                     )}
                   </>
@@ -840,14 +933,13 @@ export default function RelatoriosPage() {
                   <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
                 ) : (
                   <>
-                    <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} />
-                    <ExternoChart campo="avg_umid" label="Umidade"     unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} />
+                    <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} isRaw={isRaw} />
+                    <ExternoChart campo="avg_umid" label="Umidade"     unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} isRaw={isRaw} />
                   </>
                 )
               )}
             </div>
           )}
-
         </div>
       )}
     </div>
