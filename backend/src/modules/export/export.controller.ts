@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../utils/errors';
+import { prisma } from '../../config/prisma';
 
 const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? '';
 const INGEST_WEB_CLIENT_ID = process.env.INGEST_WEB_CLIENT_ID ?? 'server-web';
@@ -95,4 +96,39 @@ export function exportarLeituraInterna(req: Request, res: Response, next: NextFu
 
 export function exportarLeituraExterna(req: Request, res: Response, next: NextFunction): Promise<void> {
   return proxyExport('leitura_externa', req, res, next);
+}
+
+export async function periodoDisponivel(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const siloId = Number(req.query.silo_id);
+    if (isNaN(siloId) || siloId <= 0) throw new AppError(400, 'silo_id inválido');
+
+    const tipo = req.query.tipo as string;
+    const filtroSensor = { sensor: { barra: { silo_id: siloId } } };
+
+    let inicio: Date | null = null;
+    let fim: Date | null = null;
+
+    if (tipo === 'leitura_externa') {
+      const agg = await prisma.leituraExterna.aggregate({
+        where: filtroSensor,
+        _min: { timestamp: true },
+        _max: { timestamp: true },
+      });
+      inicio = agg._min.timestamp;
+      fim = agg._max.timestamp;
+    } else {
+      const agg = await prisma.leituraInterna.aggregate({
+        where: filtroSensor,
+        _min: { timestamp: true },
+        _max: { timestamp: true },
+      });
+      inicio = agg._min.timestamp;
+      fim = agg._max.timestamp;
+    }
+
+    res.json({ inicio, fim });
+  } catch (err) {
+    next(err);
+  }
 }
