@@ -523,7 +523,10 @@ export async function buscarGraficoExterno(
 
     const sensores = await prisma.sensor.findMany({
       where: { id: { in: sensorIds } },
-      select: { id: true, identificacao: true, altura_solo_m: true },
+      select: {
+        id: true, identificacao: true, altura_solo_m: true,
+        barra: { select: { id: true, identificacao: true } },
+      },
       orderBy: { id: 'asc' },
     });
 
@@ -534,7 +537,13 @@ export async function buscarGraficoExterno(
         avg_temp: r.avg_temp !== null ? Number(r.avg_temp) : null,
         avg_umid: r.avg_umid !== null ? Number(r.avg_umid) : null,
       })),
-      sensores: sensores.map((s) => ({ ...s, altura_solo_m: Number(s.altura_solo_m) })),
+      sensores: sensores.map((s) => ({
+        id: s.id,
+        identificacao: s.identificacao,
+        altura_solo_m: Number(s.altura_solo_m),
+        barra_id: s.barra.id,
+        barra_identificacao: s.barra.identificacao,
+      })),
     });
   } catch (err) {
     next(err);

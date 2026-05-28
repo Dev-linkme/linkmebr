@@ -55,7 +55,7 @@ interface GraficoSensor  {
 interface GraficoResponse { series: GraficoSerie[]; sensores: GraficoSensor[]; }
 
 interface GraficoExternoSerie   { sensor_id: number; bucket: string; avg_temp: number | null; avg_umid: number | null; }
-interface GraficoExternoSensor  { id: number; identificacao: string; altura_solo_m: number; }
+interface GraficoExternoSensor  { id: number; identificacao: string; altura_solo_m: number; barra_id: number; barra_identificacao: string; }
 interface GraficoExternoResponse { series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[]; }
 
 type RangeHint = { data_inicio: string | null; data_fim: string | null } | null;
@@ -98,6 +98,10 @@ function computePeriodo(
   return { data_inicio: ini.toISOString(), data_fim: fim.toISOString() };
 }
 
+function sensorLabel(s: { identificacao: string; barra_identificacao: string; altura_solo_m: number }): string {
+  return `${s.barra_identificacao} - ${s.identificacao} (${s.altura_solo_m}m)`;
+}
+
 function yDomainFrom(values: (number | undefined)[]): [number, number] {
   const nums = values.filter((v): v is number => v != null);
   const yMin = nums.length > 0 ? Math.min(...nums) : 0;
@@ -108,9 +112,9 @@ function yDomainFrom(values: (number | undefined)[]): [number, number] {
 
 // ─── MultiSensorChart ─────────────────────────────────────────────────────────
 
-function MultiSensorChart({ titulo, series, sensores, valor, unidade, isRaw }: {
+function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
   titulo?: string; series: GraficoSerie[]; sensores: GraficoSensor[];
-  valor: ValorTipo; unidade: string; isRaw: boolean;
+  valor: ValorTipo; unidade: string;
 }) {
   if (sensores.length === 0 || series.length === 0) return null;
   const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
@@ -135,12 +139,12 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade, isRaw }: {
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
             const s = sensores.find((x) => String(x.id) === String(name));
-            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? `${s.identificacao} (${s.altura_solo_m}m)` : String(name)];
+            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
           }} />
-          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? `${s.identificacao} (${s.altura_solo_m}m)` : v; }} />
+          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
           {sensores.map((s, idx) => (
             <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-              dot={isRaw ? { r: 2 } : false} strokeWidth={2} connectNulls />
+              dot={false} strokeWidth={2} connectNulls />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -150,8 +154,10 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade, isRaw }: {
 
 // ─── SingleSensorChart ────────────────────────────────────────────────────────
 
-function SingleSensorChart({ sensor, series, unidade, isRaw, colorIdx }: {
-  sensor: GraficoSensor; series: GraficoSerie[]; unidade: string; isRaw: boolean; colorIdx: number;
+const SENSOR_METRIC_COLORS = { avg: '#3b82f6', max: '#ef4444', min: '#22c55e' };
+
+function SingleSensorChart({ sensor, series, unidade }: {
+  sensor: GraficoSensor; series: GraficoSerie[]; unidade: string;
 }) {
   const mine = series.filter((d) => d.sensor_id === sensor.id);
   if (mine.length === 0) return null;
@@ -165,11 +171,10 @@ function SingleSensorChart({ sensor, series, unidade, isRaw, colorIdx }: {
   const yDomain = yDomainFrom(
     chartData.flatMap((r) => [r.avg, r.max, r.min] as (number | undefined)[])
   );
-  const color = LINE_COLORS[colorIdx % LINE_COLORS.length];
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">
-        {sensor.identificacao} — {sensor.altura_solo_m} m{unidade ? ` (${unidade})` : ''}
+        {sensorLabel(sensor)}{unidade ? ` — ${unidade}` : ''}
       </h3>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
@@ -181,9 +186,9 @@ function SingleSensorChart({ sensor, series, unidade, isRaw, colorIdx }: {
             return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, labels[String(name)] ?? String(name)];
           }} />
           <Legend formatter={(v) => { const l: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' }; return l[String(v)] ?? String(v); }} />
-          <Line type="monotone" dataKey="avg" stroke={color} strokeWidth={2} dot={isRaw ? { r: 2 } : false} connectNulls />
-          <Line type="monotone" dataKey="max" stroke={color} strokeWidth={1.5} strokeDasharray="5 3" dot={false} opacity={0.65} connectNulls />
-          <Line type="monotone" dataKey="min" stroke={color} strokeWidth={1.5} strokeDasharray="5 3" dot={false} opacity={0.65} connectNulls />
+          <Line type="monotone" dataKey="avg" stroke={SENSOR_METRIC_COLORS.avg} strokeWidth={2} dot={false} connectNulls />
+          <Line type="monotone" dataKey="max" stroke={SENSOR_METRIC_COLORS.max} strokeWidth={1.5} dot={false} connectNulls />
+          <Line type="monotone" dataKey="min" stroke={SENSOR_METRIC_COLORS.min} strokeWidth={1.5} dot={false} connectNulls />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -192,9 +197,9 @@ function SingleSensorChart({ sensor, series, unidade, isRaw, colorIdx }: {
 
 // ─── ExternoChart ─────────────────────────────────────────────────────────────
 
-function ExternoChart({ campo, label, unidade, series, sensores, isRaw }: {
+function ExternoChart({ campo, label, unidade, series, sensores }: {
   campo: 'avg_temp' | 'avg_umid'; label: string; unidade: string;
-  series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[]; isRaw: boolean;
+  series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[];
 }) {
   const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
   if (buckets.length === 0) return null;
@@ -221,12 +226,12 @@ function ExternoChart({ campo, label, unidade, series, sensores, isRaw }: {
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
             const s = sensores.find((x) => String(x.id) === String(name));
-            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? `${s.identificacao} (${s.altura_solo_m}m)` : String(name)];
+            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
           }} />
-          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? `${s.identificacao} (${s.altura_solo_m}m)` : v; }} />
+          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
           {sensores.map((s, idx) => (
             <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-              dot={isRaw ? { r: 2 } : false} strokeWidth={2} connectNulls />
+              dot={false} strokeWidth={2} connectNulls />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -534,7 +539,6 @@ export default function RelatoriosPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const isRaw      = periodoPreset === '24h' || periodoPreset === '72h';
   const activeRange = abaAtiva === 'interna' ? rangeInterna : rangeExterna;
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
@@ -640,8 +644,8 @@ export default function RelatoriosPage() {
         </div>
       </form>
 
-      {/* Main tabs */}
-      {siloId && (
+      {/* Main tabs — exibido após primeira consulta */}
+      {lastFiltros && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="flex border-b border-gray-200">
             {hasInterna && <button onClick={() => setAbaAtiva('interna')} className={mainTabCls('interna')}>Leituras Internas</button>}
@@ -802,8 +806,7 @@ export default function RelatoriosPage() {
                             <MultiSensorChart
                               titulo={`${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
                               series={serieFiltrada} sensores={sensoresFiltrados}
-                              valor={valorTipo} unidade={unidade} isRaw={isRaw}
-                            />
+                              valor={valorTipo} unidade={unidade}                            />
                           )}
 
                           {/* Barra: um gráfico por barra */}
@@ -816,17 +819,14 @@ export default function RelatoriosPage() {
                                 titulo={`${barra.identificacao} — ${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
                                 series={serieFiltrada}
                                 sensores={sensoresFiltrados.filter((s) => s.barra_id === barra.id)}
-                                valor={valorTipo} unidade={unidade} isRaw={isRaw}
-                              />
+                                valor={valorTipo} unidade={unidade}                              />
                             ));
                           })()}
 
                           {/* Sensor: um gráfico por sensor com média+máx+mín */}
-                          {agrupamento === 'sensor' && sensoresFiltrados.map((sensor, idx) => (
+                          {agrupamento === 'sensor' && sensoresFiltrados.map((sensor) => (
                             <SingleSensorChart key={sensor.id}
-                              sensor={sensor} series={serieFiltrada}
-                              unidade={unidade} isRaw={isRaw} colorIdx={idx}
-                            />
+                              sensor={sensor} series={serieFiltrada} unidade={unidade} />
                           ))}
 
                           {/* Altura: um gráfico por altura */}
@@ -837,8 +837,7 @@ export default function RelatoriosPage() {
                                 titulo={`${alt} m — ${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
                                 series={serieFiltrada}
                                 sensores={sensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
-                                valor={valorTipo} unidade={unidade} isRaw={isRaw}
-                              />
+                                valor={valorTipo} unidade={unidade}                              />
                             ));
                           })()}
                         </div>
@@ -933,8 +932,8 @@ export default function RelatoriosPage() {
                   <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
                 ) : (
                   <>
-                    <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} isRaw={isRaw} />
-                    <ExternoChart campo="avg_umid" label="Umidade"     unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} isRaw={isRaw} />
+                    <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} />
+                    <ExternoChart campo="avg_umid" label="Umidade"     unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} />
                   </>
                 )
               )}
