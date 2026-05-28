@@ -504,8 +504,6 @@ export default function RelatoriosPage() {
       : <ChevronDown size={14} className="text-primary-600 inline ml-1" />;
   };
 
-  const grandezasPresentes = Array.from(new Set((grafico?.sensores ?? []).map((s) => s.tipo_grandeza))) as GrandezaTipo[];
-
   // ── Range hint for active tab ─────────────────────────────────────────────────
 
   const activeRange = abaAtiva === 'interna' ? rangeInterna : rangeExterna;
