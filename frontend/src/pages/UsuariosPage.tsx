@@ -156,7 +156,7 @@ export default function UsuariosPage() {
       nome_completo: '',
       email: '',
       senha: '',
-      perfil: isAdminGeral ? 'administrador_empresa' : 'operador_empresa',
+      perfil: 'operador_empresa',
       empresa_id: '',
     });
     setShowForm(true);
@@ -238,7 +238,7 @@ export default function UsuariosPage() {
 
   const perfilOptions: Perfil[] = isAdminGeral
     ? ['administrador_geral', 'administrador_empresa', 'operador_empresa']
-    : ['administrador_empresa', 'operador_empresa'];
+    : ['operador_empresa'];
 
   const getEmpresaNome = (empresa_id: number | null) => {
     if (!empresa_id) return '—';
