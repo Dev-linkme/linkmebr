@@ -3,8 +3,8 @@ import { AppError } from '../../utils/errors';
 import { prisma } from '../../config/prisma';
 
 const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? '';
-const INGEST_WEB_CLIENT_ID = process.env.INGEST_WEB_CLIENT_ID ?? 'server-web';
-const INGEST_WEB_CLIENT_SECRET = process.env.INGEST_WEB_CLIENT_SECRET ?? '';
+const INGEST_IA_CLIENT_ID = process.env.INGEST_IA_CLIENT_ID ?? 'server-ia';
+const INGEST_IA_CLIENT_SECRET = process.env.INGEST_IA_CLIENT_SECRET ?? '';
 
 type TokenCache = { token: string; expiresAt: number } | null;
 let tokenCache: TokenCache = null;
@@ -18,8 +18,8 @@ async function getIngestToken(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: INGEST_WEB_CLIENT_ID,
-      client_secret: INGEST_WEB_CLIENT_SECRET,
+      client_id: INGEST_IA_CLIENT_ID,
+      client_secret: INGEST_IA_CLIENT_SECRET,
     }),
   });
 
