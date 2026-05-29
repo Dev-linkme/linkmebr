@@ -104,6 +104,7 @@ export interface LabradorStatus {
   cpu_percent: number | null;
   ram_percent: number | null;
   disk_percent: number | null;
+  sd_percent: number | null;
 }
 
 export interface Faq {

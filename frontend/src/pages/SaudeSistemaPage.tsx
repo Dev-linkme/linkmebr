@@ -25,7 +25,7 @@ interface LabradorRelatorioResponse {
   dados: LabradorStatus[]; pagina: number; total_paginas: number; total: number;
 }
 interface LabradorGraficoSerie {
-  bucket: string; avg_cpu: number | null; avg_ram: number | null; avg_disk: number | null;
+  bucket: string; avg_cpu: number | null; avg_ram: number | null; avg_disk: number | null; avg_sd: number | null;
 }
 interface LabradorGraficoResponse { series: LabradorGraficoSerie[]; }
 
@@ -77,9 +77,10 @@ const LINE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const LABRADOR_SERIES = [
-  { key: 'avg_cpu'  as const, label: 'CPU (%)',   color: '#22c55e' },
-  { key: 'avg_ram'  as const, label: 'RAM (%)',   color: '#3b82f6' },
-  { key: 'avg_disk' as const, label: 'Disco (%)', color: '#f59e0b' },
+  { key: 'avg_cpu'  as const, label: 'CPU (%)',     color: '#22c55e' },
+  { key: 'avg_ram'  as const, label: 'RAM (%)',     color: '#3b82f6' },
+  { key: 'avg_disk' as const, label: 'Disco (%)',   color: '#f59e0b' },
+  { key: 'avg_sd'   as const, label: 'SD Card (%)', color: '#8b5cf6' },
 ];
 
 function LabradorChart({ series }: { series: LabradorGraficoSerie[] }) {
@@ -446,6 +447,7 @@ export default function SaudeSistemaPage() {
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">CPU (%)</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">RAM (%)</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Disco (%)</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">SD Card (%)</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Recebido em</th>
                           </tr>
                         </thead>
@@ -461,6 +463,9 @@ export default function SaudeSistemaPage() {
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap font-medium">
                                 <span className={percentColor(row.disk_percent)}>{formatNum(row.disk_percent)}%</span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap font-medium">
+                                <span className={percentColor(row.sd_percent)}>{row.sd_percent != null ? `${formatNum(row.sd_percent)}%` : '—'}</span>
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap text-gray-400 text-xs">{formatFullTimestamp(row.received_at)}</td>
                             </tr>
