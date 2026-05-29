@@ -438,8 +438,8 @@ export default function SaudeSistemaPage() {
                 ) : dadosLabrador.length === 0 ? (
                   <p className="text-center text-gray-400 text-sm py-10">Nenhum dado encontrado.</p>
                 ) : (
-                  <div className="rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
+                  <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                    <div>
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-50">
                           <tr>
@@ -510,8 +510,8 @@ export default function SaudeSistemaPage() {
                 ) : dadosComunicacao.length === 0 ? (
                   <p className="text-center text-gray-400 text-sm py-10">Nenhum dado encontrado.</p>
                 ) : (
-                  <div className="rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
+                  <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                    <div>
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-50">
                           <tr>

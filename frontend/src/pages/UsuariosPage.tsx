@@ -413,7 +413,7 @@ export default function UsuariosPage() {
       )}
 
       {/* Tabela */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <span className="text-gray-500">Carregando...</span>
@@ -423,7 +423,7 @@ export default function UsuariosPage() {
             <span className="text-gray-500">Nenhum usuário encontrado.</span>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
