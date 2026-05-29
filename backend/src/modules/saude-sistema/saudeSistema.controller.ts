@@ -66,9 +66,9 @@ export async function buscarLabradorStatus(
     params.push(limit, offset);
     const rows = await prisma.$queryRawUnsafe<Array<{
       id: bigint; received_at: Date; silo_id: number; timestamp: Date;
-      cpu_percent: number | null; ram_percent: number | null; disk_percent: number | null;
+      cpu_percent: number | null; ram_percent: number | null; disk_percent: number | null; sd_percent: number | null;
     }>>(
-      `SELECT id, received_at, silo_id, timestamp, cpu_percent, ram_percent, disk_percent
+      `SELECT id, received_at, silo_id, timestamp, cpu_percent, ram_percent, disk_percent, sd_percent
        FROM silos.labrador_status WHERE ${whereStr}
        ORDER BY timestamp DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -84,6 +84,7 @@ export async function buscarLabradorStatus(
         cpu_percent:  d.cpu_percent  != null ? Number(d.cpu_percent)  : null,
         ram_percent:  d.ram_percent  != null ? Number(d.ram_percent)  : null,
         disk_percent: d.disk_percent != null ? Number(d.disk_percent) : null,
+        sd_percent:   d.sd_percent   != null ? Number(d.sd_percent)   : null,
       })),
       total,
       pagina: page,
@@ -140,12 +141,13 @@ export async function buscarGraficoLabrador(
     if (data_fim)    { params.push(data_fim);    where.push(`timestamp <= $${params.length}`); }
 
     const rows = await prisma.$queryRawUnsafe<Array<{
-      bucket: Date; avg_cpu: number | null; avg_ram: number | null; avg_disk: number | null;
+      bucket: Date; avg_cpu: number | null; avg_ram: number | null; avg_disk: number | null; avg_sd: number | null;
     }>>(
       `SELECT to_timestamp(floor(extract(epoch from timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
               AVG(cpu_percent)::float  AS avg_cpu,
               AVG(ram_percent)::float  AS avg_ram,
-              AVG(disk_percent)::float AS avg_disk
+              AVG(disk_percent)::float AS avg_disk,
+              AVG(sd_percent)::float   AS avg_sd
        FROM silos.labrador_status WHERE ${where.join(' AND ')}
        GROUP BY bucket ORDER BY bucket`,
       ...params,
@@ -157,6 +159,7 @@ export async function buscarGraficoLabrador(
         avg_cpu:  r.avg_cpu  != null ? Number(r.avg_cpu)  : null,
         avg_ram:  r.avg_ram  != null ? Number(r.avg_ram)  : null,
         avg_disk: r.avg_disk != null ? Number(r.avg_disk) : null,
+        avg_sd:   r.avg_sd   != null ? Number(r.avg_sd)   : null,
       })),
     });
   } catch (err) { next(err); }
