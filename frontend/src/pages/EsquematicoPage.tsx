@@ -26,16 +26,45 @@ interface DrawTarget {
   label: string;
 }
 
+type SensorTooltipItem = {
+  id: number; identificacao: string; altura_solo_m: number;
+  tipo_grandeza: string; unidade_medida: string; status: string;
+  barra: { id: number; identificacao: string };
+};
+
 type TooltipData =
-  | { entity_type: 'barra'; data: { id: number; identificacao: string; local: string; status: string } | null }
-  | { entity_type: 'sensor'; data: { id: number; identificacao: string; altura_solo_m: number; tipo_grandeza: string; unidade_medida: string; status: string; barra: { id: number; identificacao: string } } | null }
+  | { entity_type: 'barra';  data: { id: number; identificacao: string; local: string; status: string } | null }
+  | { entity_type: 'sensor'; data: SensorTooltipItem[] }
   | null;
 
-interface BarraMapeamento   { id: number; identificacao: string; dxf_handle: string | null; }
-interface SensorMapeamento  {
+interface BarraMapeamento  { id: number; identificacao: string; dxf_handle: string | null; }
+interface SensorMapeamento {
   id: number; identificacao: string; altura_solo_m: number;
   tipo_grandeza: string; dxf_handle: string | null;
   barra: { id: number; identificacao: string };
+}
+
+// Grupo de sensores na mesma posição física (barra + altura)
+interface SensorGroup {
+  key: string;
+  barra: { id: number; identificacao: string };
+  altura_solo_m: number;
+  sensors: SensorMapeamento[];
+  representative_id: number;  // id do primeiro sensor — usado como entity_id do overlay
+}
+
+function groupSensores(sensores: SensorMapeamento[]): SensorGroup[] {
+  const map = new Map<string, SensorGroup>();
+  for (const s of sensores) {
+    const key = `${s.barra.id}_${s.altura_solo_m}`;
+    if (!map.has(key)) {
+      map.set(key, { key, barra: s.barra, altura_solo_m: s.altura_solo_m, sensors: [], representative_id: s.id });
+    }
+    map.get(key)!.sensors.push(s);
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    a.barra.id !== b.barra.id ? a.barra.id - b.barra.id : a.altura_solo_m - b.altura_solo_m,
+  );
 }
 
 const VISTAS: { value: Vista; label: string }[] = [
@@ -340,11 +369,16 @@ function SvgViewer({
               <p><span className="text-gray-500">Status:</span> {tooltip.data.status}</p>
             </>
           )}
-          {tooltip.entity_type === 'sensor' && tooltip.data && (
+          {tooltip.entity_type === 'sensor' && tooltip.data.length > 0 && (
             <>
-              <p className="font-semibold text-green-700 mb-1">Sensor</p>
-              <p className="font-medium">{tooltip.data.barra.identificacao} — {tooltip.data.identificacao}</p>
-              <p className="text-gray-500">{tooltip.data.altura_solo_m}m · {tooltip.data.tipo_grandeza} · {tooltip.data.unidade_medida}</p>
+              <p className="font-semibold text-green-700 mb-1">
+                {tooltip.data[0].barra.identificacao} — {tooltip.data[0].altura_solo_m}m
+              </p>
+              {tooltip.data.map(s => (
+                <p key={s.id} className="text-gray-600">
+                  <span className="font-medium">{s.tipo_grandeza}</span>: {s.identificacao} ({s.unidade_medida})
+                </p>
+              ))}
             </>
           )}
         </div>
@@ -463,8 +497,11 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
     } catch { toast.error('Erro ao remover área'); }
   };
 
-  const overlayFor = (entity_type: 'barra' | 'sensor', entity_id: number) =>
-    overlays.find(o => o.entity_type === entity_type && o.entity_id === entity_id);
+  const overlayForBarra = (barra_id: number) =>
+    overlays.find(o => o.entity_type === 'barra' && o.entity_id === barra_id);
+
+  const overlayForGroup = (group: SensorGroup) =>
+    overlays.find(o => o.entity_type === 'sensor' && group.sensors.some(s => s.id === o.entity_id));
 
   const isDrawing = (entity_type: 'barra' | 'sensor', entity_id: number) =>
     drawTarget?.entity_type === entity_type && drawTarget?.entity_id === entity_id;
@@ -527,7 +564,7 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
               <p className="text-sm font-semibold text-gray-700 mb-2">Barras Internas</p>
               <div className="space-y-1">
                 {mapeamento.barras.map(b => {
-                  const ov  = overlayFor('barra', b.id);
+                  const ov      = overlayForBarra(b.id);
                   const drawing = isDrawing('barra', b.id);
                   return (
                     <div
@@ -541,9 +578,7 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
                       onMouseLeave={() => setHighlightId(null)}
                     >
                       <span className="text-sm text-gray-700 flex-1 truncate">{b.identificacao}</span>
-                      {ov && (
-                        <span className="text-xs text-blue-600 font-medium">✓ mapeada</span>
-                      )}
+                      {ov && <span className="text-xs text-blue-600 font-medium">✓ mapeada</span>}
                       <button
                         onClick={() => setDrawTarget({ entity_type: 'barra', entity_id: b.id, label: b.identificacao })}
                         title="Desenhar área"
@@ -552,11 +587,8 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
                         <Pencil size={13} />
                       </button>
                       {ov && (
-                        <button
-                          onClick={() => handleDeleteOverlay(ov)}
-                          title="Remover área"
-                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
-                        >
+                        <button onClick={() => handleDeleteOverlay(ov)} title="Remover área"
+                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500">
                           <Trash2 size={13} />
                         </button>
                       )}
@@ -566,39 +598,41 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
               </div>
             </div>
 
-            {/* Sensores */}
+            {/* Posições de sensores — agrupadas por barra + altura */}
             <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Sensores</p>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Posições de Sensores</p>
               <div className="space-y-1 max-h-60 overflow-y-auto pr-1">
-                {mapeamento.sensores.map(s => {
-                  const ov  = overlayFor('sensor', s.id);
-                  const drawing = isDrawing('sensor', s.id);
-                  const label = `${s.barra.identificacao} / ${s.identificacao} (${s.altura_solo_m}m)`;
+                {groupSensores(mapeamento.sensores).map(grp => {
+                  const ov      = overlayForGroup(grp);
+                  const drawing = isDrawing('sensor', grp.representative_id);
+                  const label   = `${grp.barra.identificacao} / ${grp.altura_solo_m}m`;
+                  const tipos   = grp.sensors.map(s => s.tipo_grandeza).join(', ');
                   return (
                     <div
-                      key={s.id}
+                      key={grp.key}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-md border transition-colors ${
                         drawing ? 'border-green-400 bg-green-50' :
                         ov      ? 'border-green-200 bg-green-50/40' :
                                   'border-transparent hover:bg-gray-50'
                       }`}
-                      onMouseEnter={() => ov && setHighlightId({ entity_type: 'sensor', entity_id: s.id })}
+                      onMouseEnter={() => ov && setHighlightId({ entity_type: 'sensor', entity_id: ov.entity_id })}
                       onMouseLeave={() => setHighlightId(null)}
                     >
-                      <span className="text-xs text-gray-700 flex-1 truncate">{label}</span>
-                      {ov && <span className="text-xs text-green-600 font-medium">✓ mapeado</span>}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-700 truncate">{label}</p>
+                        <p className="text-xs text-gray-400 truncate">{tipos}</p>
+                      </div>
+                      {ov && <span className="text-xs text-green-600 font-medium shrink-0">✓</span>}
                       <button
-                        onClick={() => setDrawTarget({ entity_type: 'sensor', entity_id: s.id, label })}
+                        onClick={() => setDrawTarget({ entity_type: 'sensor', entity_id: grp.representative_id, label })}
                         title="Desenhar área"
-                        className={`p-1 rounded hover:bg-green-100 ${drawing ? 'text-green-600' : 'text-gray-400'}`}
+                        className={`p-1 rounded hover:bg-green-100 shrink-0 ${drawing ? 'text-green-600' : 'text-gray-400'}`}
                       >
                         <Pencil size={13} />
                       </button>
                       {ov && (
-                        <button
-                          onClick={() => handleDeleteOverlay(ov)}
-                          title="Remover área"
-                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                        <button onClick={() => handleDeleteOverlay(ov)} title="Remover área"
+                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 shrink-0"
                         >
                           <Trash2 size={13} />
                         </button>

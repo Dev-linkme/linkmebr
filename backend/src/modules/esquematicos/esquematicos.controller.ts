@@ -35,8 +35,11 @@ export async function getSvg(req: Request, res: Response, next: NextFunction): P
     // Serve pre-generated SVG (from ezdxf) when available — full fidelity
     const preGenPath = svgPath(siloId, vista);
     if (fs.existsSync(preGenPath)) {
+      let svg = fs.readFileSync(preGenPath, 'utf-8');
+      // Remove overlays antigos embutidos no SVG (data-handle) — agora servidos pelo banco
+      svg = svg.replace(/<path[^>]+data-handle="[^"]*"[^/]*\/>/g, '');
       res.setHeader('Content-Type', 'image/svg+xml');
-      res.send(fs.readFileSync(preGenPath, 'utf-8'));
+      res.send(svg);
       return;
     }
 
@@ -150,15 +153,23 @@ export async function getTooltip(req: Request, res: Response, next: NextFunction
         return;
       }
       if (entity_type === 'sensor') {
-        const sensor = await prisma.sensor.findFirst({
+        // Busca sensor representativo para obter posição (barra + altura)
+        const rep = await prisma.sensor.findFirst({
           where: { id: eid, barra: { silo_id: siloId } },
+          select: { barra_id: true, altura_solo_m: true },
+        });
+        if (!rep) { res.json({ entity_type: 'sensor', data: [] }); return; }
+        // Retorna todos os sensores na mesma posição (mesma barra + mesma altura)
+        const sensores = await prisma.sensor.findMany({
+          where: { barra_id: rep.barra_id, altura_solo_m: rep.altura_solo_m, barra: { silo_id: siloId } },
           select: {
             id: true, identificacao: true, altura_solo_m: true,
             tipo_grandeza: true, unidade_medida: true, status: true,
             barra: { select: { id: true, identificacao: true } },
           },
+          orderBy: { tipo_grandeza: 'asc' },
         });
-        res.json({ entity_type: 'sensor', data: sensor ?? null });
+        res.json({ entity_type: 'sensor', data: sensores });
         return;
       }
       res.json({ entity_type, data: null });
