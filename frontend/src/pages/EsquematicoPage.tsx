@@ -44,24 +44,34 @@ interface SensorMapeamento {
   barra: { id: number; identificacao: string };
 }
 
-// Grupo de sensores da mesma barra (todas as alturas e grandezas)
+// Grupo de sensores — frente: por barra; lateral: por barra + altura
 interface SensorGroup {
   key: string;
   barra: { id: number; identificacao: string };
+  altura_solo_m: number | null;   // null = frente (todas as alturas)
   sensors: SensorMapeamento[];
-  representative_id: number;  // id do primeiro sensor — usado como entity_id do overlay
+  representative_id: number;
 }
 
-function groupSensores(sensores: SensorMapeamento[]): SensorGroup[] {
+function groupSensores(sensores: SensorMapeamento[], vista: Vista): SensorGroup[] {
+  const isLateral = vista !== 'frente';
   const map = new Map<string, SensorGroup>();
   for (const s of sensores) {
-    const key = String(s.barra.id);
+    const key = isLateral ? `${s.barra.id}_${s.altura_solo_m}` : String(s.barra.id);
     if (!map.has(key)) {
-      map.set(key, { key, barra: s.barra, sensors: [], representative_id: s.id });
+      map.set(key, {
+        key,
+        barra: s.barra,
+        altura_solo_m: isLateral ? s.altura_solo_m : null,
+        sensors: [],
+        representative_id: s.id,
+      });
     }
     map.get(key)!.sensors.push(s);
   }
-  return Array.from(map.values()).sort((a, b) => a.barra.id - b.barra.id);
+  return Array.from(map.values()).sort((a, b) =>
+    a.barra.id !== b.barra.id ? a.barra.id - b.barra.id : (a.altura_solo_m ?? 0) - (b.altura_solo_m ?? 0),
+  );
 }
 
 const VISTAS: { value: Vista; label: string }[] = [
@@ -77,13 +87,32 @@ const OVERLAY_COLOR: Record<string, { fill: string; stroke: string }> = {
 };
 
 // ─── CSS injetado no SVG ──────────────────────────────────────────────────────
+// Frente  : C1-C8 são os únicos layers; C4/C8 = texto e setas de cotas.
+// Laterais: C4 = HATCH de coluna inteira (~213mm); C8 = marcador de altura (~21mm).
+//           C9/CA/CB existem apenas nas laterais e são linhas/texto de cotas.
+// O toggle de cotas oculta layers diferentes conforme a vista.
 
-function buildSvgCss(showCotas: boolean): string {
+function buildSvgCss(showCotas: boolean, vista: Vista): string {
+  const isLateral = vista !== 'frente';
+
+  const cotasRule = !showCotas
+    ? (isLateral
+        ? '.C3, .C9, .CA, .CB { display: none !important; }'      // laterais: C4/C8 são estruturais
+        : '.C3, .C4, .C8 { display: none !important; }')           // frente: C4/C8 são cotas
+    : '';
+
+  const lateralFix = isLateral ? `
+    .C4, .C8 { fill: none !important; }
+    .C9  { stroke: #666; stroke-width: 150; fill: none; stroke-opacity: 0.8; }
+    .CA, .CB { fill: #222; stroke: none; fill-opacity: 1; }
+  ` : '';
+
   return `
     .C2 { stroke-width: 400 !important; }
     .C6 { stroke-width: 300 !important; fill: none !important; }
     .C7 { stroke-width: 300 !important; fill: none !important; }
-    ${showCotas ? '' : '.C3, .C4, .C8 { display: none !important; }'}
+    ${lateralFix}
+    ${cotasRule}
   `.trim();
 }
 
@@ -188,7 +217,7 @@ function SvgViewer({
     }
     try {
       const r = await api.get<TooltipData>(`/silos/${siloId}/esquematicos/tooltip`, {
-        params: { entity_type, entity_id },
+        params: { entity_type, entity_id, vista },
       });
       tooltipCache.current.set(key, r.data);
       setTooltip(r.data);
@@ -306,7 +335,7 @@ function SvgViewer({
             onMouseOut={onSvgMouseOut}
           >
             {/* CSS overrides injetados */}
-            <style>{buildSvgCss(showCotas)}</style>
+            <style>{buildSvgCss(showCotas, vista)}</style>
 
             {/* Conteúdo DXF */}
             <g dangerouslySetInnerHTML={{ __html: svgInner }} />
@@ -610,11 +639,15 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
             <div>
               <p className="text-sm font-semibold text-gray-700 mb-2">Posições de Sensores</p>
               <div className="space-y-1 max-h-60 overflow-y-auto pr-1">
-                {groupSensores(mapeamento.sensores).map(grp => {
+                {groupSensores(mapeamento.sensores, vista).map(grp => {
                   const ov      = overlayForGroup(grp);
                   const drawing = isDrawing('sensor', grp.representative_id);
-                  const label = grp.barra.identificacao;
-                  const alturas = [...new Set(grp.sensors.map(s => `${s.altura_solo_m}m`))].join(' · ');
+                  const label   = grp.altura_solo_m !== null
+                    ? `${grp.barra.identificacao} / ${grp.altura_solo_m}m`
+                    : grp.barra.identificacao;
+                  const alturas = grp.altura_solo_m === null
+                    ? [...new Set(grp.sensors.map(s => `${s.altura_solo_m}m`))].join(' · ')
+                    : null;
                   const tipos   = [...new Set(grp.sensors.map(s => s.tipo_grandeza))].join(', ');
                   return (
                     <div
@@ -629,7 +662,9 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-gray-700 truncate">{label}</p>
-                        <p className="text-xs text-gray-400 truncate">{alturas} · {tipos}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {alturas ? `${alturas} · ` : ''}{tipos}
+                        </p>
                       </div>
                       {ov && <span className="text-xs text-green-600 font-medium shrink-0">✓</span>}
                       <button
