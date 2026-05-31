@@ -136,9 +136,37 @@ export async function salvarMapeamento(req: Request, res: Response, next: NextFu
 export async function getTooltip(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const siloId = Number(req.params.id);
-    const { handle, layer } = req.query as { handle: string; layer: string };
+    const { handle, layer, entity_type, entity_id } = req.query as Record<string, string>;
 
-    if (!handle || !layer) throw new AppError(400, 'handle e layer são obrigatórios');
+    // Novo caminho: lookup por entity_type + entity_id (overlays desenhados)
+    if (entity_type && entity_id) {
+      const eid = Number(entity_id);
+      if (entity_type === 'barra') {
+        const barra = await prisma.barra.findFirst({
+          where: { id: eid, silo_id: siloId },
+          select: { id: true, identificacao: true, local: true, status: true },
+        });
+        res.json({ entity_type: 'barra', data: barra ?? null });
+        return;
+      }
+      if (entity_type === 'sensor') {
+        const sensor = await prisma.sensor.findFirst({
+          where: { id: eid, barra: { silo_id: siloId } },
+          select: {
+            id: true, identificacao: true, altura_solo_m: true,
+            tipo_grandeza: true, unidade_medida: true, status: true,
+            barra: { select: { id: true, identificacao: true } },
+          },
+        });
+        res.json({ entity_type: 'sensor', data: sensor ?? null });
+        return;
+      }
+      res.json({ entity_type, data: null });
+      return;
+    }
+
+    // Caminho legado: lookup por dxf_handle
+    if (!handle || !layer) throw new AppError(400, 'handle e layer (ou entity_type e entity_id) são obrigatórios');
 
     if (layer.toUpperCase() === 'BARRAS') {
       const barra = await prisma.barra.findFirst({
@@ -165,6 +193,57 @@ export async function getTooltip(req: Request, res: Response, next: NextFunction
     }
 
     res.json({ layer, data: null });
+  } catch (err) { next(err); }
+}
+
+export async function getOverlays(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const siloId = Number(req.params.id);
+    const vista  = req.params.vista as string;
+    assertVista(vista);
+    const overlays = await prisma.esquematicoOverlay.findMany({
+      where: { silo_id: siloId, vista },
+    });
+    res.json(overlays);
+  } catch (err) { next(err); }
+}
+
+export async function salvarOverlay(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const siloId = Number(req.params.id);
+    const vista  = req.params.vista as string;
+    assertVista(vista);
+
+    const { entity_type, entity_id, x1, y1, x2, y2 } = req.body as {
+      entity_type: string; entity_id: number;
+      x1: number; y1: number; x2: number; y2: number;
+    };
+
+    if (!entity_type || !entity_id) throw new AppError(400, 'entity_type e entity_id são obrigatórios');
+
+    const overlay = await prisma.esquematicoOverlay.upsert({
+      where: {
+        silo_id_vista_entity_type_entity_id: {
+          silo_id: siloId, vista, entity_type, entity_id: Number(entity_id),
+        },
+      },
+      create: { silo_id: siloId, vista, entity_type, entity_id: Number(entity_id), x1, y1, x2, y2 },
+      update: { x1, y1, x2, y2 },
+    });
+    res.json(overlay);
+  } catch (err) { next(err); }
+}
+
+export async function deletarOverlay(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const siloId   = Number(req.params.id);
+    const vista    = req.params.vista as string;
+    const overlayId = Number(req.params.overlayId);
+    assertVista(vista);
+    await prisma.esquematicoOverlay.deleteMany({
+      where: { id: overlayId, silo_id: siloId, vista },
+    });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 }
 

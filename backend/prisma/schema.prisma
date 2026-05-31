@@ -66,11 +66,30 @@ model Silo {
   atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
   id_labrador     Int?
 
-  empresa         Empresa   @relation(fields: [empresa_id], references: [id])
+  empresa         Empresa              @relation(fields: [empresa_id], references: [id])
   barras          Barra[]
   alertas         Alerta[]
+  esquematico_overlays EsquematicoOverlay[]
 
   @@map("silos")
+  @@schema("silos")
+}
+
+model EsquematicoOverlay {
+  id          Int    @id @default(autoincrement())
+  silo_id     Int
+  vista       String @db.VarChar(30)
+  entity_type String @db.VarChar(10)
+  entity_id   Int
+  x1          Float
+  y1          Float
+  x2          Float
+  y2          Float
+
+  silo        Silo   @relation(fields: [silo_id], references: [id], onDelete: Cascade)
+
+  @@unique([silo_id, vista, entity_type, entity_id])
+  @@map("esquematico_overlays")
   @@schema("silos")
 }
 
