@@ -30,6 +30,8 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: 8080
       NODE_ENV: production
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       redis:
         condition: service_healthy
@@ -67,6 +69,7 @@ services:
 
 volumes:
   redis_data:
+  uploads_data:
 
 networks:
   linkmebr_net:
