@@ -15,8 +15,11 @@ const VISTA_FILES: Record<Vista, string> = {
 };
 
 function dxfPath(siloId: number, vista: Vista): string {
-  const dir = path.join(process.cwd(), 'uploads', 'silos', String(siloId), 'dxf');
-  return path.join(dir, VISTA_FILES[vista]);
+  return path.join(process.cwd(), 'uploads', 'silos', String(siloId), 'dxf', VISTA_FILES[vista]);
+}
+
+function svgPath(siloId: number, vista: Vista): string {
+  return path.join(process.cwd(), 'uploads', 'silos', String(siloId), 'svg', VISTA_FILES[vista].replace('.dxf', '.svg'));
 }
 
 function assertVista(v: string): asserts v is Vista {
@@ -29,6 +32,15 @@ export async function getSvg(req: Request, res: Response, next: NextFunction): P
     const vista  = req.params.vista as string;
     assertVista(vista);
 
+    // Serve pre-generated SVG (from ezdxf) when available — full fidelity
+    const preGenPath = svgPath(siloId, vista);
+    if (fs.existsSync(preGenPath)) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.send(fs.readFileSync(preGenPath, 'utf-8'));
+      return;
+    }
+
+    // Fallback: generate from TypeScript DXF parser
     const filePath = dxfPath(siloId, vista);
     if (!fs.existsSync(filePath)) throw new AppError(404, 'DXF não encontrado para este silo/vista');
 

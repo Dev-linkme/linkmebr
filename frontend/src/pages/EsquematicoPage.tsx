@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Save, Upload, ZoomIn, ZoomOut, Maximize2, Loader2, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -41,13 +41,13 @@ function SvgViewer({
   const lastMouse = useRef({ x: 0, y: 0 });
   const tooltipCache = useRef<Map<string, TooltipData>>(new Map());
 
-  const [svgInner,  setSvgInner]  = useState('');
-  const [initVB,    setInitVB]    = useState<VB | null>(null);
-  const [viewBox,   setViewBox]   = useState<VB | null>(null);
-  const [entities,  setEntities]  = useState<EntidadesResponse | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [tooltip,   setTooltip]   = useState<TooltipData>(null);
-  const [tooltipPos,setTooltipPos]= useState({ x: 0, y: 0 });
+  const [svgInner,   setSvgInner]   = useState('');
+  const [initVB,     setInitVB]     = useState<VB | null>(null);
+  const [viewBox,    setViewBox]    = useState<VB | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [tooltip,    setTooltip]    = useState<TooltipData>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [labelData,  setLabelData]  = useState<Array<{ handle: string; layer: string; cx: number; cy: number }>>([]);
 
   // Load SVG
   useEffect(() => {
@@ -75,13 +75,21 @@ function SvgViewer({
       .finally(() => setLoading(false));
   }, [siloId, vista]);
 
-  // Load entities for annotation overlay
-  useEffect(() => {
-    if (!annotate) return;
-    api.get<EntidadesResponse>(`/silos/${siloId}/esquematicos/${vista}/entidades`)
-      .then((r) => setEntities(r.data))
-      .catch(() => {});
-  }, [siloId, vista, annotate]);
+  // Extract label positions from rendered SVG using getBBox (annotation mode)
+  useLayoutEffect(() => {
+    if (!annotate || !svgRef.current || !svgInner) return;
+    const labels: Array<{ handle: string; layer: string; cx: number; cy: number }> = [];
+    const els = svgRef.current.querySelectorAll('[data-handle]');
+    els.forEach((el) => {
+      try {
+        const bbox = (el as SVGGraphicsElement).getBBox();
+        const handle = el.getAttribute('data-handle') ?? '';
+        const layer  = el.getAttribute('data-layer')  ?? '';
+        labels.push({ handle, layer, cx: bbox.x + bbox.width / 2, cy: bbox.y + bbox.height / 2 });
+      } catch { /* element not in DOM yet */ }
+    });
+    setLabelData(labels);
+  }, [svgInner, annotate, viewBox]);
 
   // Wheel zoom (non-passive)
   useEffect(() => {
@@ -207,23 +215,22 @@ function SvgViewer({
             {/* DXF entities */}
             <g dangerouslySetInnerHTML={{ __html: svgInner }} />
 
-            {/* Handle annotations (mapping mode) */}
-            {annotate && entities && (
+            {/* Handle annotations (mapping mode) — positioned via getBBox() */}
+            {annotate && labelData.length > 0 && (
               <g>
-                {[...entities.barras, ...entities.sensores].map((e) => (
-                  <g key={e.handle}>
-                    <text
-                      x={e.centroide.x}
-                      y={-e.centroide.y}
-                      fontSize={fontSize}
-                      fill={e.layer === 'BARRAS' ? '#1d4ed8' : '#15803d'}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      style={{ userSelect: 'none', fontFamily: 'monospace', fontWeight: 'bold' }}
-                    >
-                      {e.handle}
-                    </text>
-                  </g>
+                {labelData.map((lbl) => (
+                  <text
+                    key={lbl.handle}
+                    x={lbl.cx}
+                    y={lbl.cy}
+                    fontSize={fontSize}
+                    fill={lbl.layer === 'BARRAS' ? '#1d4ed8' : '#15803d'}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    style={{ userSelect: 'none', fontFamily: 'monospace', fontWeight: 'bold' }}
+                  >
+                    {lbl.handle}
+                  </text>
                 ))}
               </g>
             )}
