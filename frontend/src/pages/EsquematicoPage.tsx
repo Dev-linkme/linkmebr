@@ -207,9 +207,9 @@ function SvgViewer({
     return () => el.removeEventListener('wheel', onWheel);
   }, [svgInner]);
 
-  // Tooltip (modo viewer)
+  // Tooltip (modo viewer) — vista na dep array e no cache key para evitar stale closure
   const fetchTooltip = useCallback(async (entity_type: string, entity_id: number, cx: number, cy: number) => {
-    const key = `${entity_type}:${entity_id}`;
+    const key = `${vista}:${entity_type}:${entity_id}`;
     if (tooltipCache.current.has(key)) {
       setTooltip(tooltipCache.current.get(key)!);
       setTooltipPos({ x: cx, y: cy });
@@ -223,7 +223,7 @@ function SvgViewer({
       setTooltip(r.data);
       setTooltipPos({ x: cx, y: cy });
     } catch { /* silent */ }
-  }, [siloId]);
+  }, [siloId, vista]);
 
   // Handlers de mouse
   const onMouseDown = (e: React.MouseEvent) => {
