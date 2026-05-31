@@ -60,13 +60,78 @@ pela cor ACI (AutoCAD Color Index) de cada layer. O mapeamento observado é:
 | `.C3`  | `#ff0000` vermelho | Linhas de cota (extensão + medida) | CONTINUOUS |
 | `.C4`  | fill `#ffff00`   | **Textos de cota** (glifos vetorizados) | —      |
 | `.C5`  | `#636466` cinza  | Linhas auxiliares             | CONTINUOUS    |
-| `.C6`  | `#00ff00` verde  | Elementos especiais (ex: SENSOR) | CONTINUOUS |
-| `.C7`  | `#00ffff` ciano  | Elementos especiais (ex: BARRAS) | CONTINUOUS |
+| `.C6`  | `#00ff00` verde  | **Símbolo gráfico de BARRAS** (borne estreito, ~1,2×7,3mm) | CONTINUOUS |
+| `.C7`  | `#00ffff` ciano  | **Símbolo gráfico de SENSOR** (corpo quadrado, ~7,3×7,3mm) | CONTINUOUS |
 | `.C8`  | fill `#ff0000`   | Setas e labels de cota        | —             |
 
 > ⚠️ O mapeamento `.C1`→`.C8` pode variar entre arquivos DXF se as cores ACI
 > dos layers forem diferentes. Sempre inspecione o `<defs>` do SVG gerado para
 > confirmar qual cor está em cada classe antes de aplicar os estilos.
+
+---
+
+## Interactive-Overlay: O Que É e Por Que Remover
+
+O SVG gerado pode conter um grupo `<g id="interactive-overlay">` com retângulos
+coloridos que **não fazem parte do desenho técnico** — são áreas de clique (hit-areas)
+geradas para uso em interface web interativa.
+
+### Estrutura típica
+```xml
+<g id="interactive-overlay">
+  <!-- BARRAS: azul #3b82f6, fill-opacity=0.6, cursor:pointer -->
+  <path d="M 185492 268291 L 179426 268291 ..." fill="#3b82f6" fill-opacity="0.6"
+        stroke="#1d4ed8" stroke-width="1300"
+        data-handle="1709" data-layer="BARRAS" style="cursor:pointer"/>
+
+  <!-- SENSOR: verde #22c55e, fill-opacity=0.6, cursor:pointer -->
+  <path d="M 204903 206411 L 168507 206411 ..." fill="#22c55e" fill-opacity="0.6"
+        stroke="#15803d" stroke-width="1300"
+        data-handle="170D" data-layer="SENSOR" style="cursor:pointer"/>
+</g>
+```
+
+### Relação com os símbolos C6/C7
+
+Os retângulos do overlay são **maiores** que os símbolos gráficos para cobrir
+toda a área do componente incluindo terminais. A correspondência é:
+
+| Layer overlay | Cor overlay    | Símbolo gráfico | Classe CSS | Tamanho símbolo |
+|---------------|----------------|-----------------|------------|-----------------|
+| `BARRAS`      | azul `#3b82f6` | borne/barra     | `.C6`      | ~1,2 × 7,3 mm  |
+| `SENSOR`      | verde `#22c55e`| módulo sensor   | `.C7`      | ~7,3 × 7,3 mm  |
+
+> Os centros XY do overlay e dos símbolos C6/C7 coincidem com ~5mm de
+> deslocamento em Y — o overlay cobre também os terminais/pinos do componente.
+
+### Por que os "retângulos verdes" aparecem no SVG estático
+
+O overlay SENSOR usa `fill="#22c55e"` (verde) com `fill-opacity="0.6"`.
+Como é muito maior que o símbolo C7 abaixo, domina visualmente e parece
+cobrir toda a região do componente. **Não é um bug do DXF** — é o overlay
+que não deve existir num SVG de visualização estática.
+
+### Remoção obrigatória
+
+O passo 5 do `postprocess_dxf_svg()` já remove o overlay:
+```python
+svg = re.sub(
+    r'<g id="interactive-overlay">.*?</g>',
+    '',
+    svg,
+    flags=re.DOTALL
+)
+```
+
+Se o código gerador do DXF/SVG for seu, o ideal é **não gerar o overlay**
+quando o destino for visualização estática. Use um flag de contexto:
+
+```python
+MODO_INTERATIVO = False  # True = web com cliques, False = SVG estático
+
+if MODO_INTERATIVO:
+    svg += gerar_overlay(componentes)
+```
 
 ---
 
@@ -108,22 +173,24 @@ Substituir **todo o bloco `<defs>`** do SVG gerado pelo ezdxf pelo seguinte:
   fill-opacity: 1;
 }
 
-/* Auxiliares e especiais */
+/* Auxiliares */
 .C5 {
   stroke: #888888;
   stroke-width: 130;          /* 0,13mm — linha auxiliar */
   stroke-opacity: 1;
   fill: none;
 }
+
+/* Símbolos de componentes — BARRAS e SENSOR */
 .C6 {
   stroke: #007700;
-  stroke-width: 180;
+  stroke-width: 180;          /* 0,18mm — símbolo de BARRAS (borne estreito) */
   stroke-opacity: 1;
   fill: none;
 }
 .C7 {
   stroke: #005588;
-  stroke-width: 180;
+  stroke-width: 180;          /* 0,18mm — símbolo de SENSOR (corpo quadrado) */
   stroke-opacity: 1;
   fill: none;
 }
@@ -203,14 +270,14 @@ def postprocess_dxf_svg(input_path: str, output_path: str) -> None:
 <sodipodi:namedview inkscape:document-units="mm" units="mm" />
 <style>
   .C1 { stroke: #777777; stroke-width: 180;  fill: none; stroke-opacity: 1;
-         stroke-dasharray: 1500 500 100 500; }
-  .C2 { stroke: #000000; stroke-width: 250;  fill: none; stroke-opacity: 1; }
-  .C3 { stroke: #444444; stroke-width: 150;  fill: none; stroke-opacity: 1; }
-  .C4 { stroke: none; fill: #222222; fill-opacity: 1; }
-  .C5 { stroke: #888888; stroke-width: 130;  fill: none; stroke-opacity: 1; }
-  .C6 { stroke: #007700; stroke-width: 180;  fill: none; stroke-opacity: 1; }
-  .C7 { stroke: #005588; stroke-width: 180;  fill: none; stroke-opacity: 1; }
-  .C8 { stroke: none; fill: #222222; fill-opacity: 1; }
+         stroke-dasharray: 1500 500 100 500; }  /* eixos/centro — tracejado */
+  .C2 { stroke: #000000; stroke-width: 250;  fill: none; stroke-opacity: 1; }  /* geometria principal */
+  .C3 { stroke: #444444; stroke-width: 150;  fill: none; stroke-opacity: 1; }  /* linhas de cota */
+  .C4 { stroke: none; fill: #222222; fill-opacity: 1; }                         /* textos de cota */
+  .C5 { stroke: #888888; stroke-width: 130;  fill: none; stroke-opacity: 1; }  /* auxiliares */
+  .C6 { stroke: #007700; stroke-width: 180;  fill: none; stroke-opacity: 1; }  /* símbolo BARRAS */
+  .C7 { stroke: #005588; stroke-width: 180;  fill: none; stroke-opacity: 1; }  /* símbolo SENSOR */
+  .C8 { stroke: none; fill: #222222; fill-opacity: 1; }                         /* setas de cota */
 </style>
 </defs>'''
     svg = re.sub(r'<defs>.*?</defs>', new_defs, svg, flags=re.DOTALL)
@@ -279,12 +346,35 @@ Antes de entregar o SVG ao usuário, verificar:
 - [ ] Nenhum elemento com `fill: #ffff00` ou `fill: #ff0000` visível
 - [ ] Linhas de eixo C1 com `stroke-dasharray` (tracejado ponto)
 - [ ] Textos de cota C4/C8 em cor escura (`#222222`)
-- [ ] `interactive-overlay` ausente
+- [ ] `interactive-overlay` ausente (sem retângulos coloridos semitransparentes)
+- [ ] Símbolos C6 (BARRAS) e C7 (SENSOR) visíveis com stroke fino
 - [ ] Arquivo abre corretamente no Inkscape com unidades em mm
 
 ---
 
 ## Notas sobre Layers e Cotas
+
+### Símbolos de componentes C6 e C7
+
+C6 e C7 são os **contornos gráficos** dos componentes físicos no painel:
+
+- **C6** (`#00ff00` → verde escuro no output): símbolo da BARRA/BORNE
+  — retângulo estreito de ~1,2 × 7,3 mm representando o borne de conexão
+- **C7** (`#00ffff` → azul escuro no output): símbolo do SENSOR
+  — quadrado de ~7,3 × 7,3 mm representando o corpo do módulo sensor
+
+Esses elementos **não devem ser confundidos** com o `interactive-overlay`,
+que usa as mesmas cores mas com `fill-opacity=0.6` e atributos `data-handle`,
+`data-layer` e `cursor:pointer`. A distinção no SVG:
+
+```xml
+<!-- C6/C7: símbolo gráfico real — stroke only, sem fill, sem data-* -->
+<path d="M 183060 265367 l -1214 0 ..." class="C6"/>
+
+<!-- overlay: hit-area interativa — fill semitransparente, com data-* -->
+<path d="M 185492 268291 L 179426 ..." fill="#22c55e" fill-opacity="0.6"
+      data-layer="SENSOR" style="cursor:pointer"/>
+```
 
 ### Ocultar cotas completamente
 Se o usuário quiser o desenho **sem cotas**:
