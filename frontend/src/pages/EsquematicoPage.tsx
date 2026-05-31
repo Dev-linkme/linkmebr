@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  Save, Upload, ZoomIn, ZoomOut, Maximize2, Loader2, Layers,
+  Upload, ZoomIn, ZoomOut, Maximize2, Loader2, Layers,
   Pencil, Trash2, Eye, EyeOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -411,7 +411,6 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
   const [overlays,     setOverlays]     = useState<DbOverlay[]>([]);
   const [uploading,    setUploading]    = useState(false);
   const [uploadFile,   setUploadFile]   = useState<File | null>(null);
-  const [saving,       setSaving]       = useState(false);
   const [showCotas,    setShowCotas]    = useState(true);
   const [drawTarget,   setDrawTarget]   = useState<DrawTarget | null>(null);
   const [highlightId,  setHighlightId]  = useState<{ entity_type: string; entity_id: number } | null>(null);
@@ -443,7 +442,6 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
   };
 
   const handleDraw = async (entity_type: string, entity_id: number, x1: number, y1: number, x2: number, y2: number) => {
-    setSaving(true);
     try {
       const r = await api.post<DbOverlay>(`/silos/${siloId}/esquematicos/${vista}/overlays`, {
         entity_type, entity_id, x1, y1, x2, y2,
@@ -455,7 +453,6 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
       toast.success('Área salva');
       setDrawTarget(null);
     } catch { toast.error('Erro ao salvar área'); }
-    finally { setSaving(false); }
   };
 
   const handleDeleteOverlay = async (ov: DbOverlay) => {
