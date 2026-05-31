@@ -16,6 +16,7 @@ import {
   Layers,
   Activity,
   Download,
+  FileCode2,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -124,6 +125,11 @@ export default function AppLayout() {
       to: '/cadastros/sensores',
       label: t('cadastros.sensores'),
       icon: <Activity size={16} />,
+    },
+    {
+      to: '/cadastros/esquematicos',
+      label: t('cadastros.esquematicos'),
+      icon: <FileCode2 size={16} />,
     },
   ];
 

@@ -83,6 +83,7 @@ model Barra {
   criado_em       DateTime  @default(now()) @db.Timestamptz()
   atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
   id_labrador     Int?
+  dxf_handle      String?   @db.VarChar(20)
 
   silo            Silo                @relation(fields: [silo_id], references: [id])
   sensores        Sensor[]
@@ -103,6 +104,7 @@ model Sensor {
   criado_em         DateTime         @default(now()) @db.Timestamptz()
   atualizado_em     DateTime         @default(now()) @updatedAt @db.Timestamptz()
   id_labrador       Int?
+  dxf_handle        String?          @db.VarChar(20)
 
   barra             Barra            @relation(fields: [barra_id], references: [id])
   leituras_internas LeituraInterna[]

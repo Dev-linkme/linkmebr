@@ -15,6 +15,7 @@ import ContatosPage from './pages/ContatosPage';
 import CadastrosPage from './pages/CadastrosPage';
 import SaudeSistemaPage from './pages/SaudeSistemaPage';
 import ExportacaoPage from './pages/ExportacaoPage';
+import EsquematicoPage from './pages/EsquematicoPage';
 
 export default function App() {
   return (
@@ -143,6 +144,7 @@ export default function App() {
         }
       >
         <Route path=":nivel" element={<CadastrosPage />} />
+        <Route path="esquematicos" element={<EsquematicoPage />} />
       </Route>
 
       {/* Catch-all */}
