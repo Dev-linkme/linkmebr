@@ -34,8 +34,8 @@ const VISTAS: { value: Vista; label: string }[] = [
 // ─── SVG viewer with pan/zoom ─────────────────────────────────────────────────
 
 function SvgViewer({
-  siloId, vista, annotate = false,
-}: { siloId: number; vista: Vista; annotate?: boolean }) {
+  siloId, vista, annotate = false, highlightHandle,
+}: { siloId: number; vista: Vista; annotate?: boolean; highlightHandle?: string | null }) {
   const svgRef   = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
@@ -74,6 +74,23 @@ function SvgViewer({
       .catch(() => toast.error('Erro ao carregar esquemático'))
       .finally(() => setLoading(false));
   }, [siloId, vista]);
+
+  // Highlight a specific handle element
+  useEffect(() => {
+    if (!svgRef.current) return;
+    // Reset previous highlights
+    svgRef.current.querySelectorAll('[data-handle]').forEach((el) => {
+      (el as SVGElement).style.fillOpacity = '0.25';
+      (el as SVGElement).style.strokeWidth = '';
+    });
+    if (!highlightHandle) return;
+    const el = svgRef.current.querySelector(`[data-handle="${highlightHandle}"]`) as SVGElement | null;
+    if (el) {
+      el.style.fillOpacity = '0.75';
+      el.style.strokeWidth = '3000';
+      el.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [highlightHandle, svgInner]);
 
   // Extract label positions from rendered SVG using getBBox (annotation mode)
   useLayoutEffect(() => {
@@ -324,11 +341,12 @@ function SiloVistaSelector({
 // ─── Mapping panel ────────────────────────────────────────────────────────────
 
 function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
-  const [entidades,  setEntidades]  = useState<EntidadesResponse | null>(null);
-  const [mapeamento, setMapeamento] = useState<{ barras: BarraMapeamento[]; sensores: SensorMapeamento[] } | null>(null);
-  const [saving,     setSaving]     = useState(false);
-  const [uploading,  setUploading]  = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [entidades,       setEntidades]       = useState<EntidadesResponse | null>(null);
+  const [mapeamento,      setMapeamento]      = useState<{ barras: BarraMapeamento[]; sensores: SensorMapeamento[] } | null>(null);
+  const [saving,          setSaving]          = useState(false);
+  const [uploading,       setUploading]       = useState(false);
+  const [uploadFile,      setUploadFile]      = useState<File | null>(null);
+  const [highlightHandle, setHighlightHandle] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api.get<EntidadesResponse>(`/silos/${siloId}/esquematicos/${vista}/entidades`)
@@ -380,10 +398,12 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Left: annotated SVG preview */}
+      {/* Left: SVG with highlight on hover */}
       <div>
-        <p className="text-sm font-semibold text-gray-700 mb-2">Visualização Com Handles</p>
-        <SvgViewer siloId={siloId} vista={vista} annotate />
+        <p className="text-sm font-semibold text-gray-700 mb-2">
+          Visualização — passe o mouse sobre as linhas abaixo para localizar cada elemento
+        </p>
+        <SvgViewer siloId={siloId} vista={vista} annotate highlightHandle={highlightHandle} />
       </div>
 
       {/* Right: mapping form */}
@@ -409,10 +429,17 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
               <p className="text-sm font-semibold text-gray-700 mb-2">Barras Internas</p>
               <div className="space-y-2">
                 {mapeamento.barras.map((b) => (
-                  <div key={b.id} className="flex items-center gap-2">
+                  <div
+                    key={b.id}
+                    className={`flex items-center gap-2 px-1.5 py-0.5 rounded transition-colors ${b.dxf_handle && highlightHandle === b.dxf_handle ? 'bg-blue-50 ring-1 ring-blue-300' : ''}`}
+                    onMouseEnter={() => b.dxf_handle && setHighlightHandle(b.dxf_handle)}
+                    onMouseLeave={() => setHighlightHandle(null)}
+                  >
                     <span className="text-sm text-gray-700 w-36 truncate">{b.identificacao}</span>
                     <select value={b.dxf_handle ?? ''}
-                      onChange={(e) => setBarraHandle(b.id, e.target.value || null)}
+                      onChange={(e) => { setBarraHandle(b.id, e.target.value || null); setHighlightHandle(e.target.value || null); }}
+                      onFocus={(e) => setHighlightHandle(e.target.value || null)}
+                      onBlur={() => setHighlightHandle(null)}
                       className="flex-1 border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
                       <option value="">— não associada —</option>
                       {barraHandles.map((h) => <option key={h} value={h}>{h}</option>)}
@@ -427,12 +454,19 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
               <p className="text-sm font-semibold text-gray-700 mb-2">Sensores</p>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {mapeamento.sensores.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2">
+                  <div
+                    key={s.id}
+                    className={`flex items-center gap-2 px-1.5 py-0.5 rounded transition-colors ${s.dxf_handle && highlightHandle === s.dxf_handle ? 'bg-green-50 ring-1 ring-green-300' : ''}`}
+                    onMouseEnter={() => s.dxf_handle && setHighlightHandle(s.dxf_handle)}
+                    onMouseLeave={() => setHighlightHandle(null)}
+                  >
                     <span className="text-xs text-gray-700 w-44 truncate">
                       {s.barra.identificacao} / {s.identificacao} ({s.altura_solo_m}m)
                     </span>
                     <select value={s.dxf_handle ?? ''}
-                      onChange={(e) => setSensorHandle(s.id, e.target.value || null)}
+                      onChange={(e) => { setSensorHandle(s.id, e.target.value || null); setHighlightHandle(e.target.value || null); }}
+                      onFocus={(e) => setHighlightHandle(e.target.value || null)}
+                      onBlur={() => setHighlightHandle(null)}
                       className="flex-1 border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
                       <option value="">— não associado —</option>
                       {sensorHandles.map((h) => <option key={h} value={h}>{h}</option>)}
