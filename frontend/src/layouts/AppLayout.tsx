@@ -17,6 +17,8 @@ import {
   Activity,
   Download,
   FileCode2,
+  Eye,
+  Map,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +38,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminExpanded, setAdminExpanded] = useState(false);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
+  const [esquematicosExpanded, setEsquematicosExpanded] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -125,11 +128,6 @@ export default function AppLayout() {
       to: '/cadastros/sensores',
       label: t('cadastros.sensores'),
       icon: <Activity size={16} />,
-    },
-    {
-      to: '/cadastros/esquematicos',
-      label: t('cadastros.esquematicos'),
-      icon: <FileCode2 size={16} />,
     },
   ];
 
@@ -232,6 +230,47 @@ export default function AppLayout() {
                     {item.label}
                   </NavLink>
                 ))}
+
+                {/* Esquemáticos sub-menu */}
+                <div>
+                  <button
+                    onClick={() => setEsquematicosExpanded(!esquematicosExpanded)}
+                    className="w-full flex items-center justify-between pl-5 pr-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  >
+                    <span className="flex items-center gap-3">
+                      <FileCode2 size={16} />
+                      {t('cadastros.esquematicos')}
+                    </span>
+                    <ChevronDown size={12} className={`transition-transform ${esquematicosExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {esquematicosExpanded && (
+                    <div className="mt-0.5 space-y-0.5">
+                      <NavLink
+                        to="/cadastros/esquematicos"
+                        end
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 pl-9 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                          }`
+                        }
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <Eye size={14} /> Visualizador
+                      </NavLink>
+                      <NavLink
+                        to="/cadastros/esquematicos/mapeamento"
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 pl-9 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                          }`
+                        }
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <Map size={14} /> Mapeamento
+                      </NavLink>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

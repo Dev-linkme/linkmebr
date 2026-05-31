@@ -144,7 +144,7 @@ export default function App() {
         }
       >
         <Route path=":nivel" element={<CadastrosPage />} />
-        <Route path="esquematicos" element={<EsquematicoPage />} />
+        <Route path="esquematicos/*" element={<EsquematicoPage />} />
       </Route>
 
       {/* Catch-all */}
