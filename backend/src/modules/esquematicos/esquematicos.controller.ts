@@ -9,9 +9,9 @@ const VISTAS = ['frente', 'lateral_esquerda', 'lateral_direita'] as const;
 type Vista = typeof VISTAS[number];
 
 const VISTA_FILES: Record<Vista, string> = {
-  frente:            'SILO1.dxf',
-  lateral_esquerda:  'SILO2.dxf',
-  lateral_direita:   'SILO3.dxf',
+  frente:            'frente.dxf',
+  lateral_esquerda:  'lateral_esquerda.dxf',
+  lateral_direita:   'lateral_direita.dxf',
 };
 
 function dxfPath(siloId: number, vista: Vista): string {
