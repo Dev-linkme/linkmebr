@@ -153,21 +153,20 @@ export async function getTooltip(req: Request, res: Response, next: NextFunction
         return;
       }
       if (entity_type === 'sensor') {
-        // Busca sensor representativo para obter posição (barra + altura)
         const rep = await prisma.sensor.findFirst({
           where: { id: eid, barra: { silo_id: siloId } },
-          select: { barra_id: true, altura_solo_m: true },
+          select: { barra_id: true },
         });
         if (!rep) { res.json({ entity_type: 'sensor', data: [] }); return; }
-        // Retorna todos os sensores na mesma posição (mesma barra + mesma altura)
+        // Retorna todos os sensores da mesma barra (todas as alturas e grandezas)
         const sensores = await prisma.sensor.findMany({
-          where: { barra_id: rep.barra_id, altura_solo_m: rep.altura_solo_m, barra: { silo_id: siloId } },
+          where: { barra_id: rep.barra_id },
           select: {
             id: true, identificacao: true, altura_solo_m: true,
             tipo_grandeza: true, unidade_medida: true, status: true,
             barra: { select: { id: true, identificacao: true } },
           },
-          orderBy: { tipo_grandeza: 'asc' },
+          orderBy: [{ altura_solo_m: 'asc' }, { tipo_grandeza: 'asc' }],
         });
         res.json({ entity_type: 'sensor', data: sensores });
         return;

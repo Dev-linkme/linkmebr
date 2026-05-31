@@ -44,11 +44,10 @@ interface SensorMapeamento {
   barra: { id: number; identificacao: string };
 }
 
-// Grupo de sensores na mesma posição física (barra + altura)
+// Grupo de sensores da mesma barra (todas as alturas e grandezas)
 interface SensorGroup {
   key: string;
   barra: { id: number; identificacao: string };
-  altura_solo_m: number;
   sensors: SensorMapeamento[];
   representative_id: number;  // id do primeiro sensor — usado como entity_id do overlay
 }
@@ -56,15 +55,13 @@ interface SensorGroup {
 function groupSensores(sensores: SensorMapeamento[]): SensorGroup[] {
   const map = new Map<string, SensorGroup>();
   for (const s of sensores) {
-    const key = `${s.barra.id}_${s.altura_solo_m}`;
+    const key = String(s.barra.id);
     if (!map.has(key)) {
-      map.set(key, { key, barra: s.barra, altura_solo_m: s.altura_solo_m, sensors: [], representative_id: s.id });
+      map.set(key, { key, barra: s.barra, sensors: [], representative_id: s.id });
     }
     map.get(key)!.sensors.push(s);
   }
-  return Array.from(map.values()).sort((a, b) =>
-    a.barra.id !== b.barra.id ? a.barra.id - b.barra.id : a.altura_solo_m - b.altura_solo_m,
-  );
+  return Array.from(map.values()).sort((a, b) => a.barra.id - b.barra.id);
 }
 
 const VISTAS: { value: Vista; label: string }[] = [
@@ -369,18 +366,29 @@ function SvgViewer({
               <p><span className="text-gray-500">Status:</span> {tooltip.data.status}</p>
             </>
           )}
-          {tooltip.entity_type === 'sensor' && tooltip.data.length > 0 && (
-            <>
-              <p className="font-semibold text-green-700 mb-1">
-                {tooltip.data[0].barra.identificacao} — {tooltip.data[0].altura_solo_m}m
-              </p>
-              {tooltip.data.map(s => (
-                <p key={s.id} className="text-gray-600">
-                  <span className="font-medium">{s.tipo_grandeza}</span>: {s.identificacao} ({s.unidade_medida})
-                </p>
-              ))}
-            </>
-          )}
+          {tooltip.entity_type === 'sensor' && tooltip.data.length > 0 && (() => {
+            // Agrupar por altura para exibição
+            const byAltura = tooltip.data.reduce<Record<string, typeof tooltip.data>>((acc, s) => {
+              const k = String(s.altura_solo_m);
+              (acc[k] = acc[k] ?? []).push(s);
+              return acc;
+            }, {});
+            return (
+              <>
+                <p className="font-semibold text-green-700 mb-1">{tooltip.data[0].barra.identificacao}</p>
+                {Object.entries(byAltura).map(([alt, sensors]) => (
+                  <div key={alt} className="mb-1">
+                    <p className="text-gray-500 font-medium">{alt}m</p>
+                    {sensors.map(s => (
+                      <p key={s.id} className="text-gray-600 pl-2">
+                        {s.tipo_grandeza}: {s.identificacao} ({s.unidade_medida})
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -605,8 +613,9 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
                 {groupSensores(mapeamento.sensores).map(grp => {
                   const ov      = overlayForGroup(grp);
                   const drawing = isDrawing('sensor', grp.representative_id);
-                  const label   = `${grp.barra.identificacao} / ${grp.altura_solo_m}m`;
-                  const tipos   = grp.sensors.map(s => s.tipo_grandeza).join(', ');
+                  const label = grp.barra.identificacao;
+                  const alturas = [...new Set(grp.sensors.map(s => `${s.altura_solo_m}m`))].join(' · ');
+                  const tipos   = [...new Set(grp.sensors.map(s => s.tipo_grandeza))].join(', ');
                   return (
                     <div
                       key={grp.key}
@@ -620,7 +629,7 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-gray-700 truncate">{label}</p>
-                        <p className="text-xs text-gray-400 truncate">{tipos}</p>
+                        <p className="text-xs text-gray-400 truncate">{alturas} · {tipos}</p>
                       </div>
                       {ov && <span className="text-xs text-green-600 font-medium shrink-0">✓</span>}
                       <button
