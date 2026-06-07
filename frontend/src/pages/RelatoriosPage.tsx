@@ -40,7 +40,7 @@ const PERIODO_LABELS: Record<PeriodoPreset, string> = {
   '24h': 'Últimas 24h', '72h': 'Últimas 72h', semana: 'Última semana', mes: 'Último mês', custom: 'Personalizado',
 };
 const AGRUPAMENTO_LABELS: Record<AgrupamentoGrafico, string> = {
-  silo: 'Silo', barra: 'Barra', sensor: 'Sensor', altura: 'Altura',
+  silo: 'Silo', barra: 'Cabo Pêndulo', sensor: 'Sensor', altura: 'Altura',
 };
 
 interface RelatorioResponse        { dados: LeituraInterna[]; pagina: number; total_paginas: number; total: number; }
@@ -536,7 +536,11 @@ export default function RelatoriosPage() {
     else { setSortField(field); setSortDir('asc'); }
   };
   const sortedDados = [...dados].sort((a, b) => {
-    if (!sortField) return 0;
+    if (!sortField) {
+      const tDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      if (tDiff !== 0) return tDiff;
+      return (a.sensor?.altura_solo_m ?? 0) - (b.sensor?.altura_solo_m ?? 0);
+    }
     const va = a[sortField] ?? 0;
     const vb = b[sortField] ?? 0;
     return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
@@ -901,7 +905,9 @@ export default function RelatoriosPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {dadosExternos.map((leitura) => {
+                          {[...dadosExternos].sort((a, b) =>
+                            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                          ).map((leitura) => {
                             const sensor = leitura.sensor;
                             const barra  = sensor?.barra;
                             return (

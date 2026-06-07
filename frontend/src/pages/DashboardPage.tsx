@@ -185,7 +185,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-gray-900">Painel</h1>
 
       {/* Resumo */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -415,7 +415,7 @@ export default function DashboardPage() {
                   <div key={grupo.local} className="bg-white rounded-xl shadow overflow-hidden">
                     <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
                       <div>
-                        <h2 className="font-semibold text-gray-700">Últimas leituras realizadas</h2>
+                        <h2 className="font-semibold text-gray-700">Valores médios da última leitura</h2>
                         <p className="text-xs text-blue-600 font-medium mt-0.5 capitalize">{grupo.local}</p>
                       </div>
                       {painel.referencia && (

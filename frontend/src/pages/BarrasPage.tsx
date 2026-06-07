@@ -590,7 +590,12 @@ export default function BarrasPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                          {barra.sensores.map((sensor) => (
+                          {[...barra.sensores].sort((a, b) => {
+                            const altDiff = parseFloat(a.altura_solo_m) - parseFloat(b.altura_solo_m);
+                            if (altDiff !== 0) return altDiff;
+                            const ord: Record<string, number> = { temperatura: 0, umidade: 1, co2: 2 };
+                            return (ord[a.tipo_grandeza] ?? 9) - (ord[b.tipo_grandeza] ?? 9);
+                          }).map((sensor) => (
                             <tr key={sensor.id} className="hover:bg-gray-50 transition-colors">
                               <td className="px-5 py-3 text-sm font-medium text-gray-800">{sensor.identificacao}</td>
                               <td className="px-5 py-3 text-sm text-gray-600">{TIPO_LABELS[sensor.tipo_grandeza] ?? sensor.tipo_grandeza}</td>
