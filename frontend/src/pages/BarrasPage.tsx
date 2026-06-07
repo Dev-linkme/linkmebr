@@ -591,7 +591,7 @@ export default function BarrasPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {[...barra.sensores].sort((a, b) => {
-                            const altDiff = parseFloat(a.altura_solo_m) - parseFloat(b.altura_solo_m);
+                            const altDiff = Number(a.altura_solo_m) - Number(b.altura_solo_m);
                             if (altDiff !== 0) return altDiff;
                             const ord: Record<string, number> = { temperatura: 0, umidade: 1, co2: 2 };
                             return (ord[a.tipo_grandeza] ?? 9) - (ord[b.tipo_grandeza] ?? 9);
