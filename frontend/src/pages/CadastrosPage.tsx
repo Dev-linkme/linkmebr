@@ -23,7 +23,7 @@ const NIVEL_PARENT: Record<Nivel, Nivel | null> = {
 const NIVEL_LABEL: Record<Nivel, string> = {
   empresas: 'Empresas',
   silos: 'Silos',
-  barras: 'Barras',
+  barras: 'Cabos Pêndulo',
   sensores: 'Sensores',
 };
 
@@ -49,7 +49,7 @@ function getNome(nivel: Nivel, item: AnyItem): string {
     case 'silos':
       return (item.nome as string) || `Silo ${item.id}`;
     case 'barras':
-      return (item.identificacao as string) || `Barra ${item.id}`;
+      return (item.identificacao as string) || `Cabo Pêndulo ${item.id}`;
     case 'sensores':
       return (item.identificacao as string) || `Sensor ${item.id}`;
   }
@@ -117,7 +117,7 @@ function TableHeaders({ nivel }: { nivel: Nivel }) {
     case 'barras':
       return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Local', 'loc')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
     case 'sensores':
-      return <>{th('Identificação', 'id')}{th('Barra', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
+      return <>{th('Identificação', 'id')}{th('Cabo Pêndulo', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
   }
 }
 

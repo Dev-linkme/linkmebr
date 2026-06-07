@@ -36,7 +36,7 @@ function ViewModal({ silo, onClose }: { silo: Silo; onClose: () => void }) {
     { label: 'Estado', value: silo.estado ?? '—' },
     { label: 'Latitude', value: silo.latitude != null ? String(silo.latitude) : '—' },
     { label: 'Longitude', value: silo.longitude != null ? String(silo.longitude) : '—' },
-    { label: 'Barras ativas', value: String(silo.total_barras_ativas ?? 0) },
+    { label: 'Cabos pêndulo ativos', value: String(silo.total_barras_ativas ?? 0) },
     { label: 'Sensores ativos', value: String(silo.total_sensores_ativos ?? 0) },
     { label: 'Descrição', value: silo.descricao ?? '—' },
     { label: 'ID Labrador', value: silo.id_labrador != null ? String(silo.id_labrador) : '—' },
@@ -256,7 +256,7 @@ export default function SilosPage() {
                 <tr>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nome</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Localização</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Barras / Sensores</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cabos / Sensores</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID Labrador</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ações</th>
@@ -282,8 +282,8 @@ export default function SilosPage() {
                         <button onClick={() => setViewingSilo(silo)} title="Visualizar" className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors">
                           <Eye size={13} /> Ver
                         </button>
-                        <button onClick={() => navigate(`/admin/silos/${silo.id}/barras`)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors" title="Gerenciar barras">
-                          <Layers size={13} /> Barras
+                        <button onClick={() => navigate(`/admin/silos/${silo.id}/barras`)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors" title="Gerenciar cabos pêndulo">
+                          <Layers size={13} /> Cabos Pêndulo
                         </button>
                         {podeEditar && (
                           <>

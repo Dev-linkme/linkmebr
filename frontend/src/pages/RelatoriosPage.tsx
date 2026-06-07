@@ -62,13 +62,19 @@ type RangeHint = { data_inicio: string | null; data_fim: string | null } | null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const BRT = 'America/Sao_Paulo';
+
 function formatTimestamp(ts: string): string {
-  const d = new Date(ts);
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return new Date(ts).toLocaleString('pt-BR', {
+    timeZone: BRT, day: '2-digit', month: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(', ', ' ');
 }
 function formatFullTimestamp(ts: string): string {
-  const d = new Date(ts);
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return new Date(ts).toLocaleString('pt-BR', {
+    timeZone: BRT, day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(', ', ' ');
 }
 function formatRangeDate(ts: string | null | undefined): string {
   if (!ts) return '—';
@@ -77,6 +83,10 @@ function formatRangeDate(ts: string | null | undefined): string {
 function formatNum(val: number | undefined | null, decimals = 2): string {
   if (val == null) return '—';
   return val.toFixed(decimals);
+}
+function fmtSensor(val: number | null | undefined, tipo: string): string {
+  if (val == null) return '—';
+  return tipo === 'temperatura' ? val.toFixed(1) : val.toFixed(0);
 }
 
 function computePeriodo(
@@ -139,7 +149,7 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
             const s = sensores.find((x) => String(x.id) === String(name));
-            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
+            return [`${typeof val === 'number' ? fmtSensor(val, s?.tipo_grandeza ?? '') : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
           }} />
           <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
           {sensores.map((s, idx) => (
@@ -183,7 +193,7 @@ function SingleSensorChart({ sensor, series, unidade }: {
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
             const labels: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' };
-            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, labels[String(name)] ?? String(name)];
+            return [`${typeof val === 'number' ? fmtSensor(val, sensor.tipo_grandeza) : val} ${unidade}`, labels[String(name)] ?? String(name)];
           }} />
           <Legend formatter={(v) => { const l: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' }; return l[String(v)] ?? String(v); }} />
           <Line type="monotone" dataKey="avg" stroke={SENSOR_METRIC_COLORS.avg} strokeWidth={2} dot={false} connectNulls />
@@ -226,7 +236,8 @@ function ExternoChart({ campo, label, unidade, series, sensores }: {
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
             const s = sensores.find((x) => String(x.id) === String(name));
-            return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
+            const dec = campo === 'avg_temp' ? 1 : 0;
+            return [`${typeof val === 'number' ? val.toFixed(dec) : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
           }} />
           <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
           {sensores.map((s, idx) => (
@@ -372,7 +383,7 @@ export default function RelatoriosPage() {
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
-      .catch(() => toast.error('Erro ao carregar barras'));
+      .catch(() => toast.error('Erro ao carregar cabos pêndulo'));
   }, [siloId, setValue]);
 
   useEffect(() => {
@@ -747,11 +758,11 @@ export default function RelatoriosPage() {
                                       <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
                                       <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.altura_solo_m != null ? `${sensor.altura_solo_m} m` : '—'}</td>
                                       <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
-                                      <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.valor_avg)}</td>
-                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_max)}</td>
-                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.valor_min)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{fmtSensor(leitura.valor_avg, sensor?.tipo_grandeza ?? '')}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_max, sensor?.tipo_grandeza ?? '')}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_min, sensor?.tipo_grandeza ?? '')}</td>
                                       <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
-                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.desvio_padrao)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.desvio_padrao, sensor?.tipo_grandeza ?? '')}</td>
                                       <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
                                     </tr>
                                   );
@@ -898,8 +909,8 @@ export default function RelatoriosPage() {
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.temp_avg)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.umid_avg)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.temp_avg, 1)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.umid_avg, 0)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.n_amostras}</td>
                                 <td className="px-4 py-3 whitespace-nowrap">
                                   {leitura.rele === null ? '—' : leitura.rele

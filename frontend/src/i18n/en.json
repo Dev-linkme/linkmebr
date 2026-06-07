@@ -13,7 +13,7 @@
   "cadastros": {
     "empresas": "Companies",
     "silos": "Silos",
-    "barras": "Bars",
+    "barras": "Pendulum Cables",
     "sensores": "Sensors"
   },
   "hero": {
@@ -106,7 +106,7 @@
     "status": "Status",
     "ativo": "Active",
     "inativo": "Inactive",
-    "barras": "Bars",
+    "barras": "Pendulum Cables",
     "sensores": "Sensors",
     "salvar": "Save",
     "cancelar": "Cancel",
@@ -119,16 +119,16 @@
   "relatorios": {
     "titulo": "Reading Reports",
     "silo": "Silo",
-    "barra": "Bar (optional)",
+    "barra": "Pendulum Cable (optional)",
     "sensor": "Sensor (optional)",
     "data_inicio": "Start date",
     "data_fim": "End date",
     "consultar": "Query",
     "exportar_csv": "Export CSV",
-    "todas_barras": "All bars",
+    "todas_barras": "All pendulum cables",
     "todos_sensores": "All sensors",
     "coluna_data": "Date/Time",
-    "coluna_barra": "Bar",
+    "coluna_barra": "Pendulum Cable",
     "coluna_sensor": "Sensor",
     "coluna_grandeza": "Quantity",
     "coluna_avg": "Average",

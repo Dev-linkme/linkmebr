@@ -30,6 +30,7 @@ function formatDatetimeLocal(iso: string): string {
 
 function formatDisplay(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -249,9 +250,9 @@ export default function ExportacaoPage() {
         {siloId !== null && barras.length > 0 && (
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-2">
-              Barra{' '}
+              Cabo Pêndulo{' '}
               <span className="text-gray-400 font-normal text-xs">
-                (opcional — todas se nenhuma selecionada)
+                (opcional — todos se nenhum selecionado)
               </span>
             </p>
             <div className="flex flex-wrap gap-4">

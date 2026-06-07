@@ -187,7 +187,7 @@ export default function LandingPage() {
                 <Wifi size={40} className="mb-4 text-primary-200" />
                 <h3 className="text-xl font-bold mb-2">Conectado ao campo</h3>
                 <p className="text-primary-100 text-sm leading-relaxed">
-                  Sensores industriais de alta precisão instalados diretamente nas barras de
+                  Sensores industriais de alta precisão instalados diretamente nos cabos pêndulo de
                   termometria, integrados via LoRaWAN ao nosso servidor em nuvem para
                   monitoramento contínuo em qualquer localidade do Brasil.
                 </p>
@@ -382,7 +382,7 @@ export default function LandingPage() {
                 },
                 {
                   q: 'É necessário internet no local do silo?',
-                  a: 'Apenas no gateway de campo. Os sensores nas barras comunicam via rádio LoRa com alcance de até 2 km, não necessitando de infraestrutura de rede local.',
+                  a: 'Apenas no gateway de campo. Os sensores nos cabos pêndulo comunicam via rádio LoRa com alcance de até 2 km, não necessitando de infraestrutura de rede local.',
                 },
                 {
                   q: 'Como são emitidos os alertas?',

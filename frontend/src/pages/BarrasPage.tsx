@@ -222,7 +222,7 @@ export default function BarrasPage() {
       setBarras(barrasComSensores);
       barrasComSensores.forEach((b) => fetchSensores(b.id));
     } catch {
-      toast.error('Erro ao carregar barras');
+      toast.error('Erro ao carregar cabos pêndulo');
     }
   }, [siloId, fetchSensores]);
 
@@ -258,12 +258,12 @@ export default function BarrasPage() {
         local: data.local,
         id_labrador: data.id_labrador ? parseInt(data.id_labrador) : undefined,
       });
-      toast.success('Barra criada com sucesso!');
+      toast.success('Cabo pêndulo criado com sucesso!');
       setShowBarraForm(false);
       resetBarra();
       await fetchBarras();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao criar barra.';
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao criar cabo pêndulo.';
       toast.error(msg);
     }
   }
@@ -284,27 +284,27 @@ export default function BarrasPage() {
         ...data,
         id_labrador: data.id_labrador ? parseInt(data.id_labrador) : undefined,
       });
-      toast.success('Barra atualizada com sucesso!');
+      toast.success('Cabo pêndulo atualizado com sucesso!');
       setEditingBarraId(null);
       await fetchBarras();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao atualizar barra.';
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao atualizar cabo pêndulo.';
       toast.error(msg);
     }
   }
 
   async function excluirBarra(barra: BarraComSensores) {
     if (barra.sensores.length > 0) {
-      toast.error(`Não é possível excluir: a barra possui ${barra.sensores.length} sensor(es) associado(s).`);
+      toast.error(`Não é possível excluir: o cabo pêndulo possui ${barra.sensores.length} sensor(es) associado(s).`);
       return;
     }
     if (!confirm(`Excluir a barra "${barra.identificacao}"? Esta ação não pode ser desfeita.`)) return;
     try {
       await api.delete(`/barras/${barra.id}`);
-      toast.success('Barra excluída com sucesso!');
+      toast.success('Cabo pêndulo excluído com sucesso!');
       await fetchBarras();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao excluir barra.';
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao excluir cabo pêndulo.';
       toast.error(msg);
     }
   }
@@ -375,12 +375,12 @@ export default function BarrasPage() {
               </>
             )}
           </nav>
-          <h1 className="text-2xl font-bold text-gray-900">Barras{silo ? ` — ${silo.nome}` : ''}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Cabos Pêndulo{silo ? ` — ${silo.nome}` : ''}</h1>
           {silo?.cidade && <p className="text-sm text-gray-500">{[silo.cidade, silo.estado].filter(Boolean).join(' / ')}</p>}
         </div>
         {podeEditar && !showBarraForm && (
           <button onClick={() => { setShowBarraForm(true); resetBarra(); }} className="ml-auto inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-            <Plus size={16} /> Nova Barra
+            <Plus size={16} /> Novo Cabo Pêndulo
           </button>
         )}
       </div>
@@ -390,7 +390,7 @@ export default function BarrasPage() {
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-              <Layers size={18} className="text-green-600" /> Nova Barra
+              <Layers size={18} className="text-green-600" /> Novo Cabo Pêndulo
             </h2>
             <button onClick={() => setShowBarraForm(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
           </div>
@@ -398,9 +398,9 @@ export default function BarrasPage() {
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-600 mb-1">Identificação <span className="text-red-500">*</span></label>
               <input
-                {...regBarra('identificacao', { required: 'Identificação da barra é obrigatória.' })}
+                {...regBarra('identificacao', { required: 'Identificação do cabo pêndulo é obrigatória.' })}
                 className={clsInput(!!errBarra.identificacao)}
-                placeholder="Ex: Barra A1"
+                placeholder="Ex: Cabo A1"
               />
               {errBarra.identificacao && <p className="text-red-500 text-xs mt-1">{errBarra.identificacao.message}</p>}
             </div>
@@ -423,7 +423,7 @@ export default function BarrasPage() {
             <div className="flex gap-2 sm:pt-5">
               <button type="button" onClick={() => setShowBarraForm(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancelar</button>
               <button type="submit" disabled={submittingBarra} className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                <Check size={16} />{submittingBarra ? 'Salvando...' : 'Criar Barra'}
+                <Check size={16} />{submittingBarra ? 'Salvando...' : 'Criar Cabo Pêndulo'}
               </button>
             </div>
           </form>
@@ -431,7 +431,7 @@ export default function BarrasPage() {
       )}
 
       {barras.length === 0 && (
-        <div className="bg-white rounded-xl shadow p-10 text-center text-gray-400">Nenhuma barra cadastrada para este silo.</div>
+        <div className="bg-white rounded-xl shadow p-10 text-center text-gray-400">Nenhum cabo pêndulo cadastrado para este silo.</div>
       )}
 
       <div className="space-y-4">
@@ -477,7 +477,7 @@ export default function BarrasPage() {
                 <div className="border-t border-gray-100 bg-yellow-50 px-5 py-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <Pencil size={15} className="text-yellow-600" /> Editar Barra
+                      <Pencil size={15} className="text-yellow-600" /> Editar Cabo Pêndulo
                     </h3>
                     <button onClick={() => setEditingBarraId(null)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
                   </div>
@@ -574,7 +574,7 @@ export default function BarrasPage() {
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600" />
                     </div>
                   ) : barra.sensores.length === 0 ? (
-                    <p className="px-5 py-4 text-sm text-gray-400">Nenhum sensor cadastrado nesta barra.</p>
+                    <p className="px-5 py-4 text-sm text-gray-400">Nenhum sensor cadastrado neste cabo pêndulo.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-50">

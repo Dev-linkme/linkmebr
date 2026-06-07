@@ -101,8 +101,9 @@ function fmt(v?: number | null, dec = 1) {
 
 function fmtTs(ts: string | null) {
   if (!ts) return '—';
-  const d = new Date(ts);
-  return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(ts).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short',
+  });
 }
 
 function WeatherIcon({ code }: { code?: number }) {
@@ -334,7 +335,7 @@ export default function DashboardPage() {
                       <p className="font-semibold capitalize">{painel.silo.status}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400 mb-0.5">Barras ativas</p>
+                      <p className="text-gray-400 mb-0.5">Cabos pêndulo ativos</p>
                       <p className="font-semibold">{painel.silo.total_barras_ativas}</p>
                     </div>
                     <div>
@@ -462,13 +463,13 @@ export default function DashboardPage() {
                                 return d ? (
                                   <>
                                     <td key={`${g}-avg`} className="px-3 py-3 text-center text-gray-800 font-medium border-l border-gray-100 whitespace-nowrap">
-                                      {fmt(d.avg_avg, 2)} <span className="text-gray-400 text-xs">{d.unidade}</span>
+                                      {fmt(d.avg_avg, g === 'temperatura' ? 1 : 0)} <span className="text-gray-400 text-xs">{d.unidade}</span>
                                     </td>
                                     <td key={`${g}-min`} className="px-3 py-3 text-center text-blue-600 whitespace-nowrap">
-                                      {fmt(d.avg_min, 2)}
+                                      {fmt(d.avg_min, g === 'temperatura' ? 1 : 0)}
                                     </td>
                                     <td key={`${g}-max`} className="px-3 py-3 text-center text-red-500 whitespace-nowrap">
-                                      {fmt(d.avg_max, 2)}
+                                      {fmt(d.avg_max, g === 'temperatura' ? 1 : 0)}
                                     </td>
                                   </>
                                 ) : (

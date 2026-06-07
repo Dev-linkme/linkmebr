@@ -43,13 +43,19 @@ interface ComunicacaoGraficoResponse {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const BRT = 'America/Sao_Paulo';
+
 function formatFullTimestamp(ts: string): string {
-  const d = new Date(ts);
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return new Date(ts).toLocaleString('pt-BR', {
+    timeZone: BRT, day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(', ', ' ');
 }
 function formatTimestamp(ts: string): string {
-  const d = new Date(ts);
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return new Date(ts).toLocaleString('pt-BR', {
+    timeZone: BRT, day: '2-digit', month: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(', ', ' ');
 }
 function formatRangeDate(ts: string | null | undefined): string {
   if (!ts) return '—';
@@ -222,7 +228,7 @@ export default function SaudeSistemaPage() {
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
-      .catch(() => toast.error('Erro ao carregar barras'));
+      .catch(() => toast.error('Erro ao carregar cabos pêndulo'));
   }, [siloId, setValue]);
 
   // ── Clear data when barra changes ────────────────────────────────────────────
@@ -371,11 +377,11 @@ export default function SaudeSistemaPage() {
           {/* Barra (filtra apenas aba Comunicação) */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Barra <span className="text-gray-400">(Comunicação)</span>
+              Cabo Pêndulo <span className="text-gray-400">(Comunicação)</span>
             </label>
             <select {...register('barra_id')} disabled={!siloId}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
-              <option value="">Todas as barras</option>
+              <option value="">Todos os cabos pêndulo</option>
               {barras.map((b) => <option key={b.id} value={b.id}>{b.identificacao}</option>)}
             </select>
           </div>
@@ -516,7 +522,7 @@ export default function SaudeSistemaPage() {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Timestamp</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Barra</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Cabo Pêndulo</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Tempo ESP32 (s)</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">RSSI (dBm)</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">SNR (dB)</th>

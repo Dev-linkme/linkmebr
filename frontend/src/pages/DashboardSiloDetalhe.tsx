@@ -152,7 +152,7 @@ export default function DashboardSiloDetalhe() {
           <p className="font-semibold capitalize">{silo.status}</p>
         </div>
         <div>
-          <p className="text-gray-400 mb-1">Barras ativas</p>
+          <p className="text-gray-400 mb-1">Cabos pêndulo ativos</p>
           <p className="font-semibold">{silo.total_barras_ativas ?? 0}</p>
         </div>
         <div>
@@ -213,7 +213,7 @@ export default function DashboardSiloDetalhe() {
 
       {/* Leituras por barra */}
       <div className="space-y-3">
-        <h2 className="font-semibold text-gray-700">Leituras por Barra</h2>
+        <h2 className="font-semibold text-gray-700">Leituras por Cabo Pêndulo</h2>
 
         {leituras.length === 0 && (
           <p className="text-gray-400 text-sm bg-white rounded-xl shadow p-5">
@@ -288,12 +288,12 @@ export default function DashboardSiloDetalhe() {
                           }`}
                         >
                           {sensor.valor_avg != null
-                            ? `${sensor.valor_avg} ${sensor.unidade_medida}`
+                            ? `${sensor.tipo_grandeza === 'temperatura' ? Number(sensor.valor_avg).toFixed(1) : Math.round(Number(sensor.valor_avg))} ${sensor.unidade_medida}`
                             : '—'}
                         </p>
                         {sensor.timestamp && (
                           <p className="text-xs text-gray-400">
-                            {new Date(sensor.timestamp).toLocaleString('pt-BR')}
+                            {new Date(sensor.timestamp).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                           </p>
                         )}
                       </div>

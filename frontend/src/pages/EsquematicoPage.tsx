@@ -388,7 +388,7 @@ function SvgViewer({
         >
           {tooltip.entity_type === 'barra' && tooltip.data && (
             <>
-              <p className="font-semibold text-blue-700 mb-1">Barra</p>
+              <p className="font-semibold text-blue-700 mb-1">Cabo Pêndulo</p>
               <p><span className="text-gray-500">ID:</span> {tooltip.data.id}</p>
               <p><span className="text-gray-500">Identificação:</span> {tooltip.data.identificacao}</p>
               <p><span className="text-gray-500">Local:</span> {tooltip.data.local}</p>
@@ -598,7 +598,7 @@ function MapeamentoPanel({ siloId, vista }: { siloId: number; vista: Vista }) {
           <>
             {/* Barras */}
             <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Barras Internas</p>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Cabos Pêndulo Internos</p>
               <div className="space-y-1">
                 {mapeamento.barras.map(b => {
                   const ov      = overlayForBarra(b.id);
