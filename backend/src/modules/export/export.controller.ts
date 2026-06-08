@@ -278,7 +278,7 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
     // 1. Silo
     const silo = await prisma.silo.findUnique({ where: { id: siloId } });
     if (!silo) throw new AppError(404, 'Silo não encontrado');
-    const siloNum = silo.id_labrador ?? silo.id;
+    const siloNum = silo.id;
 
     // 2. Todos os sensores do silo com suas barras (ordenados por barra + grandeza + altura ASC)
     const sensores = await prisma.sensor.findMany({
@@ -310,7 +310,7 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
       // grupo já está ordenado por altura_solo_m ASC
       grupo.slice(0, 3).forEach((s, idx) => {
         const g = GRANDEZA_MAP[s.tipo_grandeza]!;
-        const caboNum = s.barra.id_labrador ?? s.barra.id;
+        const caboNum = s.barra.id;
         metaMap.set(s.id, { barraId: s.barra_id, caboNum, height: HEIGHTS[idx], grandeza: g });
         if (!barraNumMap.has(s.barra_id)) barraNumMap.set(s.barra_id, caboNum);
       });
