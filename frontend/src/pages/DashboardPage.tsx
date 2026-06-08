@@ -46,13 +46,16 @@ function MapFitAll({ silos, trigger }: { silos: Silo[]; trigger: number }) {
 }
 
 // ── Centraliza mapa no silo selecionado ─────────────────────────────────────
+// Sempre montado para que isFirst não seja zerado quando um silo sem
+// coordenadas é selecionado intermediariamente.
 
-function MapFlyTo({ lat, lng }: { lat: number; lng: number }) {
+function MapFlyTo({ lat, lng }: { lat: number | null; lng: number | null }) {
   const map = useMap();
   const isFirst = useRef(true);
   useEffect(() => {
+    if (lat === null || lng === null) return;
     if (isFirst.current) { isFirst.current = false; return; }
-    map.flyTo([lat, lng], 13, { duration: 1 });
+    map.flyTo([lat, lng], 14, { duration: 1 });
   }, [lat, lng, map]);
   return null;
 }
@@ -244,9 +247,10 @@ export default function DashboardPage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapFitAll silos={silosComCoordenadas} trigger={fitAllTrigger} />
-            {siloAtual?.latitude && siloAtual?.longitude && (
-              <MapFlyTo lat={Number(siloAtual.latitude)} lng={Number(siloAtual.longitude)} />
-            )}
+            <MapFlyTo
+              lat={siloAtual?.latitude != null ? Number(siloAtual.latitude) : null}
+              lng={siloAtual?.longitude != null ? Number(siloAtual.longitude) : null}
+            />
             {silosComCoordenadas.map((silo) => {
               const hasAlert = (silo.alertas_ativos ?? 0) > 0;
               const isSelected = silo.id === siloSelecionado;
@@ -348,7 +352,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Botão "Todos os silos" */}
-          {silosComCoordenadas.length > 1 && (
+          {silosComCoordenadas.length > 0 && (
             <div className="absolute top-2 right-2 z-[1000]">
               <button
                 onClick={() => setFitAllTrigger((n) => n + 1)}
