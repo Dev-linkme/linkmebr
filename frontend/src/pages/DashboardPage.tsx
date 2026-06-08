@@ -6,6 +6,7 @@ import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import {
   AlertTriangle, CheckCircle, Database, MapPin,
   Thermometer, Droplets, Wind, Maximize2,
+  ChevronDown, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -130,6 +131,20 @@ export default function DashboardPage() {
   const [painel, setPainel] = useState<PainelResponse | null>(null);
   const [loadingPainel, setLoadingPainel] = useState(false);
   const [fitAllTrigger, setFitAllTrigger] = useState(0);
+  const [listaAberta, setListaAberta] = useState(false);
+  const seletorRef = useRef<HTMLDivElement>(null);
+
+  // Fecha a lista ao clicar fora do seletor
+  useEffect(() => {
+    if (!listaAberta) return;
+    const handler = (e: MouseEvent) => {
+      if (seletorRef.current && !seletorRef.current.contains(e.target as Node)) {
+        setListaAberta(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [listaAberta]);
 
   // Carrega lista de silos
   useEffect(() => {
@@ -240,7 +255,7 @@ export default function DashboardPage() {
                   key={silo.id}
                   position={[Number(silo.latitude), Number(silo.longitude)]}
                   icon={hasAlert ? redIcon : greenIcon}
-                  eventHandlers={{ click: () => setSiloSelecionado(silo.id) }}
+                  eventHandlers={{ click: () => { setSiloSelecionado(silo.id); setListaAberta(false); } }}
                 >
                   <Tooltip permanent direction="top" offset={[0, -42]} opacity={1}>
                     <span className="text-xs font-semibold">{silo.nome}</span>
@@ -272,23 +287,72 @@ export default function DashboardPage() {
           </MapContainer>
 
           {/* Controles sobrepostos ao mapa */}
-          {silosComCoordenadas.length > 0 && (
-            <div className="absolute top-2 left-2 right-14 z-[1000] flex items-center gap-2 pointer-events-none">
-              {silos.length > 1 && (
-                <select
-                  value={siloSelecionado ?? ''}
-                  onChange={(e) => setSiloSelecionado(Number(e.target.value))}
-                  className="pointer-events-auto text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 max-w-[220px]"
-                >
-                  <option value="" disabled>Ir para silo...</option>
-                  {silos.map((s) => (
-                    <option key={s.id} value={s.id}>{s.nome}</option>
-                  ))}
-                </select>
-              )}
+          <div className="absolute top-2 left-2 z-[1000]" ref={seletorRef}>
+            {/* Botão que mostra o silo atual e abre a lista */}
+            <button
+              onClick={() => setListaAberta((v) => !v)}
+              className="flex items-center gap-2 bg-white rounded-lg shadow-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors min-w-[180px] max-w-[260px]"
+            >
+              <span
+                className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                  siloAtual && (siloAtual.alertas_ativos ?? 0) > 0 ? 'bg-red-500' : 'bg-green-500'
+                }`}
+              />
+              <span className="flex-1 text-left truncate">
+                {siloAtual?.nome ?? 'Selecione um silo'}
+              </span>
+              <ChevronDown
+                size={14}
+                className={`flex-shrink-0 text-gray-400 transition-transform duration-150 ${listaAberta ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Lista suspensa de silos */}
+            {listaAberta && (
+              <div className="mt-1 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden w-72 max-h-64 overflow-y-auto">
+                {silos.map((s) => {
+                  const temAlerta = (s.alertas_ativos ?? 0) > 0;
+                  const selecionado = s.id === siloSelecionado;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => { setSiloSelecionado(s.id); setListaAberta(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${
+                        selecionado ? 'bg-green-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${temAlerta ? 'bg-red-500' : 'bg-green-500'}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium truncate ${selecionado ? 'text-green-700' : 'text-gray-700'}`}>
+                          {s.nome}
+                        </p>
+                        {s.cidade && (
+                          <p className="text-xs text-gray-400 truncate">
+                            {s.cidade}/{s.estado}
+                          </p>
+                        )}
+                      </div>
+                      {temAlerta && (
+                        <AlertTriangle size={13} className="flex-shrink-0 text-red-400" />
+                      )}
+                      {selecionado && (
+                        <Check size={13} className="flex-shrink-0 text-green-600" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Botão "Todos os silos" */}
+          {silosComCoordenadas.length > 1 && (
+            <div className="absolute top-2 right-2 z-[1000]">
               <button
                 onClick={() => setFitAllTrigger((n) => n + 1)}
-                className="pointer-events-auto ml-auto inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white shadow-md hover:bg-gray-50 text-gray-700 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-white shadow-md hover:bg-gray-50 text-gray-700 transition-colors"
                 title="Zoom inicial — todos os silos"
               >
                 <Maximize2 size={13} /> Todos os silos
