@@ -417,9 +417,10 @@ export default function RelatoriosPage() {
     const p: Record<string, string> = { silo_id: siloId };
     if (barraId)  p.barra_id  = barraId;
     if (sensorId) p.sensor_id = sensorId;
-    if (hasInterna)
+    const barraLocal = barraId ? barras.find((b) => String(b.id) === barraId)?.local : null;
+    if (hasInterna && (!barraLocal || barraLocal === 'interno ao silo'))
       api.get<RangeHint>('/relatorios/leituras/range', { params: p }).then((r) => setRangeInterna(r.data)).catch(() => {});
-    if (hasExterna)
+    if (hasExterna && (!barraLocal || barraLocal === 'externo ao silo'))
       api.get<RangeHint>('/relatorios/leituras-externas/range', { params: p }).then((r) => setRangeExterna(r.data)).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siloId, barraId, sensorId, hasInterna, hasExterna]);
@@ -484,8 +485,11 @@ export default function RelatoriosPage() {
     }
     const f: FiltrosComDatas = { ...filtros, ...periodo };
     setLastFiltros(f); setSortField(null); setPaginaInterna(1); setPaginaExterna(1);
-    if (hasInterna) { fetchInterna(f, 1); fetchGraficoInterna(f); }
-    if (hasExterna) { fetchExterna(f, 1); fetchGraficoExterna(f); }
+    const barraLocal = barraId ? barras.find((b) => String(b.id) === barraId)?.local : null;
+    const deveInterna = hasInterna && (!barraLocal || barraLocal === 'interno ao silo');
+    const deveExterna = hasExterna && (!barraLocal || barraLocal === 'externo ao silo');
+    if (deveInterna) { fetchInterna(f, 1); fetchGraficoInterna(f); }
+    if (deveExterna) { fetchExterna(f, 1); fetchGraficoExterna(f); }
   };
 
   const handlePageInterna = (p: number) => { if (lastFiltros) { setPaginaInterna(p); fetchInterna(lastFiltros, p); } };
@@ -600,7 +604,11 @@ export default function RelatoriosPage() {
             <select {...register('barra_id')} disabled={!siloId}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
               <option value="">{t('relatorios.todas_barras')}</option>
-              {barras.map((b) => <option key={b.id} value={b.id}>{b.identificacao}</option>)}
+              {barras.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.identificacao} · {b.local === 'interno ao silo' ? 'interno' : 'externo'}
+                </option>
+              ))}
             </select>
           </div>
           <div>

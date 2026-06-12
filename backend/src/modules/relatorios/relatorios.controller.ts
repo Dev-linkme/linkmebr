@@ -694,7 +694,7 @@ async function getSensorIds(
 ): Promise<number[]> {
   if (sensorId) return [sensorId];
 
-  const where: Record<string, unknown> = { barra: { silo_id: siloId } };
+  const where: Record<string, unknown> = { barra: { silo_id: siloId, local: 'interno ao silo' } };
   if (barraId) where.barra_id = barraId;
 
   const sensores = await prisma.sensor.findMany({ where, select: { id: true } });

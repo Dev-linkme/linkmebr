@@ -105,6 +105,7 @@ function SensorEditModal({
               <option value="temperatura">Temperatura</option>
               <option value="umidade">Umidade</option>
               <option value="co2">CO₂</option>
+              <option value="rele">Relé</option>
             </select>
             {errors.tipo_grandeza && <p className="text-red-500 text-xs mt-1">{errors.tipo_grandeza.message}</p>}
           </div>
@@ -550,6 +551,7 @@ export default function BarrasPage() {
                         <option value="temperatura">Temperatura</option>
                         <option value="umidade">Umidade</option>
                         <option value="co2">CO₂</option>
+                        <option value="rele">Relé</option>
                       </select>
                       {errSensor.tipo_grandeza && <p className="text-red-500 text-xs mt-1">{errSensor.tipo_grandeza.message}</p>}
                     </div>
