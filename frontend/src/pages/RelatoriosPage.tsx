@@ -75,10 +75,6 @@ function formatRangeDate(ts: string | null | undefined): string {
   if (!ts) return '—';
   return formatFullTimestamp(ts);
 }
-function formatNum(val: number | undefined | null, decimals = 2): string {
-  if (val == null) return '—';
-  return val.toFixed(decimals);
-}
 function fmtSensor(val: number | null | undefined, tipo: string): string {
   if (val == null) return '—';
   return tipo === 'temperatura' ? val.toFixed(1) : val.toFixed(0);
