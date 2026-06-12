@@ -276,6 +276,9 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
 }
 
 // ─── Leitura Externa ─────────────────────────────────────────────────────────
+// Desde o firmware v1.2, sensores externos gravam em leitura_interna.
+// As funções abaixo usam getSensorIdsExternos() para filtrar apenas sensores
+// de barras com local='externo ao silo', mas consultam a mesma tabela.
 
 export async function buscarLeiturasExternas(
   req: Request,
@@ -314,19 +317,25 @@ export async function buscarLeiturasExternas(
     };
 
     const [totalRaw, leituras] = await Promise.all([
-      prisma.leituraExterna.count({ where }),
-      prisma.leituraExterna.findMany({
+      prisma.leituraInterna.count({ where }),
+      prisma.leituraInterna.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { timestamp: 'desc' },
+        orderBy: [
+          { timestamp: 'desc' },
+          { sensor: { barra: { identificacao: 'asc' } } },
+        ],
         include: {
           sensor: {
             select: {
               id: true,
               identificacao: true,
+              altura_solo_m: true,
+              tipo_grandeza: true,
+              unidade_medida: true,
               status: true,
-              barra: { select: { id: true, identificacao: true, local: true } },
+              barra: { select: { id: true, identificacao: true } },
             },
           },
         },
@@ -335,18 +344,7 @@ export async function buscarLeiturasExternas(
 
     const total = Number(totalRaw);
     res.json({
-      dados: leituras.map((l) => ({
-        id: l.id.toString(),
-        sensor_id: l.sensor_id,
-        timestamp: l.timestamp.toISOString(),
-        temp_avg: l.temp_avg,
-        umid_avg: l.umid_avg,
-        n_amostras: l.n_amostras,
-        rele: l.rele,
-        sht_online: l.sht_online,
-        fw: l.fw,
-        sensor: l.sensor,
-      })),
+      dados: leituras.map(serializeLeituraInterna),
       total,
       pagina: page,
       total_paginas: Math.ceil(total / limit),
@@ -385,7 +383,7 @@ export async function exportarCSVExterno(
       ...(Object.keys(whereTimestamp).length > 0 ? { timestamp: whereTimestamp } : {}),
     };
 
-    const leituras = await prisma.leituraExterna.findMany({
+    const leituras = await prisma.leituraInterna.findMany({
       where,
       orderBy: { timestamp: 'asc' },
       include: {
@@ -393,6 +391,8 @@ export async function exportarCSVExterno(
           select: {
             id: true,
             identificacao: true,
+            tipo_grandeza: true,
+            unidade_medida: true,
             barra: { select: { id: true, identificacao: true } },
           },
         },
@@ -405,7 +405,8 @@ export async function exportarCSVExterno(
 
     const cabecalho = [
       'id_leitura', 'sensor_id', 'sensor_identificacao', 'barra_id', 'barra_identificacao',
-      'timestamp', 'temp_avg', 'umid_avg', 'n_amostras', 'rele', 'sht_online', 'fw',
+      'tipo_grandeza', 'unidade_medida', 'timestamp',
+      'valor_avg', 'valor_max', 'valor_min', 'num_amostras', 'desvio_padrao', 'status_analise',
     ].join(',');
 
     const linhas = leituras.map((l) =>
@@ -415,13 +416,15 @@ export async function exportarCSVExterno(
         escapeCsvField(l.sensor.identificacao),
         l.sensor.barra.id.toString(),
         escapeCsvField(l.sensor.barra.identificacao),
+        escapeCsvField(l.sensor.tipo_grandeza),
+        escapeCsvField(l.sensor.unidade_medida),
         l.timestamp.toISOString(),
-        l.temp_avg !== null ? l.temp_avg.toString() : '',
-        l.umid_avg !== null ? l.umid_avg.toString() : '',
-        l.n_amostras.toString(),
-        l.rele !== null ? (l.rele ? 'true' : 'false') : '',
-        l.sht_online !== null ? (l.sht_online ? 'true' : 'false') : '',
-        escapeCsvField(l.fw),
+        l.valor_avg.toString(),
+        l.valor_max.toString(),
+        l.valor_min.toString(),
+        l.num_amostras.toString(),
+        l.desvio_padrao !== null ? l.desvio_padrao.toString() : '',
+        l.status_analise ?? '',
       ].join(','),
     );
 
@@ -450,7 +453,7 @@ export async function buscarRangeExterno(
     const sensor_id = req.query.sensor_id ? Number(req.query.sensor_id) : undefined;
     const sensorIds = await getSensorIdsExternos(silo_id, barra_id, sensor_id);
 
-    const agg = await prisma.leituraExterna.aggregate({
+    const agg = await prisma.leituraInterna.aggregate({
       where: { sensor_id: { in: sensorIds } },
       _min: { timestamp: true },
       _max: { timestamp: true },
@@ -492,28 +495,30 @@ export async function buscarGraficoExterno(
     if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
     if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
 
-    type GraficoExternoRow = { sensor_id: number; bucket: Date; avg_temp: number | null; avg_umid: number | null };
-    let rows: GraficoExternoRow[];
+    type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
+    let rows: GraficoRow[];
 
     if (diffHoras <= 72) {
-      rows = await prisma.$queryRawUnsafe<GraficoExternoRow[]>(
+      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
         `SELECT l.sensor_id,
                 l.timestamp AS bucket,
-                l.temp_avg::float AS avg_temp,
-                l.umid_avg::float AS avg_umid
-         FROM silos.leitura_externa l
+                l.valor_avg::float AS avg,
+                l.valor_max::float AS max,
+                l.valor_min::float AS min
+         FROM silos.leitura_interna l
          WHERE ${whereClause.join(' AND ')}
          ORDER BY l.sensor_id, l.timestamp`,
         ...params,
       );
     } else {
       const bucketSec = diffHoras <= 24 * 7 ? 3600 : 10800;
-      rows = await prisma.$queryRawUnsafe<GraficoExternoRow[]>(
+      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
         `SELECT l.sensor_id,
                 to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
-                AVG(l.temp_avg)::float AS avg_temp,
-                AVG(l.umid_avg)::float AS avg_umid
-         FROM silos.leitura_externa l
+                AVG(l.valor_avg)::float AS avg,
+                MAX(l.valor_max)::float AS max,
+                MIN(l.valor_min)::float AS min
+         FROM silos.leitura_interna l
          WHERE ${whereClause.join(' AND ')}
          GROUP BY l.sensor_id, bucket
          ORDER BY l.sensor_id, bucket`,
@@ -524,7 +529,7 @@ export async function buscarGraficoExterno(
     const sensores = await prisma.sensor.findMany({
       where: { id: { in: sensorIds } },
       select: {
-        id: true, identificacao: true, altura_solo_m: true,
+        id: true, identificacao: true, tipo_grandeza: true, unidade_medida: true, altura_solo_m: true,
         barra: { select: { id: true, identificacao: true } },
       },
       orderBy: { id: 'asc' },
@@ -534,12 +539,15 @@ export async function buscarGraficoExterno(
       series: rows.map((r) => ({
         sensor_id: Number(r.sensor_id),
         bucket: r.bucket instanceof Date ? r.bucket.toISOString() : r.bucket,
-        avg_temp: r.avg_temp !== null ? Number(r.avg_temp) : null,
-        avg_umid: r.avg_umid !== null ? Number(r.avg_umid) : null,
+        avg: Number(r.avg),
+        max: Number(r.max),
+        min: Number(r.min),
       })),
       sensores: sensores.map((s) => ({
         id: s.id,
         identificacao: s.identificacao,
+        tipo_grandeza: s.tipo_grandeza,
+        unidade_medida: s.unidade_medida,
         altura_solo_m: Number(s.altura_solo_m),
         barra_id: s.barra.id,
         barra_identificacao: s.barra.identificacao,

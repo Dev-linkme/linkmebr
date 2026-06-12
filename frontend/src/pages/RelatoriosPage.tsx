@@ -10,7 +10,7 @@ import {
   BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search,
 } from 'lucide-react';
 import api from '../services/api';
-import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna, Regra } from '../types/index';
+import type { Silo, Barra, Sensor, LeituraInterna, Regra } from '../types/index';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,8 +43,7 @@ const AGRUPAMENTO_LABELS: Record<AgrupamentoGrafico, string> = {
   silo: 'Silo', barra: 'Cabo Pêndulo', sensor: 'Sensor', altura: 'Altura',
 };
 
-interface RelatorioResponse        { dados: LeituraInterna[]; pagina: number; total_paginas: number; total: number; }
-interface RelatorioExternoResponse { dados: LeituraExterna[]; pagina: number; total_paginas: number; total: number; }
+interface RelatorioResponse { dados: LeituraInterna[]; pagina: number; total_paginas: number; total: number; }
 
 interface GraficoSerie   { sensor_id: number; bucket: string; avg: number; max: number; min: number; }
 interface GraficoSensor  {
@@ -53,10 +52,6 @@ interface GraficoSensor  {
   barra_id: number; barra_identificacao: string;
 }
 interface GraficoResponse { series: GraficoSerie[]; sensores: GraficoSensor[]; }
-
-interface GraficoExternoSerie   { sensor_id: number; bucket: string; avg_temp: number | null; avg_umid: number | null; }
-interface GraficoExternoSensor  { id: number; identificacao: string; altura_solo_m: number; barra_id: number; barra_identificacao: string; }
-interface GraficoExternoResponse { series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[]; }
 
 type RangeHint = { data_inicio: string | null; data_fim: string | null } | null;
 
@@ -205,51 +200,6 @@ function SingleSensorChart({ sensor, series, unidade }: {
   );
 }
 
-// ─── ExternoChart ─────────────────────────────────────────────────────────────
-
-function ExternoChart({ campo, label, unidade, series, sensores }: {
-  campo: 'avg_temp' | 'avg_umid'; label: string; unidade: string;
-  series: GraficoExternoSerie[]; sensores: GraficoExternoSensor[];
-}) {
-  const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
-  if (buckets.length === 0) return null;
-  const chartData = buckets.map((bucket) => {
-    const row: Record<string, unknown> = { bucket };
-    sensores.forEach((s) => {
-      const p = series.find((d) => d.bucket === bucket && Number(d.sensor_id) === Number(s.id));
-      if (p && p[campo] != null) row[String(s.id)] = p[campo];
-    });
-    return row;
-  });
-  const yDomain = yDomainFrom(
-    chartData.flatMap((row) => sensores.map((s) => row[String(s.id)] as number | undefined))
-  );
-  const hasValues = chartData.some((row) => sensores.some((s) => row[String(s.id)] != null));
-  if (!hasValues) return null;
-  return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">{label}{unidade ? ` (${unidade})` : ''}</h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
-          <YAxis tick={{ fontSize: 11 }} domain={yDomain} />
-          <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
-            const s = sensores.find((x) => String(x.id) === String(name));
-            const dec = campo === 'avg_temp' ? 1 : 0;
-            return [`${typeof val === 'number' ? val.toFixed(dec) : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
-          }} />
-          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
-          {sensores.map((s, idx) => (
-            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-              dot={false} strokeWidth={2} connectNulls />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 // ─── Paginacao ────────────────────────────────────────────────────────────────
 
 function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: {
@@ -335,6 +285,7 @@ export default function RelatoriosPage() {
 
   const [abaAtiva,        setAbaAtiva]        = useState<AbaAtiva>('interna');
   const [grandezaInterna, setGrandezaInterna] = useState<GrandezaTipo>('temperatura');
+  const [grandezaExterna, setGrandezaExterna] = useState<GrandezaTipo>('temperatura');
   const [subAbaInterna,   setSubAbaInterna]   = useState<SubAba>('tabela');
   const [subAbaExterna,   setSubAbaExterna]   = useState<SubAba>('tabela');
   const [agrupamento,     setAgrupamento]     = useState<AgrupamentoGrafico>('silo');
@@ -350,8 +301,8 @@ export default function RelatoriosPage() {
   const [paginaInterna,      setPaginaInterna]      = useState(1);
   const [totalPagInterna,    setTotalPagInterna]    = useState(0);
 
-  const [dadosExternos,      setDadosExternos]      = useState<LeituraExterna[]>([]);
-  const [graficoExterno,     setGraficoExterno]     = useState<GraficoExternoResponse | null>(null);
+  const [dadosExternos,      setDadosExternos]      = useState<LeituraInterna[]>([]);
+  const [graficoExterno,     setGraficoExterno]     = useState<GraficoResponse | null>(null);
   const [loadingExterna,     setLoadingExterna]     = useState(false);
   const [loadingGrafExterna, setLoadingGrafExterna] = useState(false);
   const [paginaExterna,      setPaginaExterna]      = useState(1);
@@ -457,7 +408,7 @@ export default function RelatoriosPage() {
       const params: Record<string, string | number> = { silo_id: f.silo_id, page, limit: 50, data_inicio: f.data_inicio, data_fim: f.data_fim };
       if (f.barra_id)  params.barra_id  = f.barra_id;
       if (f.sensor_id) params.sensor_id = f.sensor_id;
-      const res = await api.get<RelatorioExternoResponse>('/relatorios/leituras-externas', { params });
+      const res = await api.get<RelatorioResponse>('/relatorios/leituras-externas', { params });
       setDadosExternos(res.data.dados); setPaginaExterna(res.data.pagina); setTotalPagExterna(res.data.total_paginas);
     } catch { toast.error('Erro ao consultar leituras externas'); }
     finally  { setLoadingExterna(false); }
@@ -469,7 +420,7 @@ export default function RelatoriosPage() {
       const params: Record<string, string> = { silo_id: f.silo_id, data_inicio: f.data_inicio, data_fim: f.data_fim };
       if (f.barra_id)  params.barra_id  = f.barra_id;
       if (f.sensor_id) params.sensor_id = f.sensor_id;
-      const res = await api.get<GraficoExternoResponse>('/relatorios/leituras-externas/grafico', { params });
+      const res = await api.get<GraficoResponse>('/relatorios/leituras-externas/grafico', { params });
       setGraficoExterno(res.data);
     } catch { toast.error('Erro ao carregar gráfico externo'); }
     finally  { setLoadingGrafExterna(false); }
@@ -540,6 +491,16 @@ export default function RelatoriosPage() {
     else { setSortField(field); setSortDir('asc'); }
   };
   const sortedDados = [...dados].sort((a, b) => {
+    if (!sortField) {
+      const tDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      if (tDiff !== 0) return tDiff;
+      return (a.sensor?.altura_solo_m ?? 0) - (b.sensor?.altura_solo_m ?? 0);
+    }
+    const va = a[sortField] ?? 0;
+    const vb = b[sortField] ?? 0;
+    return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
+  });
+  const sortedDadosExternos = [...dadosExternos].sort((a, b) => {
     if (!sortField) {
       const tDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
       if (tDiff !== 0) return tDiff;
@@ -918,93 +879,224 @@ export default function RelatoriosPage() {
           {/* ── ABA: Leituras Externas ── */}
           {abaAtiva === 'externa' && (
             <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                  <button onClick={() => setSubAbaExterna('tabela')}  className={subTabCls('tabela',  subAbaExterna)}>Tabela</button>
-                  <button onClick={() => setSubAbaExterna('grafico')} className={subTabCls('grafico', subAbaExterna)}>Gráfico</button>
-                </div>
-                {lastFiltros && subAbaExterna === 'tabela' && (
-                  <button onClick={handleExportExterna} disabled={loadingExportExt}
-                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
-                    <Download size={14} />{loadingExportExt ? 'Exportando...' : 'Exportar CSV'}
-                  </button>
-                )}
-              </div>
-
-              {subAbaExterna === 'tabela' && (
-                !lastFiltros ? (
-                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
-                ) : loadingExterna ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
-                ) : dadosExternos.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
-                ) : (
-                  <div className="rounded-lg border border-gray-200 overflow-x-auto">
-                    <div>
-                      <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Temp. Média (°C)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Umid. Média (%)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Amostras</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Relé</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">SHT Online</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Firmware</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {[...dadosExternos].sort((a, b) =>
-                            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-                          ).map((leitura) => {
-                            const sensor = leitura.sensor;
-                            const barra  = sensor?.barra;
-                            return (
-                              <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{formatNum(leitura.temp_avg, 1)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatNum(leitura.umid_avg, 0)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.n_amostras}</td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  {leitura.rele === null ? '—' : leitura.rele
-                                    ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Ligado</span>
-                                    : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">Desligado</span>}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  {leitura.sht_online === null ? '—' : leitura.sht_online
-                                    ? <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Online</span>
-                                    : <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-600">Offline</span>}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{leitura.fw}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {totalPagExterna > 1 && <Paginacao pagina={paginaExterna} totalPaginas={totalPagExterna} loading={loadingExterna} onPageChange={handlePageExterna} t={t} />}
-                  </div>
-                )
-              )}
-
-              {subAbaExterna === 'grafico' && (
-                !lastFiltros ? (
-                  <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
-                ) : loadingGrafExterna ? (
-                  <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
-                ) : !graficoExterno || graficoExterno.series.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
-                ) : (
+              {(() => {
+                const grandezasComDadosExt = new Set(dadosExternos.map((l) => l.sensor?.tipo_grandeza).filter(Boolean)) as Set<GrandezaTipo>;
+                const GRANDEZA_TABS: { key: GrandezaTipo; label: string }[] = [
+                  { key: 'temperatura', label: 'Temperatura' },
+                  { key: 'umidade',     label: 'Umidade' },
+                  { key: 'co2',         label: 'CO₂' },
+                  { key: 'rele',        label: 'Relé' },
+                ];
+                const grandezaTabCls = (g: GrandezaTipo) =>
+                  `px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                    grandezaExterna === g
+                      ? 'border-primary-500 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`;
+                const dadosFiltradosExt    = sortedDadosExternos.filter((l) => l.sensor?.tipo_grandeza === grandezaExterna);
+                const serieFiltradaExt     = (graficoExterno?.series ?? []).filter((s) =>
+                  (graficoExterno?.sensores ?? []).some((x) => x.id === s.sensor_id && x.tipo_grandeza === grandezaExterna)
+                );
+                const sensoresFiltradosExt = (graficoExterno?.sensores ?? []).filter((s) => s.tipo_grandeza === grandezaExterna);
+                const unidadeExt           = sensoresFiltradosExt[0]?.unidade_medida ?? '';
+                return (
                   <>
-                    <ExternoChart campo="avg_temp" label="Temperatura" unidade="°C" series={graficoExterno.series} sensores={graficoExterno.sensores} />
-                    <ExternoChart campo="avg_umid" label="Umidade"     unidade="%" series={graficoExterno.series} sensores={graficoExterno.sensores} />
+                    {/* Grandeza selector */}
+                    <div className="flex border-b border-gray-100 -mt-1">
+                      {GRANDEZA_TABS.map(({ key, label }) => {
+                        const temDados = lastFiltros ? grandezasComDadosExt.has(key) : true;
+                        return (
+                          <button key={key} onClick={() => setGrandezaExterna(key)}
+                            className={`${grandezaTabCls(key)} ${!temDados && lastFiltros ? 'opacity-40' : ''}`}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Tabela/Gráfico + export */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                        <button onClick={() => setSubAbaExterna('tabela')}  className={subTabCls('tabela',  subAbaExterna)}>Tabela</button>
+                        <button onClick={() => setSubAbaExterna('grafico')} className={subTabCls('grafico', subAbaExterna)}>Gráfico</button>
+                      </div>
+                      {lastFiltros && subAbaExterna === 'tabela' && (
+                        <button onClick={handleExportExterna} disabled={loadingExportExt}
+                          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                          <Download size={14} />{loadingExportExt ? 'Exportando...' : 'Exportar CSV'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Tabela */}
+                    {subAbaExterna === 'tabela' && (
+                      !lastFiltros ? (
+                        <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                      ) : loadingExterna ? (
+                        <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                      ) : dadosFiltradosExt.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                      ) : grandezaExterna === 'rele' ? (
+                        <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Estado</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {dadosFiltradosExt.map((leitura) => {
+                                const sensor = leitura.sensor;
+                                const barra  = sensor?.barra;
+                                const ligado = leitura.valor_avg === 1.0;
+                                return (
+                                  <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      {ligado
+                                        ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">● Ligado</span>
+                                        : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-500">● Desligado</span>}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          {totalPagExterna > 1 && <Paginacao pagina={paginaExterna} totalPaginas={totalPagExterna} loading={loadingExterna} onPageChange={handlePageExterna} t={t} />}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Altura (m)</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_unidade')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_avg')}>
+                                  {t('relatorios.coluna_avg')}<SortIcon field="valor_avg" />
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_max')}>
+                                  {t('relatorios.coluna_max')}<SortIcon field="valor_max" />
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap cursor-pointer select-none hover:text-gray-900" onClick={() => handleSort('valor_min')}>
+                                  {t('relatorios.coluna_min')}<SortIcon field="valor_min" />
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_desvio')}</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {dadosFiltradosExt.map((leitura) => {
+                                const sensor = leitura.sensor;
+                                const barra  = sensor?.barra;
+                                return (
+                                  <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.altura_solo_m != null ? `${sensor.altura_solo_m} m` : '—'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-500">{sensor?.unidade_medida ?? '—'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">{fmtSensor(leitura.valor_avg, sensor?.tipo_grandeza ?? '')}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_max, sensor?.tipo_grandeza ?? '')}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_min, sensor?.tipo_grandeza ?? '')}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.desvio_padrao, sensor?.tipo_grandeza ?? '')}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          {totalPagExterna > 1 && <Paginacao pagina={paginaExterna} totalPaginas={totalPagExterna} loading={loadingExterna} onPageChange={handlePageExterna} t={t} />}
+                        </div>
+                      )
+                    )}
+
+                    {/* Gráfico */}
+                    {subAbaExterna === 'grafico' && (
+                      !lastFiltros ? (
+                        <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
+                      ) : loadingGrafExterna ? (
+                        <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                      ) : grandezaExterna === 'rele' ? (
+                        <p className="text-center text-gray-400 text-sm py-10">
+                          Relé é um estado discreto — use a aba Tabela para visualizar o histórico de acionamentos.
+                        </p>
+                      ) : serieFiltradaExt.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-500">Agrupar por:</span>
+                            <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                              {(['silo', 'barra', 'sensor', 'altura'] as AgrupamentoGrafico[]).map((ag) => (
+                                <button key={ag} type="button" onClick={() => setAgrupamento(ag)} className={btnGroupCls(agrupamento === ag)}>
+                                  {AGRUPAMENTO_LABELS[ag]}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {agrupamento !== 'sensor' && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">Exibindo:</span>
+                              <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                                {(['avg', 'min', 'max'] as ValorTipo[]).map((v) => (
+                                  <button key={v} type="button" onClick={() => setValorTipo(v)}
+                                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${valorTipo === v ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                                    {VALOR_LABELS[v]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {agrupamento === 'silo' && (
+                            <MultiSensorChart
+                              titulo={`${GRANDEZA_LABELS[grandezaExterna]}${unidadeExt ? ` (${unidadeExt})` : ''}`}
+                              series={serieFiltradaExt} sensores={sensoresFiltradosExt}
+                              valor={valorTipo} unidade={unidadeExt} />
+                          )}
+                          {agrupamento === 'barra' && (() => {
+                            const barrasUnicas = [
+                              ...new Map(sensoresFiltradosExt.map((s) => [s.barra_id, { id: s.barra_id, identificacao: s.barra_identificacao }])).values()
+                            ];
+                            return barrasUnicas.map((barra) => (
+                              <MultiSensorChart key={barra.id}
+                                titulo={`${barra.identificacao} — ${GRANDEZA_LABELS[grandezaExterna]}${unidadeExt ? ` (${unidadeExt})` : ''}`}
+                                series={serieFiltradaExt}
+                                sensores={sensoresFiltradosExt.filter((s) => s.barra_id === barra.id)}
+                                valor={valorTipo} unidade={unidadeExt} />
+                            ));
+                          })()}
+                          {agrupamento === 'sensor' && sensoresFiltradosExt.map((sensor) => (
+                            <SingleSensorChart key={sensor.id}
+                              sensor={sensor} series={serieFiltradaExt} unidade={unidadeExt} />
+                          ))}
+                          {agrupamento === 'altura' && (() => {
+                            const alturas = [...new Set(sensoresFiltradosExt.map((s) => s.altura_solo_m))].sort((a, b) => a - b);
+                            return alturas.map((alt) => (
+                              <MultiSensorChart key={alt}
+                                titulo={`${alt} m — ${GRANDEZA_LABELS[grandezaExterna]}${unidadeExt ? ` (${unidadeExt})` : ''}`}
+                                series={serieFiltradaExt}
+                                sensores={sensoresFiltradosExt.filter((s) => s.altura_solo_m === alt)}
+                                valor={valorTipo} unidade={unidadeExt} />
+                            ));
+                          })()}
+                        </div>
+                      )
+                    )}
                   </>
-                )
-              )}
+                );
+              })()}
             </div>
           )}
         </div>
