@@ -21,7 +21,7 @@ interface BarraForm {
 interface SensorForm {
   identificacao: string;
   altura_solo_m: string;
-  tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
+  tipo_grandeza: 'temperatura' | 'umidade' | 'co2' | 'rele';
   id_labrador?: string;
 }
 
@@ -29,6 +29,7 @@ const TIPO_LABELS: Record<string, string> = {
   temperatura: 'Temperatura',
   umidade: 'Umidade',
   co2: 'CO₂',
+  rele: 'Relé',
 };
 
 // ─── Modal de Edição de Sensor ────────────────────────────────────────────────
