@@ -4,7 +4,43 @@ import { redis } from '../../config/redis';
 import { AppError } from '../../utils/errors';
 import { assertEmpresa } from '../../middlewares/tenantGuard';
 
-const CLIMA_CACHE_TTL = 30 * 60; // 30 minutos
+const CLIMA_CACHE_TTL  = 30 * 60; // 30 minutos
+const PAINEL_CACHE_TTL = 2  * 60; // 2 minutos
+const SILOS_CACHE_TTL  = 60;      // 1 minuto
+
+// ── Helper: clima com cache Redis ────────────────────────────────────────────
+
+async function fetchClima(
+  siloId: number,
+  lat: string,
+  lon: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const key = `clima:${siloId}`;
+    const cached = await redis.get(key);
+    if (cached) return JSON.parse(cached) as Record<string, unknown>;
+
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude', lat);
+    url.searchParams.set('longitude', lon);
+    url.searchParams.set('current', [
+      'temperature_2m', 'relative_humidity_2m', 'wind_speed_10m',
+      'weather_code', 'apparent_temperature',
+    ].join(','));
+    url.searchParams.set('timezone', 'America/Sao_Paulo');
+    url.searchParams.set('forecast_days', '1');
+
+    const resp = await fetch(url.toString());
+    if (!resp.ok) return null;
+    const data = await resp.json() as Record<string, unknown>;
+    await redis.setex(key, CLIMA_CACHE_TTL, JSON.stringify(data));
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// ── listarSilos ───────────────────────────────────────────────────────────────
 
 export async function listarSilos(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -16,51 +52,30 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
       where.empresa_id = Number(req.query.empresa_id);
     }
 
+    const cacheKey = `silos_lista:${JSON.stringify(where)}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) { res.json(JSON.parse(cached)); return; }
+
     const silos = await prisma.silo.findMany({
       where,
       orderBy: { nome: 'asc' },
-      include: {
+      select: {
+        id: true, nome: true, cidade: true, estado: true,
+        latitude: true, longitude: true, status: true,
         empresa: { select: { id: true, razao_social: true, nome_fantasia: true } },
-        alertas: {
-          orderBy: { criado_em: 'desc' },
-          take: 5,
-        },
+        alertas: { select: { id: true }, orderBy: { criado_em: 'desc' }, take: 5 },
         barras: {
           where: { status: 'ativa' },
-          include: {
-            sensores: {
-              where: { status: 'ativo' },
-              include: {
-                leituras_internas: {
-                  orderBy: { timestamp: 'desc' },
-                  take: 1,
-                },
-              },
-            },
+          select: {
+            id: true,
+            sensores: { where: { status: 'ativo' }, select: { id: true } },
           },
         },
       },
     });
 
-    // Resumo por silo
-    const resultado = silos.map((silo) => {
-      const totalSensores = silo.barras.reduce((acc, b) => acc + b.sensores.length, 0);
-      const ultimasLeituras = silo.barras.flatMap((b) =>
-        b.sensores
-          .filter((s) => s.tipo_grandeza !== 'rele')
-          .flatMap((s) =>
-            s.leituras_internas.map((l) => ({
-              sensor_id: s.id,
-              sensor_identificacao: s.identificacao,
-              tipo_grandeza: s.tipo_grandeza,
-              unidade_medida: s.unidade_medida,
-              valor_avg: Number(l.valor_avg),
-              timestamp: l.timestamp,
-            })),
-          ),
-      );
-
-      return {
+    const resultado = {
+      data: silos.map((silo) => ({
         id: silo.id,
         nome: silo.nome,
         cidade: silo.cidade,
@@ -70,17 +85,19 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
         status: silo.status,
         empresa: silo.empresa,
         total_barras_ativas: silo.barras.length,
-        total_sensores_ativos: totalSensores,
+        total_sensores_ativos: silo.barras.reduce((n, b) => n + b.sensores.length, 0),
         alertas_ativos: silo.alertas.length,
-        ultimas_leituras: ultimasLeituras,
-      };
-    });
+      })),
+    };
 
-    res.json({ data: resultado });
+    await redis.setex(cacheKey, SILOS_CACHE_TTL, JSON.stringify(resultado));
+    res.json(resultado);
   } catch (err) {
     next(err);
   }
 }
+
+// ── detalharSilo ──────────────────────────────────────────────────────────────
 
 export async function detalharSilo(
   req: Request,
@@ -122,12 +139,20 @@ export async function detalharSilo(
   }
 }
 
+// ── painelSilo ────────────────────────────────────────────────────────────────
+
 export async function painelSilo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const id = Number(req.params.id);
     if (isNaN(id)) throw new AppError(400, 'ID inválido');
 
-    const silo = await prisma.silo.findUnique({
+    // Serve do cache se disponível
+    const painelKey = `painel:${id}`;
+    const cachedPainel = await redis.get(painelKey);
+    if (cachedPainel) { res.json(JSON.parse(cachedPainel)); return; }
+
+    // Busca DB e clima em paralelo
+    const siloPromise = prisma.silo.findUnique({
       where: { id },
       include: {
         barras: {
@@ -145,8 +170,17 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
       },
     });
 
+    // Busca coordenadas primeiro para lançar clima em paralelo
+    // (usamos Promise.all após descobrir as coords do silo)
+    const silo = await siloPromise;
+
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    // Clima em paralelo com o processamento dos dados do silo
+    const climaPromise = silo.latitude && silo.longitude
+      ? fetchClima(id, silo.latitude.toString(), silo.longitude.toString())
+      : Promise.resolve(null);
 
     type SensorEntry = {
       local: string; altura_solo_m: number; tipo_grandeza: string;
@@ -154,8 +188,6 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
       timestamp: Date;
     };
 
-    // Flattens sensores com última leitura, preservando o local da barra
-    // rele excluído pois é estado discreto, tratado separadamente
     const sensoresFlat: SensorEntry[] = silo.barras.flatMap((b) =>
       b.sensores
         .filter((s) => s.leituras_internas.length > 0 && s.tipo_grandeza !== 'rele')
@@ -171,10 +203,8 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
         })),
     );
 
-    // Data de referência = timestamp mais recente
     const referencia = sensoresFlat.length > 0
-      ? sensoresFlat.reduce((max, s) =>
-          s.timestamp > max ? s.timestamp : max, sensoresFlat[0].timestamp)
+      ? sensoresFlat.reduce((max, s) => s.timestamp > max ? s.timestamp : max, sensoresFlat[0].timestamp)
       : null;
 
     const grandezas = ['temperatura', 'umidade', 'co2'] as const;
@@ -184,9 +214,7 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
       return alturas.map((altura) => {
         const row: Record<string, unknown> = { altura_m: altura };
         for (const grandeza of grandezas) {
-          const grupo = sensores.filter(
-            (s) => s.altura_solo_m === altura && s.tipo_grandeza === grandeza,
-          );
+          const grupo = sensores.filter((s) => s.altura_solo_m === altura && s.tipo_grandeza === grandeza);
           if (grupo.length > 0) {
             const n = grupo.length;
             row[grandeza] = {
@@ -201,7 +229,6 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
       });
     }
 
-    // Agrupa por local, mantendo ordem: interno → externo
     const locaisOrdenados = ['interno ao silo', 'externo ao silo'] as const;
     const resumo_por_local = locaisOrdenados
       .map((local) => {
@@ -210,35 +237,6 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
         return { local, resumo_alturas: buildResumoAlturas(sensoresDoLocal) };
       })
       .filter(Boolean);
-
-    // Clima (cache Redis)
-    let clima: Record<string, unknown> | null = null;
-    if (silo.latitude && silo.longitude) {
-      try {
-        const cacheKey = `clima:${id}`;
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-          clima = JSON.parse(cached) as Record<string, unknown>;
-        } else {
-          const lat = silo.latitude.toString();
-          const lon = silo.longitude.toString();
-          const url = new URL('https://api.open-meteo.com/v1/forecast');
-          url.searchParams.set('latitude', lat);
-          url.searchParams.set('longitude', lon);
-          url.searchParams.set('current', [
-            'temperature_2m', 'relative_humidity_2m', 'wind_speed_10m',
-            'weather_code', 'apparent_temperature',
-          ].join(','));
-          url.searchParams.set('timezone', 'America/Sao_Paulo');
-          url.searchParams.set('forecast_days', '1');
-          const resp = await fetch(url.toString());
-          if (resp.ok) {
-            clima = await resp.json() as Record<string, unknown>;
-            await redis.setex(cacheKey, CLIMA_CACHE_TTL, JSON.stringify(clima));
-          }
-        }
-      } catch { /* clima opcional */ }
-    }
 
     const releSensor = silo.barras
       .flatMap((b) => b.sensores)
@@ -251,27 +249,31 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
         }
       : null;
 
-    res.json({
+    // Aguarda clima (que estava rodando em paralelo)
+    const climaData = await climaPromise;
+
+    const payload = {
       silo: {
-        id: silo.id,
-        nome: silo.nome,
-        cidade: silo.cidade,
-        estado: silo.estado,
-        latitude: silo.latitude,
-        longitude: silo.longitude,
-        status: silo.status,
+        id: silo.id, nome: silo.nome, cidade: silo.cidade, estado: silo.estado,
+        latitude: silo.latitude, longitude: silo.longitude, status: silo.status,
         total_barras_ativas: silo.barras.length,
         total_sensores_ativos: silo.barras.reduce((n, b) => n + b.sensores.length, 0),
+        alertas_ativos: 0,
       },
-      clima: (clima as { current?: unknown } | null)?.current ?? null,
+      clima: (climaData as { current?: unknown } | null)?.current ?? null,
       referencia: referencia ? (referencia as Date).toISOString() : null,
       resumo_por_local,
       rele,
-    });
+    };
+
+    await redis.setex(painelKey, PAINEL_CACHE_TTL, JSON.stringify(payload));
+    res.json(payload);
   } catch (err) {
     next(err);
   }
 }
+
+// ── climaSilo ─────────────────────────────────────────────────────────────────
 
 export async function climaSilo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -280,58 +282,35 @@ export async function climaSilo(req: Request, res: Response, next: NextFunction)
 
     const silo = await prisma.silo.findUnique({
       where: { id },
-      select: {
-        id: true,
-        nome: true,
-        latitude: true,
-        longitude: true,
-        empresa_id: true,
-      },
+      select: { id: true, nome: true, latitude: true, longitude: true, empresa_id: true },
     });
 
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
     if (!silo.latitude || !silo.longitude) {
-      throw new AppError(
-        422,
-        'Este silo não possui coordenadas geográficas cadastradas',
-      );
+      throw new AppError(422, 'Este silo não possui coordenadas geográficas cadastradas');
     }
 
-    // Verifica cache Redis
-    const cacheKey = `clima:${id}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      res.json({ source: 'cache', data: JSON.parse(cached) });
-      return;
-    }
+    const key = `clima:${id}`;
+    const cached = await redis.get(key);
+    if (cached) { res.json({ source: 'cache', data: JSON.parse(cached) }); return; }
 
-    // Busca dados da Open-Meteo (sem chave de API, gratuita)
-    const lat = silo.latitude.toString();
-    const lon = silo.longitude.toString();
     const url = new URL('https://api.open-meteo.com/v1/forecast');
-    url.searchParams.set('latitude', lat);
-    url.searchParams.set('longitude', lon);
+    url.searchParams.set('latitude', silo.latitude.toString());
+    url.searchParams.set('longitude', silo.longitude.toString());
     url.searchParams.set('current', [
-      'temperature_2m',
-      'relative_humidity_2m',
-      'wind_speed_10m',
-      'weather_code',
-      'apparent_temperature',
+      'temperature_2m', 'relative_humidity_2m', 'wind_speed_10m',
+      'weather_code', 'apparent_temperature',
     ].join(','));
     url.searchParams.set('timezone', 'America/Sao_Paulo');
     url.searchParams.set('forecast_days', '1');
 
     const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new AppError(502, 'Erro ao consultar dados climáticos');
-    }
+    if (!response.ok) throw new AppError(502, 'Erro ao consultar dados climáticos');
 
     const climaData = await response.json() as Record<string, unknown>;
-
-    // Armazena no Redis com TTL de 30 minutos
-    await redis.setex(cacheKey, CLIMA_CACHE_TTL, JSON.stringify(climaData));
+    await redis.setex(key, CLIMA_CACHE_TTL, JSON.stringify(climaData));
 
     res.json({ source: 'api', data: climaData });
   } catch (err) {

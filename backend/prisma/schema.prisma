@@ -149,6 +149,7 @@ model LeituraInterna {
   sensor          Sensor    @relation(fields: [sensor_id], references: [id])
 
   @@unique([sensor_id, timestamp], name: "leitura_interna_sensor_timestamp_uq")
+  @@index([sensor_id, timestamp(sort: Desc)], name: "leitura_interna_sensor_ts_desc_idx")
   @@map("leitura_interna")
   @@schema("silos")
 }
