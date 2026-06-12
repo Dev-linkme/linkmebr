@@ -35,10 +35,6 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
                   orderBy: { timestamp: 'desc' },
                   take: 1,
                 },
-                leituras_externas: {
-                  orderBy: { timestamp: 'desc' },
-                  take: 1,
-                },
               },
             },
           },
@@ -50,26 +46,18 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
     const resultado = silos.map((silo) => {
       const totalSensores = silo.barras.reduce((acc, b) => acc + b.sensores.length, 0);
       const ultimasLeituras = silo.barras.flatMap((b) =>
-        b.sensores.flatMap((s) => {
-          if (b.local === 'externo ao silo') {
-            return s.leituras_externas.map((l) => ({
+        b.sensores
+          .filter((s) => s.tipo_grandeza !== 'rele')
+          .flatMap((s) =>
+            s.leituras_internas.map((l) => ({
               sensor_id: s.id,
               sensor_identificacao: s.identificacao,
               tipo_grandeza: s.tipo_grandeza,
               unidade_medida: s.unidade_medida,
-              valor_avg: l.temp_avg,
+              valor_avg: Number(l.valor_avg),
               timestamp: l.timestamp,
-            }));
-          }
-          return s.leituras_internas.map((l) => ({
-            sensor_id: s.id,
-            sensor_identificacao: s.identificacao,
-            tipo_grandeza: s.tipo_grandeza,
-            unidade_medida: s.unidade_medida,
-            valor_avg: Number(l.valor_avg),
-            timestamp: l.timestamp,
-          }));
-        }),
+            })),
+          ),
       );
 
       return {
@@ -118,10 +106,6 @@ export async function detalharSilo(
                   orderBy: { timestamp: 'desc' },
                   take: 10,
                 },
-                leituras_externas: {
-                  orderBy: { timestamp: 'desc' },
-                  take: 10,
-                },
               },
             },
           },
@@ -154,7 +138,6 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
               where: { status: 'ativo' },
               include: {
                 leituras_internas: { orderBy: { timestamp: 'desc' }, take: 1 },
-                leituras_externas: { orderBy: { timestamp: 'desc' }, take: 1 },
               },
             },
           },
@@ -172,25 +155,10 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
     };
 
     // Flattens sensores com última leitura, preservando o local da barra
-    const sensoresFlat: SensorEntry[] = silo.barras.flatMap((b) => {
-      if (b.local === 'externo ao silo') {
-        return b.sensores
-          .filter((s) => s.leituras_externas.length > 0)
-          .flatMap((s): SensorEntry[] => {
-            const l = s.leituras_externas[0];
-            const base = { local: b.local, altura_solo_m: Number(s.altura_solo_m), timestamp: l.timestamp };
-            const entries: SensorEntry[] = [];
-            if (l.temp_avg != null) {
-              entries.push({ ...base, tipo_grandeza: 'temperatura', unidade_medida: '°C', valor_avg: l.temp_avg, valor_max: l.temp_avg, valor_min: l.temp_avg });
-            }
-            if (l.umid_avg != null) {
-              entries.push({ ...base, tipo_grandeza: 'umidade', unidade_medida: '%', valor_avg: l.umid_avg, valor_max: l.umid_avg, valor_min: l.umid_avg });
-            }
-            return entries;
-          });
-      }
-      return b.sensores
-        .filter((s) => s.leituras_internas.length > 0)
+    // rele excluído pois é estado discreto, tratado separadamente
+    const sensoresFlat: SensorEntry[] = silo.barras.flatMap((b) =>
+      b.sensores
+        .filter((s) => s.leituras_internas.length > 0 && s.tipo_grandeza !== 'rele')
         .map((s): SensorEntry => ({
           local: b.local,
           altura_solo_m: Number(s.altura_solo_m),
@@ -200,8 +168,8 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
           valor_max: Number(s.leituras_internas[0].valor_max),
           valor_min: Number(s.leituras_internas[0].valor_min),
           timestamp: s.leituras_internas[0].timestamp,
-        }));
-    });
+        })),
+    );
 
     // Data de referência = timestamp mais recente
     const referencia = sensoresFlat.length > 0
@@ -272,6 +240,17 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
       } catch { /* clima opcional */ }
     }
 
+    const releSensor = silo.barras
+      .flatMap((b) => b.sensores)
+      .find((s) => s.tipo_grandeza === 'rele' && s.leituras_internas.length > 0);
+
+    const rele = releSensor
+      ? {
+          ligado: Number(releSensor.leituras_internas[0].valor_avg) === 1,
+          timestamp: releSensor.leituras_internas[0].timestamp.toISOString(),
+        }
+      : null;
+
     res.json({
       silo: {
         id: silo.id,
@@ -287,6 +266,7 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
       clima: (clima as { current?: unknown } | null)?.current ?? null,
       referencia: referencia ? (referencia as Date).toISOString() : null,
       resumo_por_local,
+      rele,
     });
   } catch (err) {
     next(err);

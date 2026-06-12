@@ -16,9 +16,9 @@ import type { Silo, Barra, Sensor, LeituraInterna, LeituraExterna, Regra } from 
 
 const LINE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-type GrandezaTipo = 'temperatura' | 'umidade' | 'co2';
+type GrandezaTipo = 'temperatura' | 'umidade' | 'co2' | 'rele';
 const GRANDEZA_LABELS: Record<GrandezaTipo, string> = {
-  temperatura: 'Temperatura', umidade: 'Umidade', co2: 'CO₂',
+  temperatura: 'Temperatura', umidade: 'Umidade', co2: 'CO₂', rele: 'Relé',
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -676,6 +676,7 @@ export default function RelatoriosPage() {
                   { key: 'temperatura', label: 'Temperatura' },
                   { key: 'umidade',     label: 'Umidade' },
                   { key: 'co2',         label: 'CO₂' },
+                  { key: 'rele',        label: 'Relé' },
                 ];
                 const grandezaTabCls = (g: GrandezaTipo) =>
                   `px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
@@ -726,6 +727,44 @@ export default function RelatoriosPage() {
                         <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
                       ) : dadosFiltrados.length === 0 ? (
                         <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
+                      ) : grandezaInterna === 'rele' ? (
+                        /* Tabela especial para relé — estado discreto */
+                        <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                          <div>
+                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_data')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_barra')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_sensor')}</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Estado</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{t('relatorios.coluna_amostras')}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {dadosFiltrados.map((leitura) => {
+                                  const sensor = leitura.sensor;
+                                  const barra  = sensor?.barra;
+                                  const ligado = leitura.valor_avg === 1.0;
+                                  return (
+                                    <tr key={leitura.id} className="hover:bg-gray-50 transition-colors">
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatFullTimestamp(leitura.timestamp)}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{barra?.identificacao ?? '—'}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{sensor?.identificacao ?? `Sensor ${leitura.sensor_id}`}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap">
+                                        {ligado
+                                          ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">● Ligado</span>
+                                          : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-500">● Desligado</span>}
+                                      </td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          {totalPagInterna > 1 && <Paginacao pagina={paginaInterna} totalPaginas={totalPagInterna} loading={loadingInterna} onPageChange={handlePageInterna} t={t} />}
+                        </div>
                       ) : (
                         <div className="rounded-lg border border-gray-200 overflow-x-auto">
                           <div>
@@ -785,6 +824,10 @@ export default function RelatoriosPage() {
                         <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
                       ) : loadingGrafInterna ? (
                         <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
+                      ) : grandezaInterna === 'rele' ? (
+                        <p className="text-center text-gray-400 text-sm py-10">
+                          Relé é um estado discreto — use a aba Tabela para visualizar o histórico de acionamentos.
+                        </p>
                       ) : serieFiltrada.length === 0 ? (
                         <p className="text-center text-gray-400 text-sm py-10">{t('relatorios.sem_dados')}</p>
                       ) : (

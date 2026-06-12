@@ -5,7 +5,7 @@ import api from '../services/api';
 
 type ModoExportacao = 'individualizada' | 'agrupada';
 type TipoLeitura = 'leitura_interna' | 'leitura_externa';
-type Grandeza = 'temperatura' | 'umidade' | 'co2';
+type Grandeza = 'temperatura' | 'umidade' | 'co2' | 'rele';
 type Formato = 'csv' | 'json';
 
 interface Silo { id: number; nome: string; }
@@ -23,6 +23,7 @@ const GRANDEZAS: { value: Grandeza; label: string }[] = [
   { value: 'temperatura', label: 'Temperatura' },
   { value: 'umidade', label: 'Umidade' },
   { value: 'co2', label: 'CO₂' },
+  { value: 'rele', label: 'Relé' },
 ];
 
 function formatDatetimeLocal(iso: string): string {

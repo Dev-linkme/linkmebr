@@ -90,11 +90,17 @@ interface ResumoLocal {
   resumo_alturas: ResumoAltura[];
 }
 
+interface ReleStatus {
+  ligado: boolean;
+  timestamp: string;
+}
+
 interface PainelResponse {
   silo: Silo & { total_barras_ativas: number; total_sensores_ativos: number };
   clima: ClimaAtual | null;
   referencia: string | null;
   resumo_por_local: ResumoLocal[];
+  rele: ReleStatus | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -556,6 +562,32 @@ export default function DashboardPage() {
                   </div>
                 );
               })}
+
+              {/* Relé de aeração */}
+              {painel.rele !== null && (
+                <div className="bg-white rounded-xl shadow p-5">
+                  <h2 className="font-semibold text-gray-700 mb-3">Relé de Aeração (DTG05)</h2>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                          painel.rele.ligado ? 'bg-green-500' : 'bg-gray-400'
+                        }`}
+                      />
+                      <span
+                        className={`font-semibold text-sm ${
+                          painel.rele.ligado ? 'text-green-700' : 'text-gray-500'
+                        }`}
+                      >
+                        {painel.rele.ligado ? 'Ligado' : 'Desligado'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      Última leitura: {fmtTs(painel.rele.timestamp)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </>
           ) : null}
         </div>

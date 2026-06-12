@@ -48,7 +48,7 @@ export interface Sensor {
   barra_id: number;
   identificacao: string;
   altura_solo_m: number;
-  tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
+  tipo_grandeza: 'temperatura' | 'umidade' | 'co2' | 'rele';
   unidade_medida: string;
   status: string;
   id_labrador?: number | null;
