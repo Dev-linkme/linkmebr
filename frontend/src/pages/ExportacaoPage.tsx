@@ -4,8 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 
 type ModoExportacao = 'individualizada' | 'agrupada';
-type TipoLeitura = 'leitura_interna' | 'leitura_externa';
-type Grandeza = 'temperatura' | 'umidade' | 'co2' | 'rele';
+type Grandeza = 'temperatura' | 'umidade' | 'co2';
 type Formato = 'csv' | 'json';
 
 interface Silo { id: number; nome: string; }
@@ -23,7 +22,6 @@ const GRANDEZAS: { value: Grandeza; label: string }[] = [
   { value: 'temperatura', label: 'Temperatura' },
   { value: 'umidade', label: 'Umidade' },
   { value: 'co2', label: 'CO₂' },
-  { value: 'rele', label: 'Relé' },
 ];
 
 function formatDatetimeLocal(iso: string): string {
@@ -54,7 +52,6 @@ export default function ExportacaoPage() {
   const [loadingPeriodo, setLoadingPeriodo] = useState(false);
 
   // Estado exclusivo do modo individualizado
-  const [tipoLeitura, setTipoLeitura] = useState<TipoLeitura>('leitura_interna');
   const [grandezas, setGrandezas] = useState<Grandeza[]>([]);
   const [barrasSelecionadas, setBarrasSelecionadas] = useState<number[]>([]);
   const [sensoresSelecionados, setSensoresSelecionados] = useState<number[]>([]);
@@ -70,16 +67,15 @@ export default function ExportacaoPage() {
     api.get<{ data: Silo[] }>('/silos?limit=100').then((r) => setSilos(r.data.data)).catch(() => {});
   }, []);
 
-  // Carrega período disponível ao trocar silo, modo ou tipo de leitura
+  // Carrega período disponível ao trocar silo ou modo
   useEffect(() => {
     if (!siloId) { setPeriodo(null); return; }
-    const tipo = modo === 'agrupada' ? 'leitura_interna' : tipoLeitura;
     setLoadingPeriodo(true);
-    api.get<PeriodoDisponivel>(`/export/periodo?silo_id=${siloId}&tipo=${tipo}`)
+    api.get<PeriodoDisponivel>(`/export/periodo?silo_id=${siloId}&tipo=leitura_interna`)
       .then((r) => setPeriodo(r.data))
       .catch(() => setPeriodo(null))
       .finally(() => setLoadingPeriodo(false));
-  }, [siloId, modo, tipoLeitura]);
+  }, [siloId, modo]);
 
   // Carrega barras ao trocar silo (só no modo individualizado)
   useEffect(() => {
@@ -163,7 +159,7 @@ export default function ExportacaoPage() {
 
     setExporting(true);
     try {
-      const fetchRes = await fetch(`${BASE_URL}/export/${tipoLeitura}?${params.toString()}`, {
+      const fetchRes = await fetch(`${BASE_URL}/export/leitura_interna?${params.toString()}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!fetchRes.ok) {
@@ -171,7 +167,7 @@ export default function ExportacaoPage() {
         throw new Error(err.message ?? 'Erro na exportação');
       }
       const blob = await fetchRes.blob();
-      downloadBlob(blob, `${tipoLeitura}_${Date.now()}.${formato}`, fetchRes);
+      downloadBlob(blob, `leitura_interna_${Date.now()}.${formato}`, fetchRes);
       toast.success('Exportação concluída');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro ao exportar');
@@ -236,30 +232,6 @@ export default function ExportacaoPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
-
-        {/* Tipo de leitura (só modo individualizado) */}
-        {modo === 'individualizada' && (
-          <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">
-              Tipo De Leitura <span className="text-red-500">*</span>
-            </p>
-            <div className="flex gap-6">
-              {(['leitura_interna', 'leitura_externa'] as TipoLeitura[]).map((t) => (
-                <label key={t} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    checked={tipoLeitura === t}
-                    onChange={() => setTipoLeitura(t)}
-                    className="accent-primary-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    {t === 'leitura_interna' ? 'Interna' : 'Externa'}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Silo (compartilhado) */}
         <div>
