@@ -212,36 +212,21 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
     if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
     if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
 
-    type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
-    let rows: GraficoRow[];
+    const bucketSec = diffHoras <= 24 ? 900 : diffHoras <= 72 ? 1800 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
-    if (diffHoras <= 72) {
-      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
-        `SELECT l.sensor_id,
-                l.timestamp AS bucket,
-                l.valor_avg::float AS avg,
-                l.valor_max::float AS max,
-                l.valor_min::float AS min
-         FROM silos.leitura_interna l
-         WHERE ${whereClause.join(' AND ')}
-         ORDER BY l.sensor_id, l.timestamp`,
-        ...params,
-      );
-    } else {
-      const bucketSec = diffHoras <= 24 * 7 ? 3600 : 10800;
-      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
-        `SELECT l.sensor_id,
-                to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
-                AVG(l.valor_avg)::float AS avg,
-                MAX(l.valor_max)::float AS max,
-                MIN(l.valor_min)::float AS min
-         FROM silos.leitura_interna l
-         WHERE ${whereClause.join(' AND ')}
-         GROUP BY l.sensor_id, bucket
-         ORDER BY l.sensor_id, bucket`,
-        ...params,
-      );
-    }
+    type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
+    const rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
+      `SELECT l.sensor_id,
+              to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
+              AVG(l.valor_avg)::float AS avg,
+              MAX(l.valor_max)::float AS max,
+              MIN(l.valor_min)::float AS min
+       FROM silos.leitura_interna l
+       WHERE ${whereClause.join(' AND ')}
+       GROUP BY l.sensor_id, bucket
+       ORDER BY l.sensor_id, bucket`,
+      ...params,
+    );
 
     const sensores = await prisma.sensor.findMany({
       where: { id: { in: sensorIds } },
@@ -495,36 +480,21 @@ export async function buscarGraficoExterno(
     if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
     if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
 
-    type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
-    let rows: GraficoRow[];
+    const bucketSec = diffHoras <= 24 ? 900 : diffHoras <= 72 ? 1800 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
-    if (diffHoras <= 72) {
-      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
-        `SELECT l.sensor_id,
-                l.timestamp AS bucket,
-                l.valor_avg::float AS avg,
-                l.valor_max::float AS max,
-                l.valor_min::float AS min
-         FROM silos.leitura_interna l
-         WHERE ${whereClause.join(' AND ')}
-         ORDER BY l.sensor_id, l.timestamp`,
-        ...params,
-      );
-    } else {
-      const bucketSec = diffHoras <= 24 * 7 ? 3600 : 10800;
-      rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
-        `SELECT l.sensor_id,
-                to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
-                AVG(l.valor_avg)::float AS avg,
-                MAX(l.valor_max)::float AS max,
-                MIN(l.valor_min)::float AS min
-         FROM silos.leitura_interna l
-         WHERE ${whereClause.join(' AND ')}
-         GROUP BY l.sensor_id, bucket
-         ORDER BY l.sensor_id, bucket`,
-        ...params,
-      );
-    }
+    type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
+    const rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
+      `SELECT l.sensor_id,
+              to_timestamp(floor(extract(epoch from l.timestamp) / ${bucketSec}) * ${bucketSec}) AS bucket,
+              AVG(l.valor_avg)::float AS avg,
+              MAX(l.valor_max)::float AS max,
+              MIN(l.valor_min)::float AS min
+       FROM silos.leitura_interna l
+       WHERE ${whereClause.join(' AND ')}
+       GROUP BY l.sensor_id, bucket
+       ORDER BY l.sensor_id, bucket`,
+      ...params,
+    );
 
     const sensores = await prisma.sensor.findMany({
       where: { id: { in: sensorIds } },
