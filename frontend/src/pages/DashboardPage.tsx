@@ -574,7 +574,7 @@ export default function DashboardPage() {
               {/* Relé de aeração */}
               {painel.rele !== null && (
                 <div className="bg-white rounded-xl shadow p-5">
-                  <h2 className="font-semibold text-gray-700 mb-3">Relé de Aeração (DTG05)</h2>
+                  <h2 className="font-semibold text-gray-700 mb-3">Relé de Aeração</h2>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span
