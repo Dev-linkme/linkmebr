@@ -393,7 +393,11 @@ export default function DashboardPage() {
                         — {painel.silo.cidade}/{painel.silo.estado}
                       </span>
                     )}
-                    {(painel.silo.alertas_ativos ?? 0) > 0 ? (
+                    {painel.silo.status === 'Sem leituras há mais de 10 minutos' ? (
+                      <span className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold">
+                        <AlertTriangle size={12} /> Sem leituras
+                      </span>
+                    ) : (painel.silo.alertas_ativos ?? 0) > 0 ? (
                       <span className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
                         <AlertTriangle size={12} /> Alerta
                       </span>
@@ -406,7 +410,11 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-400 mb-0.5">Status</p>
-                      <p className="font-semibold capitalize">{painel.silo.status}</p>
+                      {painel.silo.status === 'Sem leituras há mais de 10 minutos' ? (
+                        <p className="font-semibold text-yellow-600 text-xs">{painel.silo.status}</p>
+                      ) : (
+                        <p className="font-semibold capitalize">{painel.silo.status}</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-gray-400 mb-0.5">Cabos pêndulo ativos</p>

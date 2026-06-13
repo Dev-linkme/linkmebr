@@ -151,6 +151,8 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
     const cachedPainel = await redis.get(painelKey);
     if (cachedPainel) { res.json(JSON.parse(cachedPainel)); return; }
 
+    const janela = new Date(Date.now() - 10 * 60 * 1000); // últimos 10 min
+
     // Busca DB e clima em paralelo
     const siloPromise = prisma.silo.findUnique({
       where: { id },
@@ -162,7 +164,11 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
             sensores: {
               where: { status: 'ativo' },
               include: {
-                leituras_internas: { orderBy: { timestamp: 'desc' }, take: 1 },
+                leituras_internas: {
+                  where: { timestamp: { gte: janela } },
+                  orderBy: { timestamp: 'desc' },
+                  take: 1,
+                },
               },
             },
           },
@@ -252,10 +258,13 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
     // Aguarda clima (que estava rodando em paralelo)
     const climaData = await climaPromise;
 
+    const semLeituras = sensoresFlat.length === 0;
+    const statusSilo  = semLeituras ? 'Sem leituras há mais de 10 minutos' : silo.status;
+
     const payload = {
       silo: {
         id: silo.id, nome: silo.nome, cidade: silo.cidade, estado: silo.estado,
-        latitude: silo.latitude, longitude: silo.longitude, status: silo.status,
+        latitude: silo.latitude, longitude: silo.longitude, status: statusSilo,
         total_barras_ativas: silo.barras.length,
         total_sensores_ativos: silo.barras.reduce((n, b) => n + b.sensores.length, 0),
         alertas_ativos: 0,
