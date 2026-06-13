@@ -490,6 +490,8 @@ export default function RelatoriosPage() {
     if (!sortField) {
       const tDiff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       if (tDiff !== 0) return tDiff;
+      const bDiff = (a.sensor?.barra?.id ?? 0) - (b.sensor?.barra?.id ?? 0);
+      if (bDiff !== 0) return bDiff;
       return (a.sensor?.altura_solo_m ?? 0) - (b.sensor?.altura_solo_m ?? 0);
     }
     const va = a[sortField] ?? 0;
@@ -500,6 +502,8 @@ export default function RelatoriosPage() {
     if (!sortField) {
       const tDiff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       if (tDiff !== 0) return tDiff;
+      const bDiff = (a.sensor?.barra?.id ?? 0) - (b.sensor?.barra?.id ?? 0);
+      if (bDiff !== 0) return bDiff;
       return (a.sensor?.altura_solo_m ?? 0) - (b.sensor?.altura_solo_m ?? 0);
     }
     const va = a[sortField] ?? 0;

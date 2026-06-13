@@ -51,7 +51,8 @@ export async function buscarLeituras(
         take: limit,
         orderBy: [
           { timestamp: 'desc' },
-          { sensor: { barra: { identificacao: 'asc' } } },
+          { sensor: { barra_id: 'asc' } },
+          { sensor: { altura_solo_m: 'asc' } },
         ],
         include: {
           sensor: {
@@ -309,7 +310,8 @@ export async function buscarLeiturasExternas(
         take: limit,
         orderBy: [
           { timestamp: 'desc' },
-          { sensor: { barra: { identificacao: 'asc' } } },
+          { sensor: { barra_id: 'asc' } },
+          { sensor: { altura_solo_m: 'asc' } },
         ],
         include: {
           sensor: {
