@@ -210,7 +210,7 @@ export default function AppLayout() {
                 >
                   <CalendarClock size={16} />{t('nav.ia_treinamento_diario')}
                 </NavLink>
-                {isAdminGeral && (
+                {(isAdminGeral || isAdminEmpresa) && (
                   <NavLink
                     to="/ia/bootstrap"
                     className={({ isActive }) =>

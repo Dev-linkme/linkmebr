@@ -174,7 +174,7 @@ export default function App() {
       <Route
         path="/ia/bootstrap"
         element={
-          <ProtectedRoute perfis={['administrador_geral']}>
+          <ProtectedRoute perfis={['administrador_geral', 'administrador_empresa']}>
             <AppLayout />
           </ProtectedRoute>
         }
