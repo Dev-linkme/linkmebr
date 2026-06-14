@@ -144,3 +144,44 @@ export interface AuthUser {
   perfil: string;
   empresa_id: number | null;
 }
+
+export interface IaJob {
+  id: number;
+  silo_id: number;
+  modo: 'full' | 'incremental' | 'bootstrap';
+  origem: 'web' | 'scheduler';
+  status: 'pendente' | 'executando' | 'concluido' | 'erro';
+  solicitado_em: string;
+  concluido_em: string | null;
+  modelo_versao: string | null;
+  mae_temperatura: number | null;
+  mae_umidade: number | null;
+  mae_co2: number | null;
+  erro: string | null;
+}
+
+export interface IaJobsResponse {
+  silo_id: number;
+  total: number;
+  limit: number;
+  offset: number;
+  jobs: IaJob[];
+}
+
+export interface IaPrevisaoSensor {
+  sensor_id: number;
+  barra_id: number;
+  tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
+  altura_solo_m: number;
+  valores: number[];
+}
+
+export interface IaPrevisoes {
+  silo_id: number;
+  ciclo_id: number;
+  gerado_em: string;
+  horizonte_horas: number;
+  intervalo_minutos: number;
+  timestamps: string[];
+  sensores: IaPrevisaoSensor[];
+}

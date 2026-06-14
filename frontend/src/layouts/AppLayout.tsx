@@ -19,6 +19,10 @@ import {
   FileCode2,
   Eye,
   Map,
+  BrainCircuit,
+  Sparkles,
+  CalendarClock,
+  Globe2,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -39,6 +43,7 @@ export default function AppLayout() {
   const [adminExpanded, setAdminExpanded] = useState(false);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
   const [esquematicosExpanded, setEsquematicosExpanded] = useState(false);
+  const [iaExpanded, setIaExpanded] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -56,6 +61,11 @@ export default function AppLayout() {
       to: '/relatorios',
       label: t('nav.relatorios'),
       icon: <BarChart2 size={18} />,
+    },
+    {
+      to: '/ia/previsao',
+      label: t('nav.ia_previsao'),
+      icon: <Sparkles size={18} />,
     },
     {
       to: '/exportacao',
@@ -162,6 +172,47 @@ export default function AppLayout() {
             {item.label}
           </NavLink>
         ))}
+
+        {(isAdminGeral || isAdminEmpresa) && (
+          <div className="pt-3">
+            <button
+              onClick={() => setIaExpanded(!iaExpanded)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 tracking-wider hover:text-gray-600 transition-colors"
+            >
+              <span className="flex items-center gap-2"><BrainCircuit size={13} />{t('nav.ia_gestao')}</span>
+              <ChevronDown
+                size={14}
+                className={`transition-transform ${iaExpanded ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {iaExpanded && (
+              <div className="mt-1 space-y-1">
+                <NavLink
+                  to="/ia/treinamento-global"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Globe2 size={16} />{t('nav.ia_treinamento_global')}
+                </NavLink>
+                <NavLink
+                  to="/ia/treinamento-diario"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <CalendarClock size={16} />{t('nav.ia_treinamento_diario')}
+                </NavLink>
+              </div>
+            )}
+          </div>
+        )}
 
         {showAdminSection && visibleAdminItems.length > 0 && (
           <div className="pt-3">

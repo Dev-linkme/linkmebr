@@ -10,7 +10,11 @@
     "admin": "Administração",
     "cadastros": "Consultar Configurações",
     "saude_sistema": "Saúde Do Sistema",
-    "exportacao": "Exportação"
+    "exportacao": "Exportação",
+    "ia_gestao": "Gestão do Modelo de IA",
+    "ia_treinamento_global": "Treinamento Global",
+    "ia_treinamento_diario": "Treinamento Diário",
+    "ia_previsao": "Previsão IA"
   },
   "cadastros": {
     "empresas": "Empresas",

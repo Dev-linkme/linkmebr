@@ -16,6 +16,8 @@ import CadastrosPage from './pages/CadastrosPage';
 import SaudeSistemaPage from './pages/SaudeSistemaPage';
 import ExportacaoPage from './pages/ExportacaoPage';
 import EsquematicoPage from './pages/EsquematicoPage';
+import IaTreinamentoPage from './pages/IaTreinamentoPage';
+import IaPrevisaoPage from './pages/IaPrevisaoPage';
 
 export default function App() {
   return (
@@ -132,6 +134,41 @@ export default function App() {
         }
       >
         <Route index element={<ExportacaoPage />} />
+      </Route>
+
+      {/* IA — Previsão (todos os perfis) */}
+      <Route
+        path="/ia/previsao"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<IaPrevisaoPage />} />
+      </Route>
+
+      {/* IA — Treinamento (administrador_empresa + administrador_geral) */}
+      <Route
+        path="/ia/treinamento-global"
+        element={
+          <ProtectedRoute perfis={['administrador_geral', 'administrador_empresa']}>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<IaTreinamentoPage modo="full" />} />
+      </Route>
+
+      <Route
+        path="/ia/treinamento-diario"
+        element={
+          <ProtectedRoute perfis={['administrador_geral', 'administrador_empresa']}>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<IaTreinamentoPage modo="incremental" />} />
       </Route>
 
       {/* Cadastros — visualização hierárquica (todos os perfis autenticados) */}

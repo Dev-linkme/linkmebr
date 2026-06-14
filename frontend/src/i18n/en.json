@@ -8,7 +8,11 @@
     "silos": "Silos",
     "relatorios": "Readings",
     "admin": "Administration",
-    "cadastros": "Records"
+    "cadastros": "Records",
+    "ia_gestao": "AI Model Management",
+    "ia_treinamento_global": "Global Training",
+    "ia_treinamento_diario": "Daily Training",
+    "ia_previsao": "AI Forecast"
   },
   "cadastros": {
     "empresas": "Companies",

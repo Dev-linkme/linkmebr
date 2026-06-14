@@ -8,7 +8,11 @@
     "silos": "Silos",
     "relatorios": "Lecturas",
     "admin": "Administración",
-    "cadastros": "Registros"
+    "cadastros": "Registros",
+    "ia_gestao": "Gestión del Modelo de IA",
+    "ia_treinamento_global": "Entrenamiento Global",
+    "ia_treinamento_diario": "Entrenamiento Diario",
+    "ia_previsao": "Pronóstico IA"
   },
   "cadastros": {
     "empresas": "Empresas",
