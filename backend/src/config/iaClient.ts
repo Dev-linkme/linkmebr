@@ -6,8 +6,8 @@ const CACHE_KEY = 'ia:ingest_token';
 const TTL_SECONDS = 3500;
 
 export async function getIngestTokenCached(): Promise<string> {
-  if (!env.INGEST_BASE_URL || !env.INGEST_IA_CLIENT_ID || !env.INGEST_IA_CLIENT_SECRET) {
-    throw new Error('Serviço de IA não configurado (INGEST_BASE_URL, INGEST_IA_CLIENT_ID, INGEST_IA_CLIENT_SECRET)');
+  if (!env.INGEST_BASE_URL || !env.INGEST_CLIENT_ID || !env.INGEST_CLIENT_SECRET) {
+    throw new Error('Serviço de IA não configurado (INGEST_BASE_URL, INGEST_CLIENT_ID, INGEST_CLIENT_SECRET)');
   }
 
   const cached = await redis.get(CACHE_KEY);
@@ -15,7 +15,7 @@ export async function getIngestTokenCached(): Promise<string> {
 
   const { data } = await axios.post(
     `${env.INGEST_BASE_URL}/v1/ingest/auth/token`,
-    { client_id: env.INGEST_IA_CLIENT_ID, client_secret: env.INGEST_IA_CLIENT_SECRET },
+    { client_id: env.INGEST_CLIENT_ID, client_secret: env.INGEST_CLIENT_SECRET },
     { timeout: 10_000 },
   );
 
