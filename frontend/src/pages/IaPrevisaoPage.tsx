@@ -180,18 +180,20 @@ function PrevisaoChart({
             label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip
             labelFormatter={(v) => formatTimestamp(String(v))}
-            formatter={(val, name: string) => {
-              const isPrevisao = name.startsWith('p_');
-              const sId = Number(name.replace(/^[rp]_/, ''));
+            formatter={(val, name) => {
+              const n = String(name ?? '');
+              const isPrevisao = n.startsWith('p_');
+              const sId = Number(n.replace(/^[rp]_/, ''));
               const meta = findMeta(sId);
               const label = `${sensorLabel(meta)} — ${isPrevisao ? 'Previsão IA' : 'Real'}`;
               return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, label];
             }}
           />
           <Legend
-            formatter={(v: string) => {
-              const isPrevisao = v.startsWith('p_');
-              const sId = Number(v.replace(/^[rp]_/, ''));
+            formatter={(v) => {
+              const n = String(v ?? '');
+              const isPrevisao = n.startsWith('p_');
+              const sId = Number(n.replace(/^[rp]_/, ''));
               const meta = findMeta(sId);
               return `${sensorLabel(meta)} (${isPrevisao ? 'Previsão' : 'Real'})`;
             }}
