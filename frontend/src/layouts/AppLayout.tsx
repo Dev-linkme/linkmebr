@@ -20,6 +20,7 @@ import {
   Eye,
   Map,
   BrainCircuit,
+  RotateCcw,
   Sparkles,
   CalendarClock,
   Globe2,
@@ -209,6 +210,19 @@ export default function AppLayout() {
                 >
                   <CalendarClock size={16} />{t('nav.ia_treinamento_diario')}
                 </NavLink>
+                {isAdminGeral && (
+                  <NavLink
+                    to="/ia/bootstrap"
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-red-50 hover:text-red-700'
+                      }`
+                    }
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <RotateCcw size={16} />{t('nav.ia_bootstrap')}
+                  </NavLink>
+                )}
               </div>
             )}
           </div>

@@ -171,6 +171,17 @@ export default function App() {
         <Route index element={<IaTreinamentoPage modo="incremental" />} />
       </Route>
 
+      <Route
+        path="/ia/bootstrap"
+        element={
+          <ProtectedRoute perfis={['administrador_geral']}>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<IaTreinamentoPage modo="bootstrap" />} />
+      </Route>
+
       {/* Cadastros — visualização hierárquica (todos os perfis autenticados) */}
       <Route
         path="/cadastros"

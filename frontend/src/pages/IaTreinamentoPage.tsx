@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BrainCircuit, RefreshCw, PlusCircle, AlertCircle } from 'lucide-react';
+import { BrainCircuit, RefreshCw, PlusCircle, AlertCircle, TriangleAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import { getJobs, solicitarTreino } from '../services/ia';
@@ -53,16 +53,34 @@ function MaeCell({ value, unit }: { value: number | null; unit: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-interface Props { modo: 'full' | 'incremental'; }
+interface Props { modo: 'full' | 'incremental' | 'bootstrap'; }
+
+const MODO_CONFIG = {
+  full: {
+    titulo:   'Treinamento Global',
+    descricao: 'Preserva dados existentes, ingesta o delta a partir da última leitura registrada e retreina o modelo com todo o histórico acumulado.',
+    label:    'Global (full)',
+    confirma: 'retreino completo',
+  },
+  incremental: {
+    titulo:   'Treinamento Diário',
+    descricao: 'Preserva dados existentes, ingesta apenas as últimas 25h e aplica fine-tuning sobre o modelo ativo. Equivalente ao treino automático diário (00:30 UTC).',
+    label:    'Diário (incremental)',
+    confirma: 'treino incremental',
+  },
+  bootstrap: {
+    titulo:   'Bootstrap do Modelo',
+    descricao: 'Trunca todos os dados de IA e reingestão completa do histórico desde 2020. Use apenas quando as regras de sanitização ou filtros de barras foram alterados.',
+    label:    'Bootstrap',
+    confirma: 'BOOTSTRAP (operação destrutiva)',
+  },
+};
 
 export default function IaTreinamentoPage({ modo }: Props) {
   const { isAdminGeral, isAdminEmpresa } = useAuth();
   const isAdmin = isAdminGeral || isAdminEmpresa;
 
-  const titulo  = modo === 'full' ? 'Treinamento Global' : 'Treinamento Diário';
-  const descricao = modo === 'full'
-    ? 'Retreino completo do modelo com todo o histórico disponível.'
-    : 'Atualização incremental — equivalente ao treino automático diário das 00:30 UTC.';
+  const { titulo, descricao, label, confirma } = MODO_CONFIG[modo];
 
   const [silos,         setSilos]         = useState<Silo[]>([]);
   const [siloId,        setSiloId]        = useState('');
@@ -87,7 +105,7 @@ export default function IaTreinamentoPage({ modo }: Props) {
     try {
       const data = await getJobs(id, 100);
       const filtrados = data.jobs
-        .filter((j) => j.modo === modo || (modo === 'full' && j.modo === 'bootstrap'))
+        .filter((j) => j.modo === modo)
         .slice(0, 10);
       setJobs(filtrados);
     } catch {
@@ -140,6 +158,15 @@ export default function IaTreinamentoPage({ modo }: Props) {
       </div>
 
       {/* Controles */}
+      {modo === 'bootstrap' && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-800">
+          <TriangleAlert size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold">Operação destrutiva.</span> O bootstrap trunca toda a tabela de leituras de IA e reingestão completa do histórico desde 2020. Use somente quando as regras de sanitização ou filtros de barras foram alterados.
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow p-4 flex flex-wrap items-end gap-4">
         <div className="flex-1 min-w-48">
           <label className="block text-xs font-medium text-gray-700 mb-1">Silo *</label>
@@ -180,7 +207,7 @@ export default function IaTreinamentoPage({ modo }: Props) {
           {isAdmin && confirmando && (
             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
               <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
-              <span className="text-sm text-amber-800">Confirmar {modo === 'full' ? 'retreino completo' : 'treino incremental'}?</span>
+              <span className="text-sm text-amber-800">Confirmar {confirma}?</span>
               <button
                 onClick={handleSolicitar}
                 disabled={solicitando}
@@ -226,7 +253,7 @@ export default function IaTreinamentoPage({ modo }: Props) {
             <h2 className="text-sm font-semibold text-gray-700">
               Últimos {jobs.length} treinamentos — {silos.find((s) => String(s.id) === siloId)?.nome ?? `Silo ${siloId}`}
             </h2>
-            <span className="text-xs text-gray-400">{modo === 'full' ? 'Modo: Global (full)' : 'Modo: Diário (incremental)'}</span>
+            <span className="text-xs text-gray-400">Modo: {label}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm">

@@ -45,7 +45,7 @@ export async function solicitarTreino(req: Request, res: Response, next: NextFun
   try {
     const { silo_id, modo } = req.body as { silo_id?: number; modo?: string };
     if (!silo_id || !modo) throw new AppError(400, 'silo_id e modo são obrigatórios');
-    if (!['full', 'incremental'].includes(modo)) throw new AppError(422, 'Modo inválido. Use full ou incremental');
+    if (!['full', 'incremental', 'bootstrap'].includes(modo)) throw new AppError(422, 'Modo inválido. Use full, incremental ou bootstrap');
     const { data } = await axios.post(
       ingestUrl('/v1/ia/treino'),
       { silo_id, modo },

@@ -12,7 +12,8 @@
     "ia_gestao": "Gestión del Modelo de IA",
     "ia_treinamento_global": "Entrenamiento Global",
     "ia_treinamento_diario": "Entrenamiento Diario",
-    "ia_previsao": "Pronóstico IA"
+    "ia_previsao": "Pronóstico IA",
+    "ia_bootstrap": "Bootstrap del Modelo"
   },
   "cadastros": {
     "empresas": "Empresas",

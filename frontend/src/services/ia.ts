@@ -6,7 +6,7 @@ export async function getJobs(siloId: number | string, limit = 100): Promise<IaJ
   return res.data;
 }
 
-export async function solicitarTreino(siloId: number | string, modo: 'full' | 'incremental') {
+export async function solicitarTreino(siloId: number | string, modo: 'full' | 'incremental' | 'bootstrap') {
   const res = await api.post('/ia/treino', { silo_id: Number(siloId), modo });
   return res.data;
 }
