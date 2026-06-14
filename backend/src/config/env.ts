@@ -9,9 +9,9 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('8h'),
   PORT: z.coerce.number().default(8080),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  IA_BASE_URL: z.string().default(''),
-  IA_JWT_SECRET: z.string().default(''),
-  IA_JWT_ALGORITHM: z.enum(['HS256', 'HS384', 'HS512']).default('HS256'),
+  INGEST_BASE_URL: z.string().default(''),
+  INGEST_IA_CLIENT_ID: z.string().default(''),
+  INGEST_IA_CLIENT_SECRET: z.string().default(''),
 });
 
 export const env = envSchema.parse(process.env);
