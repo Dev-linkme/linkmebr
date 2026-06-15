@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea,
 } from 'recharts';
 import Papa from 'papaparse';
 import toast from 'react-hot-toast';
@@ -15,6 +15,30 @@ import type { Silo, Barra, Sensor, LeituraInterna, Regra } from '../types/index'
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LINE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
+const GAP_THRESHOLD_MS = 15 * 60 * 1000;
+
+interface GapInfo { x1: string; x2: string; durationH: number }
+
+function detectGapsAndInject(buckets: string[]): { enriched: string[]; gaps: GapInfo[] } {
+  const enriched: string[] = [];
+  const gaps: GapInfo[] = [];
+  for (let i = 0; i < buckets.length; i++) {
+    enriched.push(buckets[i]);
+    if (i < buckets.length - 1) {
+      const curr = new Date(buckets[i]).getTime();
+      const next = new Date(buckets[i + 1]).getTime();
+      if (next - curr > GAP_THRESHOLD_MS) {
+        const n1 = new Date(curr + 1000).toISOString();
+        const n2 = new Date(next - 1000).toISOString();
+        enriched.push(n1);
+        enriched.push(n2);
+        gaps.push({ x1: n1, x2: n2, durationH: Math.round((next - curr) / 3_600_000) });
+      }
+    }
+  }
+  return { enriched, gaps };
+}
 
 type GrandezaTipo = 'temperatura' | 'umidade' | 'co2' | 'rele';
 const GRANDEZA_LABELS: Record<GrandezaTipo, string> = {
@@ -118,8 +142,9 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
   valor: ValorTipo; unidade: string;
 }) {
   if (sensores.length === 0 || series.length === 0) return null;
-  const buckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
-  const chartData = buckets.map((bucket) => {
+  const sortedBuckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
+  const { enriched, gaps } = detectGapsAndInject(sortedBuckets);
+  const chartData = enriched.map((bucket) => {
     const row: Record<string, unknown> = { bucket };
     sensores.forEach((s) => {
       const p = series.find((d) => d.bucket === bucket && d.sensor_id === s.id);
@@ -132,20 +157,33 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
   );
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      {titulo && <h3 className="text-sm font-semibold text-gray-700 mb-3">{titulo}</h3>}
+      <div className="flex items-center justify-between mb-3">
+        {titulo && <h3 className="text-sm font-semibold text-gray-700">{titulo}</h3>}
+        {gaps.length > 0 && (
+          <span className="text-xs text-amber-600 font-medium ml-auto">
+            ⚠ {gaps.length} gap{gaps.length > 1 ? 's' : ''} de dados
+          </span>
+        )}
+      </div>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
+            if (val == null) return ['Sem dados', ''];
             const s = sensores.find((x) => String(x.id) === String(name));
             return [`${typeof val === 'number' ? fmtSensor(val, s?.tipo_grandeza ?? '') : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
           }} />
           <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
+          {gaps.map((gap, i) => (
+            <ReferenceArea key={i} x1={gap.x1} x2={gap.x2}
+              fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.5)" strokeDasharray="3 3"
+              label={{ value: `sem dados (${gap.durationH}h)`, position: 'insideTop', fontSize: 10, fill: '#9ca3af' }} />
+          ))}
           {sensores.map((s, idx) => (
             <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
-              dot={false} strokeWidth={2} connectNulls />
+              dot={false} strokeWidth={2} connectNulls={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -162,8 +200,9 @@ function SingleSensorChart({ sensor, series, unidade }: {
 }) {
   const mine = series.filter((d) => d.sensor_id === sensor.id);
   if (mine.length === 0) return null;
-  const buckets = Array.from(new Set(mine.map((d) => d.bucket))).sort();
-  const chartData = buckets.map((bucket) => {
+  const sortedBuckets = Array.from(new Set(mine.map((d) => d.bucket))).sort();
+  const { enriched, gaps } = detectGapsAndInject(sortedBuckets);
+  const chartData = enriched.map((bucket) => {
     const row: Record<string, unknown> = { bucket };
     const p = mine.find((d) => d.bucket === bucket);
     if (p) { row.avg = p.avg; row.max = p.max; row.min = p.min; }
@@ -174,22 +213,35 @@ function SingleSensorChart({ sensor, series, unidade }: {
   );
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">
-        {sensorLabel(sensor)}{unidade ? ` — ${unidade}` : ''}
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700">
+          {sensorLabel(sensor)}{unidade ? ` — ${unidade}` : ''}
+        </h3>
+        {gaps.length > 0 && (
+          <span className="text-xs text-amber-600 font-medium">
+            ⚠ {gaps.length} gap{gaps.length > 1 ? 's' : ''} de dados
+          </span>
+        )}
+      </div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
           <YAxis tick={{ fontSize: 11 }} domain={yDomain} label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
           <Tooltip labelFormatter={(v) => formatTimestamp(String(v))} formatter={(val, name) => {
+            if (val == null) return ['Sem dados', ''];
             const labels: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' };
             return [`${typeof val === 'number' ? fmtSensor(val, sensor.tipo_grandeza) : val} ${unidade}`, labels[String(name)] ?? String(name)];
           }} />
           <Legend formatter={(v) => { const l: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' }; return l[String(v)] ?? String(v); }} />
-          <Line type="monotone" dataKey="avg" stroke={SENSOR_METRIC_COLORS.avg} strokeWidth={2} dot={false} connectNulls />
-          <Line type="monotone" dataKey="max" stroke={SENSOR_METRIC_COLORS.max} strokeWidth={1.5} dot={false} connectNulls />
-          <Line type="monotone" dataKey="min" stroke={SENSOR_METRIC_COLORS.min} strokeWidth={1.5} dot={false} connectNulls />
+          {gaps.map((gap, i) => (
+            <ReferenceArea key={i} x1={gap.x1} x2={gap.x2}
+              fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.5)" strokeDasharray="3 3"
+              label={{ value: `sem dados (${gap.durationH}h)`, position: 'insideTop', fontSize: 10, fill: '#9ca3af' }} />
+          ))}
+          <Line type="monotone" dataKey="avg" stroke={SENSOR_METRIC_COLORS.avg} strokeWidth={2} dot={false} connectNulls={false} />
+          <Line type="monotone" dataKey="max" stroke={SENSOR_METRIC_COLORS.max} strokeWidth={1.5} dot={false} connectNulls={false} />
+          <Line type="monotone" dataKey="min" stroke={SENSOR_METRIC_COLORS.min} strokeWidth={1.5} dot={false} connectNulls={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
