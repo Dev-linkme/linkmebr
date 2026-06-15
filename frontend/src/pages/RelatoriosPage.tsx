@@ -16,11 +16,19 @@ import type { Silo, Barra, Sensor, LeituraInterna, Regra } from '../types/index'
 
 const LINE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-const GAP_THRESHOLD_MS = 15 * 60 * 1000;
-
 interface GapInfo { x1: string; x2: string; durationH: number }
 
 function detectGapsAndInject(buckets: string[]): { enriched: string[]; gaps: GapInfo[] } {
+  if (buckets.length < 2) return { enriched: [...buckets], gaps: [] };
+
+  // Calcula intervalo mediano para threshold adaptativo (3× mediana, mínimo 15 min)
+  const intervals = buckets.slice(1)
+    .map((b, i) => new Date(b).getTime() - new Date(buckets[i]).getTime())
+    .filter((d) => d > 0)
+    .sort((a, b) => a - b);
+  const median = intervals[Math.floor(intervals.length / 2)] ?? 15 * 60 * 1000;
+  const threshold = Math.max(median * 3, 15 * 60 * 1000);
+
   const enriched: string[] = [];
   const gaps: GapInfo[] = [];
   for (let i = 0; i < buckets.length; i++) {
@@ -28,12 +36,12 @@ function detectGapsAndInject(buckets: string[]): { enriched: string[]; gaps: Gap
     if (i < buckets.length - 1) {
       const curr = new Date(buckets[i]).getTime();
       const next = new Date(buckets[i + 1]).getTime();
-      if (next - curr > GAP_THRESHOLD_MS) {
-        const n1 = new Date(curr + 1000).toISOString();
-        const n2 = new Date(next - 1000).toISOString();
-        enriched.push(n1);
-        enriched.push(n2);
-        gaps.push({ x1: n1, x2: n2, durationH: Math.round((next - curr) / 3_600_000) });
+      if (next - curr > threshold) {
+        // Insere dois pontos null para quebrar a linha
+        enriched.push(new Date(curr + 1000).toISOString());
+        enriched.push(new Date(next - 1000).toISOString());
+        // ReferenceArea usa os buckets reais como fronteiras
+        gaps.push({ x1: buckets[i], x2: buckets[i + 1], durationH: Math.round((next - curr) / 3_600_000) });
       }
     }
   }
@@ -178,8 +186,7 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
           <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
           {gaps.map((gap, i) => (
             <ReferenceArea key={i} x1={gap.x1} x2={gap.x2}
-              fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.5)" strokeDasharray="3 3"
-              label={{ value: `sem dados (${gap.durationH}h)`, position: 'insideTop', fontSize: 10, fill: '#9ca3af' }} />
+              fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.4)" strokeDasharray="3 3" />
           ))}
           {sensores.map((s, idx) => (
             <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
@@ -236,8 +243,7 @@ function SingleSensorChart({ sensor, series, unidade }: {
           <Legend formatter={(v) => { const l: Record<string, string> = { avg: 'Média', max: 'Máximo', min: 'Mínimo' }; return l[String(v)] ?? String(v); }} />
           {gaps.map((gap, i) => (
             <ReferenceArea key={i} x1={gap.x1} x2={gap.x2}
-              fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.5)" strokeDasharray="3 3"
-              label={{ value: `sem dados (${gap.durationH}h)`, position: 'insideTop', fontSize: 10, fill: '#9ca3af' }} />
+              fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.4)" strokeDasharray="3 3" />
           ))}
           <Line type="monotone" dataKey="avg" stroke={SENSOR_METRIC_COLORS.avg} strokeWidth={2} dot={false} connectNulls={false} />
           <Line type="monotone" dataKey="max" stroke={SENSOR_METRIC_COLORS.max} strokeWidth={1.5} dot={false} connectNulls={false} />
