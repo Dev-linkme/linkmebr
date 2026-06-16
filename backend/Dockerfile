@@ -13,7 +13,7 @@ RUN npx prisma generate
 
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build
+RUN npm run build && npm prune --omit=dev --ignore-scripts
 
 # ── Stage 2: Production ───────────────────────────────────────────────────────
 FROM node:20-slim AS production
@@ -25,8 +25,6 @@ ENV NODE_ENV=production
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
-RUN npm prune --omit=dev --ignore-scripts
-
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 8080
