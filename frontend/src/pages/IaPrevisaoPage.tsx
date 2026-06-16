@@ -68,11 +68,13 @@ function sensorLabel(s: { identificacao: string; barra_identificacao: string; al
   return `${s.barra_identificacao} - ${s.identificacao} (${s.altura_solo_m}m)`;
 }
 function yDomainFrom(values: (number | undefined | null)[]): [number, number] {
-  const nums = values.filter((v): v is number => v != null);
-  const yMin = nums.length > 0 ? Math.min(...nums) : 0;
-  const yMax = nums.length > 0 ? Math.max(...nums) : 100;
-  const yPad = Math.max((yMax - yMin) * 0.1, 0.5);
-  return [Math.floor((yMin - yPad) * 10) / 10, Math.ceil((yMax + yPad) * 10) / 10];
+  const nums = values.filter((v): v is number => v != null && !isNaN(v) && isFinite(v));
+  if (nums.length === 0) return [0, 100];
+  const yMin = Math.min(...nums);
+  const yMax = Math.max(...nums);
+  const range = yMax - yMin;
+  const yPad = Math.max(range * 0.15, 2);
+  return [Math.floor(yMin - yPad), Math.ceil(yMax + yPad)];
 }
 
 // Mescla dados reais e previsão numa linha de tempo unificada.
@@ -176,12 +178,12 @@ function PrevisaoChart({
         <span className="flex items-center gap-1"><span className="inline-block w-6 border-t-2 border-gray-700" /> Leitura real</span>
         <span className="flex items-center gap-1"><span className="inline-block w-6 border-t-2 border-dashed border-gray-700" /> Previsão IA</span>
       </div>
-      <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={chartData} margin={{ top: 4, right: 24, left: 16, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="ts" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={60} />
-          <YAxis tick={{ fontSize: 11 }} domain={yDomain}
-            label={{ value: unidade, angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
+          <YAxis width={60} tick={{ fontSize: 11 }} domain={yDomain}
+            label={{ value: unidade, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11 } }} />
           <Tooltip
             labelFormatter={(v) => formatTimestamp(String(v))}
             formatter={(val, name) => {
