@@ -24,10 +24,10 @@ ENV NODE_ENV=production
 
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
-RUN npm ci --omit=dev --ignore-scripts
+COPY --from=builder /app/node_modules ./node_modules
+RUN npm prune --omit=dev --ignore-scripts
 
-COPY prisma ./prisma
+COPY --from=builder /app/prisma ./prisma
 RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
