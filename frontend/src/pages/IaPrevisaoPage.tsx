@@ -77,14 +77,20 @@ function yDomainFrom(values: (number | undefined | null)[]): [number, number] {
   return [Math.floor(yMin - yPad), Math.ceil(yMax + yPad)];
 }
 
+// Chave composta para mapeamento previsão → sensor real.
+// sensor_id da previsão é id_labrador do sensor, mas só é único dentro de uma barra.
+function barraSensorKey(barraIdLabrador: number, sensorIdLabrador: number): string {
+  return `${barraIdLabrador}_${sensorIdLabrador}`;
+}
+
 // Mescla dados reais e previsão numa linha de tempo unificada.
-// Normaliza os sensor_id da previsão (id_labrador) para IDs internos via sensorByIdLabrador.
+// Normaliza os sensor_id da previsão (id_labrador) para IDs internos via sensorByBarraSensor.
 function buildChartData(
   realSeries: GraficoSerie[],
   realSensores: GraficoSensor[],
   previsoes: IaPrevisoes | null,
   prevSensoresFiltrados: IaPrevisoes['sensores'],
-  sensorByIdLabrador: Map<number, GraficoSensor>,
+  sensorByBarraSensor: Map<string, GraficoSensor>,
 ): ChartPoint[] {
   const map = new Map<string, Record<string, number>>();
 
@@ -102,7 +108,7 @@ function buildChartData(
   if (previsoes) {
     previsoes.timestamps.forEach((ts, i) => {
       prevSensoresFiltrados.forEach((s) => {
-        const internalSensor = sensorByIdLabrador.get(s.sensor_id);
+        const internalSensor = sensorByBarraSensor.get(barraSensorKey(s.barra_id, s.sensor_id));
         if (!internalSensor) return;
         set(ts, `p_${internalSensor.id}`, s.valores[i]);
       });
@@ -409,10 +415,13 @@ export default function IaPrevisaoPage() {
     realSensoresFiltrados.some((x) => x.id === s.sensor_id)
   );
 
-  // Mapas para conexão previsão ↔ sensores reais via id_labrador
-  const sensorByIdLabrador = new Map<number, GraficoSensor>();
+  // Mapa composto (barra_id_labrador + sensor_id_labrador) → sensor real interno.
+  // sensor_id da previsão só é único dentro de uma barra, nunca globalmente.
+  const sensorByBarraSensor = new Map<string, GraficoSensor>();
   (grafico?.sensores ?? []).forEach((s) => {
-    if (s.id_labrador != null) sensorByIdLabrador.set(s.id_labrador, s);
+    if (s.id_labrador != null && s.barra_id_labrador != null) {
+      sensorByBarraSensor.set(barraSensorKey(s.barra_id_labrador, s.id_labrador), s);
+    }
   });
   const barraIdLabradorAtivos = new Set(
     barras.map((b) => b.id_labrador).filter((v): v is number => v != null)
@@ -421,17 +430,17 @@ export default function IaPrevisaoPage() {
   const prevSensoresFiltrados = (previsoes?.sensores ?? []).filter((s) =>
     s.tipo_grandeza === grandeza &&
     barraIdLabradorAtivos.has(s.barra_id) &&
-    sensorByIdLabrador.has(s.sensor_id)
+    sensorByBarraSensor.has(barraSensorKey(s.barra_id, s.sensor_id))
   );
   // Normaliza prevSensores: substitui id_labrador por IDs internos para agrupamentos
   const prevSensoresNorm = prevSensoresFiltrados.map((s) => {
-    const interno = sensorByIdLabrador.get(s.sensor_id);
+    const interno = sensorByBarraSensor.get(barraSensorKey(s.barra_id, s.sensor_id));
     return { ...s, sensor_id: interno?.id ?? s.sensor_id, barra_id: interno?.barra_id ?? s.barra_id };
   });
 
   const unidade = realSensoresFiltrados[0]?.unidade_medida ?? (grandeza === 'temperatura' ? '°C' : grandeza === 'umidade' ? '%' : 'ppm');
 
-  const chartData = buildChartData(realSeriesFiltradas, realSensoresFiltrados, previsoes, prevSensoresFiltrados, sensorByIdLabrador);
+  const chartData = buildChartData(realSeriesFiltradas, realSensoresFiltrados, previsoes, prevSensoresFiltrados, sensorByBarraSensor);
 
   const grandezasComDados = new Set([
     ...(grafico?.sensores ?? []).map((s) => s.tipo_grandeza),
