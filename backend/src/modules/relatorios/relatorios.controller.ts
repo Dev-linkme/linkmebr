@@ -233,7 +233,8 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
       where: { id: { in: sensorIds } },
       select: {
         id: true, identificacao: true, tipo_grandeza: true, unidade_medida: true, altura_solo_m: true,
-        barra: { select: { id: true, identificacao: true } },
+        id_labrador: true,
+        barra: { select: { id: true, identificacao: true, id_labrador: true } },
       },
       orderBy: { id: 'asc' },
     });
@@ -248,11 +249,13 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
       })),
       sensores: sensores.map((s) => ({
         id: s.id,
+        id_labrador: s.id_labrador ?? null,
         identificacao: s.identificacao,
         tipo_grandeza: s.tipo_grandeza,
         unidade_medida: s.unidade_medida,
         altura_solo_m: Number(s.altura_solo_m),
         barra_id: s.barra.id,
+        barra_id_labrador: s.barra.id_labrador ?? null,
         barra_identificacao: s.barra.identificacao,
       })),
     });
@@ -502,7 +505,8 @@ export async function buscarGraficoExterno(
       where: { id: { in: sensorIds } },
       select: {
         id: true, identificacao: true, tipo_grandeza: true, unidade_medida: true, altura_solo_m: true,
-        barra: { select: { id: true, identificacao: true } },
+        id_labrador: true,
+        barra: { select: { id: true, identificacao: true, id_labrador: true } },
       },
       orderBy: { id: 'asc' },
     });
@@ -517,11 +521,13 @@ export async function buscarGraficoExterno(
       })),
       sensores: sensores.map((s) => ({
         id: s.id,
+        id_labrador: s.id_labrador ?? null,
         identificacao: s.identificacao,
         tipo_grandeza: s.tipo_grandeza,
         unidade_medida: s.unidade_medida,
         altura_solo_m: Number(s.altura_solo_m),
         barra_id: s.barra.id,
+        barra_id_labrador: s.barra.id_labrador ?? null,
         barra_identificacao: s.barra.identificacao,
       })),
     });

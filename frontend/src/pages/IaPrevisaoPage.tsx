@@ -36,9 +36,9 @@ interface FiltrosForm { silo_id: string; barra_id: string; sensor_id: string; }
 
 interface GraficoSerie   { sensor_id: number; bucket: string; avg: number; max: number; min: number; }
 interface GraficoSensor  {
-  id: number; identificacao: string; tipo_grandeza: GrandezaTipo;
+  id: number; id_labrador: number | null; identificacao: string; tipo_grandeza: GrandezaTipo;
   unidade_medida: string; altura_solo_m: number;
-  barra_id: number; barra_identificacao: string;
+  barra_id: number; barra_id_labrador: number | null; barra_identificacao: string;
 }
 interface GraficoResponse { series: GraficoSerie[]; sensores: GraficoSensor[]; }
 interface RelatorioResponse { dados: LeituraInterna[]; pagina: number; total_paginas: number; total: number; }
@@ -75,12 +75,14 @@ function yDomainFrom(values: (number | undefined | null)[]): [number, number] {
   return [Math.floor((yMin - yPad) * 10) / 10, Math.ceil((yMax + yPad) * 10) / 10];
 }
 
-// Mescla dados reais e previsão numa linha de tempo unificada
+// Mescla dados reais e previsão numa linha de tempo unificada.
+// Normaliza os sensor_id da previsão (id_labrador) para IDs internos via sensorByIdLabrador.
 function buildChartData(
   realSeries: GraficoSerie[],
   realSensores: GraficoSensor[],
   previsoes: IaPrevisoes | null,
   prevSensoresFiltrados: IaPrevisoes['sensores'],
+  sensorByIdLabrador: Map<number, GraficoSensor>,
 ): ChartPoint[] {
   const map = new Map<string, Record<string, number>>();
 
@@ -98,7 +100,9 @@ function buildChartData(
   if (previsoes) {
     previsoes.timestamps.forEach((ts, i) => {
       prevSensoresFiltrados.forEach((s) => {
-        set(ts, `p_${s.sensor_id}`, s.valores[i]);
+        const internalSensor = sensorByIdLabrador.get(s.sensor_id);
+        if (!internalSensor) return;
+        set(ts, `p_${internalSensor.id}`, s.valores[i]);
       });
     });
   }
@@ -402,10 +406,30 @@ export default function IaPrevisaoPage() {
   const realSeriesFiltradas   = (grafico?.series  ?? []).filter((s) =>
     realSensoresFiltrados.some((x) => x.id === s.sensor_id)
   );
-  const prevSensoresFiltrados = (previsoes?.sensores ?? []).filter((s) => s.tipo_grandeza === grandeza);
+
+  // Mapas para conexão previsão ↔ sensores reais via id_labrador
+  const sensorByIdLabrador = new Map<number, GraficoSensor>();
+  (grafico?.sensores ?? []).forEach((s) => {
+    if (s.id_labrador != null) sensorByIdLabrador.set(s.id_labrador, s);
+  });
+  const barraIdLabradorAtivos = new Set(
+    barras.map((b) => b.id_labrador).filter((v): v is number => v != null)
+  );
+
+  const prevSensoresFiltrados = (previsoes?.sensores ?? []).filter((s) =>
+    s.tipo_grandeza === grandeza &&
+    barraIdLabradorAtivos.has(s.barra_id) &&
+    sensorByIdLabrador.has(s.sensor_id)
+  );
+  // Normaliza prevSensores: substitui id_labrador por IDs internos para agrupamentos
+  const prevSensoresNorm = prevSensoresFiltrados.map((s) => {
+    const interno = sensorByIdLabrador.get(s.sensor_id);
+    return { ...s, sensor_id: interno?.id ?? s.sensor_id, barra_id: interno?.barra_id ?? s.barra_id };
+  });
+
   const unidade = realSensoresFiltrados[0]?.unidade_medida ?? (grandeza === 'temperatura' ? '°C' : grandeza === 'umidade' ? '%' : 'ppm');
 
-  const chartData = buildChartData(realSeriesFiltradas, realSensoresFiltrados, previsoes, prevSensoresFiltrados);
+  const chartData = buildChartData(realSeriesFiltradas, realSensoresFiltrados, previsoes, prevSensoresFiltrados, sensorByIdLabrador);
 
   const grandezasComDados = new Set([
     ...(grafico?.sensores ?? []).map((s) => s.tipo_grandeza),
@@ -427,7 +451,7 @@ export default function IaPrevisaoPage() {
       return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
     });
 
-  const temDadosGrafico = realSensoresFiltrados.length > 0 || prevSensoresFiltrados.length > 0;
+  const temDadosGrafico = realSensoresFiltrados.length > 0 || prevSensoresNorm.length > 0;
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -553,7 +577,7 @@ export default function IaPrevisaoPage() {
                       titulo={`${grandeza === 'temperatura' ? 'Temperatura' : grandeza === 'umidade' ? 'Umidade' : 'CO₂'}${unidade ? ` (${unidade})` : ''}`}
                       chartData={chartData}
                       realSensores={realSensoresFiltrados}
-                      prevSensores={prevSensoresFiltrados}
+                      prevSensores={prevSensoresNorm}
                       unidade={unidade}
                     />
                   )}
@@ -562,15 +586,18 @@ export default function IaPrevisaoPage() {
                   {agrupamento === 'barra' && (() => {
                     const barrasMap = new Map<number, string>();
                     realSensoresFiltrados.forEach((s) => barrasMap.set(s.barra_id, s.barra_identificacao));
-                    prevSensoresFiltrados.forEach((s) => {
-                      if (!barrasMap.has(s.barra_id)) barrasMap.set(s.barra_id, `Barra ${s.barra_id}`);
+                    prevSensoresNorm.forEach((s) => {
+                      if (!barrasMap.has(s.barra_id)) {
+                        const nome = realSensoresFiltrados.find((r) => r.barra_id === s.barra_id)?.barra_identificacao ?? `Barra ${s.barra_id}`;
+                        barrasMap.set(s.barra_id, nome);
+                      }
                     });
                     return [...barrasMap.entries()].map(([barraIdN, barraIdent]) => (
                       <PrevisaoChart key={barraIdN}
                         titulo={`${barraIdent} — ${grandeza === 'temperatura' ? 'Temperatura' : grandeza === 'umidade' ? 'Umidade' : 'CO₂'}${unidade ? ` (${unidade})` : ''}`}
                         chartData={chartData}
                         realSensores={realSensoresFiltrados.filter((s) => s.barra_id === barraIdN)}
-                        prevSensores={prevSensoresFiltrados.filter((s) => s.barra_id === barraIdN)}
+                        prevSensores={prevSensoresNorm.filter((s) => s.barra_id === barraIdN)}
                         unidade={unidade}
                       />
                     ));
@@ -580,11 +607,11 @@ export default function IaPrevisaoPage() {
                   {agrupamento === 'sensor' && (() => {
                     const allIds = [...new Set([
                       ...realSensoresFiltrados.map((s) => s.id),
-                      ...prevSensoresFiltrados.map((s) => s.sensor_id),
+                      ...prevSensoresNorm.map((s) => s.sensor_id),
                     ])];
                     return allIds.map((sId) => {
                       const real = realSensoresFiltrados.filter((s) => s.id === sId);
-                      const prev = prevSensoresFiltrados.filter((s) => s.sensor_id === sId);
+                      const prev = prevSensoresNorm.filter((s) => s.sensor_id === sId);
                       const meta = real[0] ?? { identificacao: `Sensor ${sId}`, barra_identificacao: `Barra ${prev[0]?.barra_id ?? '?'}`, altura_solo_m: prev[0]?.altura_solo_m ?? 0 };
                       return (
                         <PrevisaoChart key={sId}
@@ -602,14 +629,14 @@ export default function IaPrevisaoPage() {
                   {agrupamento === 'altura' && (() => {
                     const alts = [...new Set([
                       ...realSensoresFiltrados.map((s) => s.altura_solo_m),
-                      ...prevSensoresFiltrados.map((s) => s.altura_solo_m),
+                      ...prevSensoresNorm.map((s) => s.altura_solo_m),
                     ])].sort((a, b) => a - b);
                     return alts.map((alt) => (
                       <PrevisaoChart key={alt}
                         titulo={`${alt} m — ${grandeza === 'temperatura' ? 'Temperatura' : grandeza === 'umidade' ? 'Umidade' : 'CO₂'}${unidade ? ` (${unidade})` : ''}`}
                         chartData={chartData}
                         realSensores={realSensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
-                        prevSensores={prevSensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
+                        prevSensores={prevSensoresNorm.filter((s) => s.altura_solo_m === alt)}
                         unidade={unidade}
                       />
                     ));
