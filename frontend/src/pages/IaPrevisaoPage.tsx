@@ -68,12 +68,16 @@ function sensorLabel(s: { identificacao: string; barra_identificacao: string; al
   return `${s.barra_identificacao} - ${s.identificacao} (${s.altura_solo_m}m)`;
 }
 function yDomainFrom(values: (number | undefined | null)[]): [number, number] {
-  const nums = values.filter((v): v is number => v != null && !isNaN(v) && isFinite(v));
-  if (nums.length === 0) return [0, 100];
-  const yMin = Math.min(...nums);
-  const yMax = Math.max(...nums);
-  const range = yMax - yMin;
-  const yPad = Math.max(range * 0.15, 2);
+  let yMin = Infinity;
+  let yMax = -Infinity;
+  for (const v of values) {
+    if (v != null && !isNaN(v) && isFinite(v)) {
+      if (v < yMin) yMin = v;
+      if (v > yMax) yMax = v;
+    }
+  }
+  if (!isFinite(yMin)) return [0, 100];
+  const yPad = Math.max((yMax - yMin) * 0.15, 2);
   return [Math.floor(yMin - yPad), Math.ceil(yMax + yPad)];
 }
 
