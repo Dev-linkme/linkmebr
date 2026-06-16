@@ -21,12 +21,12 @@ const GRANDEZA_TABS: { key: GrandezaTipo; label: string }[] = [
   { key: 'co2',         label: 'CO₂' },
 ];
 type SubAba            = 'tabela' | 'grafico';
-type AgrupamentoGrafico = 'silo' | 'barra' | 'sensor' | 'altura';
+type AgrupamentoGrafico = 'barra' | 'sensor' | 'altura';
 type SortField          = 'valor_avg' | 'valor_max' | 'valor_min';
 type SortDir            = 'asc' | 'desc';
 
 const AGRUPAMENTO_LABELS: Record<AgrupamentoGrafico, string> = {
-  silo: 'Silo', barra: 'Cabo Pêndulo', sensor: 'Sensor', altura: 'Altura',
+  barra: 'Cabo Pêndulo', sensor: 'Sensor', altura: 'Altura',
 };
 const BRT = 'America/Sao_Paulo';
 
@@ -286,7 +286,7 @@ export default function IaPrevisaoPage() {
 
   const [grandeza,    setGrandeza]    = useState<GrandezaTipo>('temperatura');
   const [subAba,      setSubAba]      = useState<SubAba>('grafico');
-  const [agrupamento, setAgrupamento] = useState<AgrupamentoGrafico>('silo');
+  const [agrupamento, setAgrupamento] = useState<AgrupamentoGrafico>('barra');
 
   const [previsoes,    setPrevisoes]    = useState<IaPrevisoes | null>(null);
   const [grafico,      setGrafico]      = useState<GraficoResponse | null>(null);
@@ -578,24 +578,13 @@ export default function IaPrevisaoPage() {
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-500">Agrupar por:</span>
                     <div className="flex rounded-lg overflow-hidden border border-gray-200">
-                      {(['silo', 'barra', 'sensor', 'altura'] as AgrupamentoGrafico[]).map((ag) => (
+                      {(['barra', 'sensor', 'altura'] as AgrupamentoGrafico[]).map((ag) => (
                         <button key={ag} type="button" onClick={() => setAgrupamento(ag)} className={btnGroupCls(agrupamento === ag)}>
                           {AGRUPAMENTO_LABELS[ag]}
                         </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* Silo: um gráfico com todos os sensores */}
-                  {agrupamento === 'silo' && (
-                    <PrevisaoChart
-                      titulo={`${grandeza === 'temperatura' ? 'Temperatura' : grandeza === 'umidade' ? 'Umidade' : 'CO₂'}${unidade ? ` (${unidade})` : ''}`}
-                      chartData={chartData}
-                      realSensores={realSensoresFiltrados}
-                      prevSensores={prevSensoresNorm}
-                      unidade={unidade}
-                    />
-                  )}
 
                   {/* Barra: um gráfico por barra */}
                   {agrupamento === 'barra' && (() => {
