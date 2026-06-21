@@ -18,6 +18,7 @@ import ExportacaoPage from './pages/ExportacaoPage';
 import EsquematicoPage from './pages/EsquematicoPage';
 import IaTreinamentoPage from './pages/IaTreinamentoPage';
 import IaPrevisaoPage from './pages/IaPrevisaoPage';
+import LabradorPage from './pages/LabradorPage';
 
 export default function App() {
   return (
@@ -110,6 +111,18 @@ export default function App() {
         }
       >
         <Route index element={<ContatosPage />} />
+      </Route>
+
+      {/* Admin — Comando Remoto (Labrador): administrador_geral only */}
+      <Route
+        path="/admin/labrador"
+        element={
+          <ProtectedRoute perfis={['administrador_geral']}>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<LabradorPage />} />
       </Route>
 
       {/* Saúde do Sistema — todos os perfis autenticados */}

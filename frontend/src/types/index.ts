@@ -185,3 +185,41 @@ export interface IaPrevisoes {
   timestamps: string[];
   sensores: IaPrevisaoSensor[];
 }
+
+export type LabradorComandoStatus =
+  | 'pendente'
+  | 'ok'
+  | 'falha_validacao'
+  | 'falha_execucao'
+  | 'comando_id_desconhecido'
+  | 'node_desconhecido'
+  | 'timeout';
+
+export interface ComandoResponse {
+  request_id: string;
+  silo_id: number;
+  comando_id: number;
+  parametro: number | null;
+  parametro_extra: string | null;
+  tipo: 'lora' | 'sistema' | 'banco' | null;
+  status: LabradorComandoStatus;
+  resultado: string | Record<string, unknown> | null;
+  returncode: number | null;
+  solicitado_em: string;
+  concluido_em: string | null;
+}
+
+export type FirmwareCategoria = 'DTG01-04' | 'DTG05';
+
+export interface FirmwareInfo {
+  file_name: string;
+  categoria: FirmwareCategoria;
+  tamanho_bytes: number;
+  sha256: string;
+  descricao: string | null;
+  uploaded_em: string;
+}
+
+export interface FirmwaresResponse {
+  firmwares: FirmwareInfo[];
+}

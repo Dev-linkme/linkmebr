@@ -24,6 +24,7 @@ import {
   Sparkles,
   CalendarClock,
   Globe2,
+  Radio,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -104,6 +105,12 @@ export default function AppLayout() {
       to: '/admin/contatos',
       label: t('admin.contatos'),
       icon: <MessageSquare size={16} />,
+      perfis: ['administrador_geral'],
+    },
+    {
+      to: '/admin/labrador',
+      label: t('admin.labrador'),
+      icon: <Radio size={16} />,
       perfis: ['administrador_geral'],
     },
     {

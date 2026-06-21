@@ -20,6 +20,7 @@ import { contatoPublicoRoutes, contatoAdminRoutes } from './modules/contato/cont
 import { exportRoutes } from './modules/export/export.routes';
 import { esquematicosRoutes } from './modules/esquematicos/esquematicos.routes';
 import { iaRoutes } from './modules/ia/ia.routes';
+import { labradorRoutes, firmwaresRoutes } from './modules/labrador/labrador.routes';
 
 const app = express();
 
@@ -94,6 +95,8 @@ api.use('/admin/contatos', contatoAdminRoutes);
 api.use('/export', exportRoutes);
 api.use('/silos/:id/esquematicos', esquematicosRoutes);
 api.use('/ia', iaRoutes);
+api.use('/labrador', labradorRoutes);
+api.use('/firmwares', firmwaresRoutes);
 
 app.use('/api/v1', api);
 
