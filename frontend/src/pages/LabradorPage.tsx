@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Radio, RefreshCw, PlusCircle, AlertCircle, RotateCcw, HardDrive,
-  Database, Power, PowerOff, UploadCloud, Cpu,
+  Database, Power, PowerOff, UploadCloud, Cpu, Eye, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -81,6 +81,57 @@ function resultadoPreview(c: ComandoResponse): string {
   return JSON.stringify(c.resultado);
 }
 
+// ─── Modal de Visualização ────────────────────────────────────────────────────
+
+function ComandoDetalheModal({ comando, onClose }: { comando: ComandoResponse; onClose: () => void }) {
+  const cfg = COMANDO_CFG[comando.comando_id];
+  const resultadoTexto = comando.resultado == null
+    ? '—'
+    : typeof comando.resultado === 'string'
+      ? comando.resultado
+      : JSON.stringify(comando.resultado, null, 2);
+
+  const campos = [
+    { label: 'Request ID', value: comando.request_id, mono: true },
+    { label: 'Comando', value: `${cfg?.label ?? `Comando ${comando.comando_id}`} (id ${comando.comando_id})` },
+    { label: 'Tipo', value: comando.tipo ?? cfg?.tipo ?? '—' },
+    { label: 'Node / Parâmetro', value: comando.parametro != null ? `${NODE_LABELS[comando.parametro] ?? ''} (${comando.parametro})`.trim() : '—' },
+    ...(comando.parametro_extra ? [{ label: 'Firmware (OTA)', value: comando.parametro_extra, mono: true }] : []),
+    { label: 'Status', value: STATUS_CFG[comando.status].label, badge: STATUS_CFG[comando.status].cls },
+    { label: 'Solicitado em', value: fmt(comando.solicitado_em) },
+    { label: 'Concluído em', value: fmt(comando.concluido_em) },
+    ...(comando.returncode != null ? [{ label: 'Returncode', value: String(comando.returncode), mono: true }] : []),
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-gray-900">Detalhes do Comando</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <dl className="space-y-3">
+          {campos.map(({ label, value, badge, mono }) => (
+            <div key={label} className="flex items-start gap-2">
+              <dt className="w-32 shrink-0 text-xs font-semibold text-gray-500 uppercase pt-0.5">{label}</dt>
+              <dd className={`text-sm text-gray-800 ${mono ? 'font-mono text-xs break-all' : ''}`}>
+                {badge ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge}`}>{value}</span> : value}
+              </dd>
+            </div>
+          ))}
+          <div className="flex items-start gap-2">
+            <dt className="w-32 shrink-0 text-xs font-semibold text-gray-500 uppercase pt-0.5">Resultado</dt>
+            <dd className="text-sm text-gray-800 whitespace-pre-wrap font-mono text-xs bg-gray-50 rounded p-3 flex-1 break-all">{resultadoTexto}</dd>
+          </div>
+        </dl>
+        <div className="mt-6 flex justify-end">
+          <button onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm">Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LabradorPage() {
@@ -92,6 +143,7 @@ export default function LabradorPage() {
   // ── Aba Comandos ──
   const [historico, setHistorico] = useState<ComandoResponse[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+  const [comandoDetalhe, setComandoDetalhe] = useState<ComandoResponse | null>(null);
 
   const [comandoAtivo, setComandoAtivo] = useState<number | null>(null);
   const [nodeId, setNodeId] = useState<number | null>(null);
@@ -417,6 +469,7 @@ export default function LabradorPage() {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Concluído</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Status</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Resultado</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -429,6 +482,16 @@ export default function LabradorPage() {
                         <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmt(c.concluido_em)}</td>
                         <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={c.status} /></td>
                         <td className="px-4 py-3 text-gray-700 text-xs max-w-xs truncate" title={resultadoPreview(c)}>{resultadoPreview(c)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <button
+                            onClick={() => setComandoDetalhe(c)}
+                            className="flex items-center gap-1 text-primary-600 hover:text-primary-800 text-xs font-medium"
+                            title="Ver detalhes"
+                          >
+                            <Eye size={14} />
+                            Visualizar
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -529,6 +592,10 @@ export default function LabradorPage() {
             )}
           </div>
         </>
+      )}
+
+      {comandoDetalhe && (
+        <ComandoDetalheModal comando={comandoDetalhe} onClose={() => setComandoDetalhe(null)} />
       )}
     </div>
   );
