@@ -366,7 +366,12 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
 
     const archive = archiver('zip', { zlib: { level: 6 } });
     archive.on('error', (err) => {
-      if (!res.headersSent) next(new AppError(500, err.message));
+      console.error(`[export/agrupada] Erro ao gerar ZIP (silo_id=${siloNum}): ${err.message}`, err.stack);
+      if (!res.headersSent) {
+        next(new AppError(500, err.message));
+      } else {
+        res.destroy(err);
+      }
     });
     archive.pipe(res);
 
@@ -387,6 +392,12 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
 
     archive.finalize();
   } catch (err) {
+    if (!(err instanceof AppError)) {
+      console.error(
+        `[export/agrupada] Falha inesperada (silo_id=${req.query.silo_id}, start=${req.query.start}, end=${req.query.end}, formato=${req.query.formato}):`,
+        err,
+      );
+    }
     next(err);
   }
 }

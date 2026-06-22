@@ -24,6 +24,10 @@ import { labradorRoutes, firmwaresRoutes } from './modules/labrador/labrador.rou
 
 const app = express();
 
+// Há exatamente um proxy reverso na frente (nginx, no mesmo docker-compose) —
+// necessário para que express-rate-limit identifique o IP real via X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // Segurança e parsers
 app.use(helmet());
 app.use(
