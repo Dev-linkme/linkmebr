@@ -87,6 +87,32 @@ export async function consultarComando(req: Request, res: Response, next: NextFu
   }
 }
 
+export async function listarComandosDisponiveis(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { silo_id } = req.params;
+    const { data } = await axios.get(ingestUrl(`/v1/labrador/silos/${silo_id}/comandos`), {
+      headers: await ingestHeaders(),
+      timeout: 10_000,
+    });
+    res.json(data);
+  } catch (err) {
+    forwardIngestError(err, next);
+  }
+}
+
+export async function deletarComando(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { request_id } = req.params;
+    await axios.delete(ingestUrl(`/v1/labrador/comandos/${request_id}`), {
+      headers: await ingestHeaders(),
+      timeout: 10_000,
+    });
+    res.status(204).send();
+  } catch (err) {
+    forwardIngestError(err, next);
+  }
+}
+
 export async function listarComandos(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { silo_id, limit = '20' } = req.query;

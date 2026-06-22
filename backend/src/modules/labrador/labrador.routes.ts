@@ -6,6 +6,8 @@ import {
   dispararComando,
   consultarComando,
   listarComandos,
+  listarComandosDisponiveis,
+  deletarComando,
   uploadFirmware,
   listarFirmwares,
 } from './labrador.controller';
@@ -21,7 +23,9 @@ const router = Router();
 
 router.post('/comandos', ...adminAuth, dispararComando);
 router.get('/comandos/:request_id', ...adminAuth, consultarComando);
+router.delete('/comandos/:request_id', ...adminAuth, deletarComando);
 router.get('/comandos', ...adminAuth, listarComandos);
+router.get('/silos/:silo_id/comandos', ...adminAuth, listarComandosDisponiveis);
 
 export { router as labradorRoutes };
 

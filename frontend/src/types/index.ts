@@ -223,3 +223,8 @@ export interface FirmwareInfo {
 export interface FirmwaresResponse {
   firmwares: FirmwareInfo[];
 }
+
+export interface ComandosDisponiveisResponse {
+  silo_id: number;
+  comandos_disponiveis: number[];
+}

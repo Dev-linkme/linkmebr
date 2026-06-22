@@ -21,6 +21,20 @@ export async function consultarComando(requestId: string): Promise<ComandoRespon
   return res.data;
 }
 
+export async function deletarComando(requestId: string): Promise<void> {
+  await api.delete(`/labrador/comandos/${requestId}`);
+}
+
+export async function listarComandosDisponiveis(siloId: number | string): Promise<number[]> {
+  const res = await api.get<unknown>(`/labrador/silos/${siloId}/comandos`);
+  const data = res.data;
+  if (Array.isArray(data)) return data as number[];
+  if (data && typeof data === 'object' && Array.isArray((data as Record<string, unknown>).comandos_disponiveis)) {
+    return (data as { comandos_disponiveis: number[] }).comandos_disponiveis;
+  }
+  return [];
+}
+
 // O serviço de comando remoto ainda está em implementação no linkme-server —
 // o formato exato da resposta pode variar (array puro ou objeto com a lista
 // embrulhada, como já ocorre em /v1/ia/jobs → {jobs: [...]}). Normaliza aqui

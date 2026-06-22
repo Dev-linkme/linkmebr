@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Radio, RefreshCw, PlusCircle, AlertCircle, RotateCcw, HardDrive,
-  Database, Power, PowerOff, UploadCloud, Cpu, Eye, X,
+  Database, Power, PowerOff, UploadCloud, Cpu, Eye, X, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import {
   dispararComando, listarComandos, uploadFirmware, listarFirmwares,
+  listarComandosDisponiveis, deletarComando,
 } from '../services/labrador';
 import type { Silo, ComandoResponse, FirmwareInfo, FirmwareCategoria, LabradorComandoStatus } from '../types/index';
 
@@ -145,6 +146,8 @@ export default function LabradorPage() {
   const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [comandoDetalhe, setComandoDetalhe] = useState<ComandoResponse | null>(null);
 
+  const [comandosDisponiveis, setComandosDisponiveis] = useState<number[] | null>(null);
+
   const [comandoAtivo, setComandoAtivo] = useState<number | null>(null);
   const [nodeId, setNodeId] = useState<number | null>(null);
   const [firmwareEscolhido, setFirmwareEscolhido] = useState<string | null>(null);
@@ -188,6 +191,18 @@ export default function LabradorPage() {
     if (!siloIdLabrador) { setHistorico([]); return; }
     fetchHistorico(siloIdLabrador);
   }, [siloIdLabrador, fetchHistorico]);
+
+  // Catálogo de comandos é por silo — nem todo silo tem os mesmos controles físicos.
+  useEffect(() => {
+    if (!siloIdLabrador) { setComandosDisponiveis(null); return; }
+    setComandosDisponiveis(null);
+    listarComandosDisponiveis(siloIdLabrador)
+      .then(setComandosDisponiveis)
+      .catch(() => {
+        toast.error('Erro ao carregar comandos disponíveis para este silo');
+        setComandosDisponiveis([]);
+      });
+  }, [siloIdLabrador]);
 
   // Polling: enquanto houver comando pendente, atualiza a cada 1.5s (servidor
   // garante status terminal em ~15s — sem necessidade de timeout no cliente).
@@ -244,6 +259,18 @@ export default function LabradorPage() {
       toast.error(extractErro(err));
     } finally {
       setDisparando(false);
+    }
+  };
+
+  const handleExcluir = async (c: ComandoResponse) => {
+    const label = COMANDO_CFG[c.comando_id]?.label ?? `Comando ${c.comando_id}`;
+    if (!confirm(`Excluir o registro "${label}" (${c.request_id.slice(0, 8)}…)? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await deletarComando(c.request_id);
+      toast.success('Registro excluído.');
+      if (siloIdLabrador) await fetchHistorico(siloIdLabrador);
+    } catch (err) {
+      toast.error(extractErro(err));
     }
   };
 
@@ -342,26 +369,34 @@ export default function LabradorPage() {
           {/* Catálogo de comandos */}
           <div className="bg-white rounded-lg shadow p-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Catálogo de Comandos — {siloSelecionado?.nome}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              {Object.entries(COMANDO_CFG).map(([idStr, cfg]) => {
-                const id = Number(idStr);
-                const ativo = comandoAtivo === id;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => handleSelecionarComando(id)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium border transition-colors ${
-                      ativo
-                        ? 'border-primary-500 bg-primary-50 text-primary-700'
-                        : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {cfg.icon}
-                    {cfg.label}
-                  </button>
-                );
-              })}
-            </div>
+            {comandosDisponiveis === null ? (
+              <p className="text-sm text-gray-400">Carregando comandos disponíveis...</p>
+            ) : comandosDisponiveis.length === 0 ? (
+              <p className="text-sm text-gray-400">Nenhum comando habilitado para este silo.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {Object.entries(COMANDO_CFG)
+                  .filter(([idStr]) => comandosDisponiveis.includes(Number(idStr)))
+                  .map(([idStr, cfg]) => {
+                    const id = Number(idStr);
+                    const ativo = comandoAtivo === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => handleSelecionarComando(id)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium border transition-colors ${
+                          ativo
+                            ? 'border-primary-500 bg-primary-50 text-primary-700'
+                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {cfg.icon}
+                        {cfg.label}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
 
             {/* Painel de configuração do comando selecionado */}
             {cfgAtivo && (
@@ -483,14 +518,24 @@ export default function LabradorPage() {
                         <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={c.status} /></td>
                         <td className="px-4 py-3 text-gray-700 text-xs max-w-xs truncate" title={resultadoPreview(c)}>{resultadoPreview(c)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <button
-                            onClick={() => setComandoDetalhe(c)}
-                            className="flex items-center gap-1 text-primary-600 hover:text-primary-800 text-xs font-medium"
-                            title="Ver detalhes"
-                          >
-                            <Eye size={14} />
-                            Visualizar
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => setComandoDetalhe(c)}
+                              className="flex items-center gap-1 text-primary-600 hover:text-primary-800 text-xs font-medium"
+                              title="Ver detalhes"
+                            >
+                              <Eye size={14} />
+                              Visualizar
+                            </button>
+                            <button
+                              onClick={() => handleExcluir(c)}
+                              className="flex items-center gap-1 text-red-600 hover:text-red-800 text-xs font-medium"
+                              title="Excluir registro"
+                            >
+                              <Trash2 size={14} />
+                              Excluir
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
