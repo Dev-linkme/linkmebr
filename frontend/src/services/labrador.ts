@@ -21,9 +21,24 @@ export async function consultarComando(requestId: string): Promise<ComandoRespon
   return res.data;
 }
 
+// O serviço de comando remoto ainda está em implementação no linkme-server —
+// o formato exato da resposta pode variar (array puro ou objeto com a lista
+// embrulhada, como já ocorre em /v1/ia/jobs → {jobs: [...]}). Normaliza aqui
+// para não propagar um shape inesperado ao componente.
+function normalizarListaComandos(data: unknown): ComandoResponse[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    for (const chave of ['comandos', 'data', 'items', 'results']) {
+      if (Array.isArray(obj[chave])) return obj[chave] as ComandoResponse[];
+    }
+  }
+  return [];
+}
+
 export async function listarComandos(siloId: number | string, limit = 20): Promise<ComandoResponse[]> {
-  const res = await api.get<ComandoResponse[]>('/labrador/comandos', { params: { silo_id: siloId, limit } });
-  return res.data;
+  const res = await api.get<unknown>('/labrador/comandos', { params: { silo_id: siloId, limit } });
+  return normalizarListaComandos(res.data);
 }
 
 export async function uploadFirmware(file: File, categoria: FirmwareCategoria, descricao?: string) {
@@ -37,7 +52,18 @@ export async function uploadFirmware(file: File, categoria: FirmwareCategoria, d
   return res.data;
 }
 
+function normalizarListaFirmwares(data: unknown): FirmwaresResponse {
+  if (Array.isArray(data)) return { firmwares: data };
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    for (const chave of ['firmwares', 'data', 'items', 'results']) {
+      if (Array.isArray(obj[chave])) return { firmwares: obj[chave] as FirmwaresResponse['firmwares'] };
+    }
+  }
+  return { firmwares: [] };
+}
+
 export async function listarFirmwares(categoria?: FirmwareCategoria): Promise<FirmwaresResponse> {
-  const res = await api.get<FirmwaresResponse>('/firmwares', { params: categoria ? { categoria } : {} });
-  return res.data;
+  const res = await api.get<unknown>('/firmwares', { params: categoria ? { categoria } : {} });
+  return normalizarListaFirmwares(res.data);
 }
