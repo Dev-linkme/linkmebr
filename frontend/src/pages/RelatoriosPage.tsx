@@ -145,9 +145,9 @@ function yDomainFrom(values: (number | undefined)[]): [number, number] {
 
 // ─── MultiSensorChart ─────────────────────────────────────────────────────────
 
-function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
+function MultiSensorChart({ titulo, series, sensores, valor, unidade, altura = 240, legenda = true }: {
   titulo?: string; series: GraficoSerie[]; sensores: GraficoSensor[];
-  valor: ValorTipo; unidade: string;
+  valor: ValorTipo; unidade: string; altura?: number; legenda?: boolean;
 }) {
   if (sensores.length === 0 || series.length === 0) return null;
   const sortedBuckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
@@ -173,7 +173,7 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
           </span>
         )}
       </div>
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={altura}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
@@ -183,7 +183,7 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade }: {
             const s = sensores.find((x) => String(x.id) === String(name));
             return [`${typeof val === 'number' ? fmtSensor(val, s?.tipo_grandeza ?? '') : val} ${unidade}`, s ? sensorLabel(s) : String(name)];
           }} />
-          <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />
+          {legenda && <Legend formatter={(v) => { const s = sensores.find((x) => String(x.id) === v); return s ? sensorLabel(s) : v; }} />}
           {gaps.map((gap, i) => (
             <ReferenceArea key={i} x1={gap.x1} x2={gap.x2}
               fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.4)" strokeDasharray="3 3" />
@@ -966,7 +966,7 @@ export default function RelatoriosPage() {
                             <MultiSensorChart
                               titulo={`${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
                               series={serieFiltrada} sensores={sensoresFiltrados}
-                              valor={valorTipo} unidade={unidade}                            />
+                              valor={valorTipo} unidade={unidade} altura={400} legenda={false} />
                           )}
 
                           {/* Barra: um gráfico por barra */}
@@ -1199,7 +1199,7 @@ export default function RelatoriosPage() {
                             <MultiSensorChart
                               titulo={`${GRANDEZA_LABELS[grandezaExterna]}${unidadeExt ? ` (${unidadeExt})` : ''}`}
                               series={serieFiltradaExt} sensores={sensoresFiltradosExt}
-                              valor={valorTipo} unidade={unidadeExt} />
+                              valor={valorTipo} unidade={unidadeExt} altura={400} legenda={false} />
                           )}
                           {agrupamento === 'barra' && (() => {
                             const barrasUnicas = [
