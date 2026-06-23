@@ -7,7 +7,7 @@ import {
 import Papa from 'papaparse';
 import toast from 'react-hot-toast';
 import {
-  BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search,
+  BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search, Info, X,
 } from 'lucide-react';
 import api from '../services/api';
 import type { Silo, Barra, Sensor, LeituraInterna, Regra } from '../types/index';
@@ -254,6 +254,78 @@ function SingleSensorChart({ sensor, series, unidade }: {
   );
 }
 
+// ─── Aviso de intervalo do gráfico ────────────────────────────────────────────
+
+const BUCKET_TABLE: { periodo: string; bucket: string }[] = [
+  { periodo: 'Até 24h',     bucket: '15 minutos' },
+  { periodo: 'Até 72h',     bucket: '30 minutos' },
+  { periodo: 'Até 7 dias',  bucket: '1 hora' },
+  { periodo: 'Acima de 7 dias', bucket: '3 horas' },
+];
+
+function IntervaloGraficoAviso({ onAbrirModal }: { onAbrirModal: () => void }) {
+  return (
+    <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+      <Info size={14} className="flex-shrink-0 mt-0.5" />
+      <span>
+        Os gráficos são renderizados em períodos diferentes dos 3 minutos de coleta.{' '}
+        <button type="button" onClick={onAbrirModal} className="underline font-medium hover:text-blue-900">
+          Clique aqui para detalhes.
+        </button>
+      </span>
+    </div>
+  );
+}
+
+function IntervaloGraficoModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Como os gráficos são calculados</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="space-y-4 text-sm text-gray-700">
+          <p>
+            Cada sensor reporta uma leitura aproximadamente a cada <strong>3 minutos</strong>. Os gráficos,
+            porém, agrupam essas leituras em períodos maiores ("buckets"), escolhidos automaticamente
+            conforme o intervalo de datas selecionado na consulta:
+          </p>
+          <table className="w-full text-sm border border-gray-200 rounded overflow-hidden">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold text-gray-600">Intervalo consultado</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-600">Tamanho do bucket</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {BUCKET_TABLE.map((row) => (
+                <tr key={row.periodo}>
+                  <td className="px-3 py-2 text-gray-700">{row.periodo}</td>
+                  <td className="px-3 py-2 text-gray-700">{row.bucket}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p>
+            Dentro de cada bucket, o valor de <strong>Média</strong> exibido é a média das médias de
+            3 minutos daquele período; o <strong>Máximo</strong> é o maior valor máximo registrado
+            entre as leituras de 3 minutos do bucket; e o <strong>Mínimo</strong> é o menor valor mínimo
+            entre elas.
+          </p>
+          <p className="text-gray-500">
+            Esse agrupamento existe para manter os gráficos legíveis em períodos longos — a tabela
+            (aba "Tabela") continua mostrando cada leitura de 3 minutos individualmente.
+          </p>
+        </div>
+        <div className="mt-6 flex justify-end">
+          <button onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm">Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Paginacao ────────────────────────────────────────────────────────────────
 
 function Paginacao({ pagina, totalPaginas, loading, onPageChange, t }: {
@@ -368,6 +440,7 @@ export default function RelatoriosPage() {
   const [sortField,   setSortField]   = useState<SortField | null>(null);
   const [sortDir,     setSortDir]     = useState<SortDir>('asc');
   const [lastFiltros, setLastFiltros] = useState<FiltrosComDatas | null>(null);
+  const [showIntervaloInfo, setShowIntervaloInfo] = useState(false);
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
@@ -847,7 +920,9 @@ export default function RelatoriosPage() {
 
                     {/* Gráfico */}
                     {subAbaInterna === 'grafico' && (
-                      !lastFiltros ? (
+                      <div className="space-y-3">
+                        <IntervaloGraficoAviso onAbrirModal={() => setShowIntervaloInfo(true)} />
+                        {!lastFiltros ? (
                         <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
                       ) : loadingGrafInterna ? (
                         <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
@@ -926,7 +1001,8 @@ export default function RelatoriosPage() {
                             ));
                           })()}
                         </div>
-                      )
+                      )}
+                      </div>
                     )}
                   </>
                 );
@@ -1082,7 +1158,9 @@ export default function RelatoriosPage() {
 
                     {/* Gráfico */}
                     {subAbaExterna === 'grafico' && (
-                      !lastFiltros ? (
+                      <div className="space-y-3">
+                        <IntervaloGraficoAviso onAbrirModal={() => setShowIntervaloInfo(true)} />
+                        {!lastFiltros ? (
                         <p className="text-center text-gray-400 text-sm py-10">Selecione os filtros e clique em Consultar.</p>
                       ) : loadingGrafExterna ? (
                         <div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
@@ -1150,7 +1228,8 @@ export default function RelatoriosPage() {
                             ));
                           })()}
                         </div>
-                      )
+                      )}
+                      </div>
                     )}
                   </>
                 );
@@ -1159,6 +1238,8 @@ export default function RelatoriosPage() {
           )}
         </div>
       )}
+
+      {showIntervaloInfo && <IntervaloGraficoModal onClose={() => setShowIntervaloInfo(false)} />}
     </div>
   );
 }
