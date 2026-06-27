@@ -21,6 +21,7 @@ import IaPrevisaoPage from './pages/IaPrevisaoPage';
 import LabradorPage from './pages/LabradorPage';
 import CarregamentosPage from './pages/CarregamentosPage';
 import CarregamentosVisualizarPage from './pages/CarregamentosVisualizarPage';
+import EventosPage from './pages/EventosPage';
 
 export default function App() {
   return (
@@ -149,6 +150,18 @@ export default function App() {
         }
       >
         <Route index element={<ExportacaoPage />} />
+      </Route>
+
+      {/* Eventos — todos os perfis autenticados */}
+      <Route
+        path="/eventos"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<EventosPage />} />
       </Route>
 
       {/* IA — Previsão (todos os perfis) */}

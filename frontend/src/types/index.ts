@@ -238,3 +238,15 @@ export interface Carregamento {
   criado_em: string;
   atualizado_em: string;
 }
+
+export interface Evento {
+  id: number;
+  silo_id: number;
+  hora_referencia: string;
+  usuario_id: number;
+  descricao_resumida: string;
+  descricao_completa: string | null;
+  criado_em: string;
+  atualizado_em: string;
+  usuario?: { id: number; nome_completo: string };
+}

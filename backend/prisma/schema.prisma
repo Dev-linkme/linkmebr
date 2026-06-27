@@ -45,6 +45,7 @@ model Usuario {
   atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
 
   empresa         Empresa?  @relation(fields: [empresa_id], references: [id])
+  eventos         Evento[]
 
   @@map("usuarios")
   @@schema("silos")
@@ -71,6 +72,7 @@ model Silo {
   alertas         Alerta[]
   esquematico_overlays EsquematicoOverlay[]
   carregamentos   Carregamento[]
+  eventos         Evento[]
 
   @@map("silos")
   @@schema("silos")
@@ -89,6 +91,24 @@ model Carregamento {
 
   @@index([silo_id, hora_referencia(sort: Desc)])
   @@map("carregamento")
+  @@schema("silos")
+}
+
+model Evento {
+  id                 Int      @id @default(autoincrement())
+  silo_id            Int
+  hora_referencia    DateTime @db.Timestamptz()
+  usuario_id         Int
+  descricao_resumida String   @db.VarChar(200)
+  descricao_completa String?  @db.Text
+  criado_em          DateTime @default(now()) @db.Timestamptz()
+  atualizado_em      DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  silo               Silo     @relation(fields: [silo_id], references: [id])
+  usuario            Usuario  @relation(fields: [usuario_id], references: [id])
+
+  @@index([silo_id, hora_referencia(sort: Desc)])
+  @@map("eventos")
   @@schema("silos")
 }
 

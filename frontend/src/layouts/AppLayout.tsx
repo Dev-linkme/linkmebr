@@ -77,6 +77,11 @@ export default function AppLayout() {
       label: t('nav.exportacao'),
       icon: <Download size={18} />,
     },
+    {
+      to: '/eventos',
+      label: t('nav.eventos'),
+      icon: <CalendarClock size={18} />,
+    },
   ];
 
   const adminNavItems: NavItem[] = [
