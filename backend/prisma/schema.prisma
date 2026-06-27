@@ -70,8 +70,25 @@ model Silo {
   barras          Barra[]
   alertas         Alerta[]
   esquematico_overlays EsquematicoOverlay[]
+  carregamentos   Carregamento[]
 
   @@map("silos")
+  @@schema("silos")
+}
+
+model Carregamento {
+  id              Int      @id @default(autoincrement())
+  silo_id         Int
+  hora_referencia DateTime @db.Timestamptz()
+  nivel_m         Decimal  @db.Decimal(6, 2)
+  volume_sacos    Decimal  @db.Decimal(12, 2)
+  criado_em       DateTime @default(now()) @db.Timestamptz()
+  atualizado_em   DateTime @default(now()) @updatedAt @db.Timestamptz()
+
+  silo            Silo     @relation(fields: [silo_id], references: [id])
+
+  @@index([silo_id, hora_referencia(sort: Desc)])
+  @@map("carregamento")
   @@schema("silos")
 }
 

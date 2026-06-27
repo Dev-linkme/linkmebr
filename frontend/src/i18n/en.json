@@ -19,7 +19,8 @@
     "empresas": "Companies",
     "silos": "Silos",
     "barras": "Pendulum Cables",
-    "sensores": "Sensors"
+    "sensores": "Sensors",
+    "carregamento": "Loading"
   },
   "hero": {
     "headline": "Intelligent monitoring of grain quality in silos",

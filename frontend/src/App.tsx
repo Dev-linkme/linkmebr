@@ -19,6 +19,8 @@ import EsquematicoPage from './pages/EsquematicoPage';
 import IaTreinamentoPage from './pages/IaTreinamentoPage';
 import IaPrevisaoPage from './pages/IaPrevisaoPage';
 import LabradorPage from './pages/LabradorPage';
+import CarregamentosPage from './pages/CarregamentosPage';
+import CarregamentosVisualizarPage from './pages/CarregamentosVisualizarPage';
 
 export default function App() {
   return (
@@ -206,6 +208,8 @@ export default function App() {
       >
         <Route path=":nivel" element={<CadastrosPage />} />
         <Route path="esquematicos/*" element={<EsquematicoPage />} />
+        <Route path="carregamentos" element={<CarregamentosPage />} />
+        <Route path="carregamentos/visualizar" element={<CarregamentosVisualizarPage />} />
       </Route>
 
       {/* Catch-all */}

@@ -21,6 +21,7 @@ import { exportRoutes } from './modules/export/export.routes';
 import { esquematicosRoutes } from './modules/esquematicos/esquematicos.routes';
 import { iaRoutes } from './modules/ia/ia.routes';
 import { labradorRoutes, firmwaresRoutes } from './modules/labrador/labrador.routes';
+import { carregamentosRoutes } from './modules/carregamentos/carregamentos.routes';
 
 const app = express();
 
@@ -101,6 +102,7 @@ api.use('/silos/:id/esquematicos', esquematicosRoutes);
 api.use('/ia', iaRoutes);
 api.use('/labrador', labradorRoutes);
 api.use('/firmwares', firmwaresRoutes);
+api.use('/carregamentos', carregamentosRoutes);
 
 app.use('/api/v1', api);
 

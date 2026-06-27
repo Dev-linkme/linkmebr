@@ -19,7 +19,8 @@
     "empresas": "Empresas",
     "silos": "Silos",
     "barras": "Cables Péndulo",
-    "sensores": "Sensores"
+    "sensores": "Sensores",
+    "carregamento": "Carga"
   },
   "hero": {
     "headline": "Monitoreo inteligente de la calidad de granos en silos",

@@ -17,8 +17,10 @@ import {
   Activity,
   Download,
   FileCode2,
+  Boxes,
   Eye,
   Map,
+  Pencil,
   BrainCircuit,
   RotateCcw,
   Sparkles,
@@ -45,6 +47,7 @@ export default function AppLayout() {
   const [adminExpanded, setAdminExpanded] = useState(false);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
   const [esquematicosExpanded, setEsquematicosExpanded] = useState(false);
+  const [carregamentoExpanded, setCarregamentoExpanded] = useState(false);
   const [iaExpanded, setIaExpanded] = useState(false);
 
   const handleLogout = async () => {
@@ -339,6 +342,47 @@ export default function AppLayout() {
                         onClick={() => setSidebarOpen(false)}
                       >
                         <Map size={14} /> Mapeamento
+                      </NavLink>
+                    </div>
+                  )}
+                </div>
+
+                {/* Carregamento sub-menu */}
+                <div>
+                  <button
+                    onClick={() => setCarregamentoExpanded(!carregamentoExpanded)}
+                    className="w-full flex items-center justify-between pl-5 pr-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Boxes size={16} />
+                      {t('cadastros.carregamento')}
+                    </span>
+                    <ChevronDown size={12} className={`transition-transform ${carregamentoExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {carregamentoExpanded && (
+                    <div className="mt-0.5 space-y-0.5">
+                      <NavLink
+                        to="/cadastros/carregamentos"
+                        end
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 pl-9 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                          }`
+                        }
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <Pencil size={14} /> Gestão
+                      </NavLink>
+                      <NavLink
+                        to="/cadastros/carregamentos/visualizar"
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 pl-9 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                          }`
+                        }
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <BarChart2 size={14} /> Visualizar
                       </NavLink>
                     </div>
                   )}

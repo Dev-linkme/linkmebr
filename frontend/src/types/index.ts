@@ -228,3 +228,13 @@ export interface ComandosDisponiveisResponse {
   silo_id: number;
   comandos_disponiveis: number[];
 }
+
+export interface Carregamento {
+  id: number;
+  silo_id: number;
+  hora_referencia: string;
+  nivel_m: number;
+  volume_sacos: number;
+  criado_em: string;
+  atualizado_em: string;
+}

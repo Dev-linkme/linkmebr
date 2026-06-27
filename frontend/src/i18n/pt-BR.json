@@ -22,7 +22,8 @@
     "silos": "Silos",
     "barras": "Cabos Pêndulo",
     "sensores": "Sensores",
-    "esquematicos": "Esquemáticos"
+    "esquematicos": "Esquemáticos",
+    "carregamento": "Carregamento"
   },
   "hero": {
     "headline": "Monitoramento inteligente da qualidade de grãos em silos",
