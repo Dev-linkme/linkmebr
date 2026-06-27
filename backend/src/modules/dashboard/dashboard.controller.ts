@@ -191,10 +191,16 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
-    // Clima em paralelo com o processamento dos dados do silo
+    // Clima e último carregamento em paralelo com o processamento dos dados do silo
     const climaPromise = silo.latitude && silo.longitude
       ? fetchClima(id, silo.latitude.toString(), silo.longitude.toString())
       : Promise.resolve(null);
+
+    const ultimoCarregamentoPromise = prisma.carregamento.findFirst({
+      where: { silo_id: id },
+      orderBy: { hora_referencia: 'desc' },
+      select: { hora_referencia: true, nivel_m: true, volume_sacos: true },
+    });
 
     type SensorEntry = {
       local: string; altura_solo_m: number; tipo_grandeza: string;
@@ -263,8 +269,8 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
         }
       : null;
 
-    // Aguarda clima (que estava rodando em paralelo)
-    const climaData = await climaPromise;
+    // Aguarda clima e último carregamento (que estavam rodando em paralelo)
+    const [climaData, ultimoCarregamento] = await Promise.all([climaPromise, ultimoCarregamentoPromise]);
 
     const semLeituras = sensoresFlat.length === 0;
     const statusSilo  = semLeituras ? 'Sem leituras há mais de 10 minutos' : silo.status;
@@ -276,6 +282,7 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
         total_barras_ativas: silo.barras.length,
         total_sensores_ativos: silo.barras.reduce((n, b) => n + b.sensores.length, 0),
         alertas_ativos: 0,
+        ultimo_carregamento: ultimoCarregamento,
       },
       clima: (climaData as { current?: unknown } | null)?.current ?? null,
       referencia: referencia ? (referencia as Date).toISOString() : null,

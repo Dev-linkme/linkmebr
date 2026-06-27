@@ -596,6 +596,26 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Último carregamento */}
+              <div className="bg-white rounded-xl shadow p-5">
+                <h2 className="font-semibold text-gray-700 mb-3">Último Carregamento Registrado</h2>
+                {painel.silo.ultimo_carregamento ? (
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-gray-800">
+                      {Number(painel.silo.ultimo_carregamento.nivel_m).toFixed(2)} m
+                      <span className="font-normal text-gray-500 ml-2">
+                        · {Number(painel.silo.ultimo_carregamento.volume_sacos).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} sacos
+                      </span>
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {fmtTs(painel.silo.ultimo_carregamento.hora_referencia)}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">Nenhum carregamento registrado para este silo.</p>
+                )}
+              </div>
             </>
           ) : null}
         </div>
