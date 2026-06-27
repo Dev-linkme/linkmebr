@@ -7,7 +7,7 @@ import {
 import Papa from 'papaparse';
 import toast from 'react-hot-toast';
 import {
-  BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search, Info, X,
+  BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search, Info, X, RefreshCw,
 } from 'lucide-react';
 import api from '../services/api';
 import type { Silo, Barra, Sensor, LeituraInterna, Regra } from '../types/index';
@@ -64,12 +64,22 @@ type SortDir             = 'asc' | 'desc';
 type ValorTipo           = 'avg' | 'min' | 'max';
 type AbaAtiva            = 'interna' | 'externa';
 type SubAba              = 'tabela'  | 'grafico';
-type PeriodoPreset       = '24h' | '72h' | 'semana' | 'mes' | 'custom';
+type PeriodoPreset       = '12h' | '24h' | '72h' | 'semana' | 'mes' | 'custom';
 type AgrupamentoGrafico  = 'silo' | 'barra' | 'sensor' | 'altura';
 
 const VALOR_LABELS: Record<ValorTipo, string> = { avg: 'Média', min: 'Mínimo', max: 'Máximo' };
 const PERIODO_LABELS: Record<PeriodoPreset, string> = {
-  '24h': 'Últimas 24h', '72h': 'Últimas 72h', semana: 'Última semana', mes: 'Último mês', custom: 'Personalizado',
+  '12h':  'Últimas 12h (agrupamento de 3 minutos)',
+  '24h':  'Últimas 24h (agrupamento de 15 minutos)',
+  '72h':  'Últimas 72h (agrupamento de 30 minutos)',
+  semana: 'Última semana (agrupamento de 1 hora)',
+  mes:    'Último mês (agrupamento de 3 horas)',
+  custom: 'Personalizado',
+};
+// Tamanho do bucket (segundos) por preset — usado para o intervalo de auto-refresh do Gráfico.
+// Espelha o bucketSec calculado no backend (relatorios.controller.ts); custom não tem bucket fixo.
+const BUCKET_SEC: Record<PeriodoPreset, number | null> = {
+  '12h': 180, '24h': 900, '72h': 1800, semana: 3600, mes: 10800, custom: null,
 };
 const AGRUPAMENTO_LABELS: Record<AgrupamentoGrafico, string> = {
   silo: 'Silo', barra: 'Cabo Pêndulo', sensor: 'Sensor', altura: 'Altura',
@@ -107,6 +117,12 @@ function formatRangeDate(ts: string | null | undefined): string {
   if (!ts) return '—';
   return formatFullTimestamp(ts);
 }
+function formatIntervaloRefresh(ms: number): string {
+  const min = ms / 60_000;
+  if (min < 60) return `${min % 1 === 0 ? min : min.toFixed(1)} min`;
+  const h = min / 60;
+  return `${h % 1 === 0 ? h : h.toFixed(1)} h`;
+}
 function fmtSensor(val: number | null | undefined, tipo: string): string {
   if (val == null) return '—';
   return tipo === 'temperatura' ? val.toFixed(1) : val.toFixed(0);
@@ -119,6 +135,7 @@ function computePeriodo(
 ): { data_inicio: string; data_fim: string } | null {
   const now = new Date();
   const h = (hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
+  if (preset === '12h')    return { data_inicio: h(12),  data_fim: now.toISOString() };
   if (preset === '24h')    return { data_inicio: h(24),  data_fim: now.toISOString() };
   if (preset === '72h')    return { data_inicio: h(72),  data_fim: now.toISOString() };
   if (preset === 'semana') return { data_inicio: h(168), data_fim: now.toISOString() };
@@ -553,6 +570,33 @@ export default function RelatoriosPage() {
     finally  { setLoadingGrafExterna(false); }
   }, []);
 
+  // ── Auto-refresh ──────────────────────────────────────────────────────────
+  // Tabela: sempre 1,5min (granularidade nativa de 3min, em qualquer preset).
+  // Gráfico: metade do bucket daquele preset (custom não tem bucket fixo → sem auto-refresh).
+  const subAbaAtual = abaAtiva === 'interna' ? subAbaInterna : subAbaExterna;
+  const autoRefreshMs = !lastFiltros
+    ? null
+    : subAbaAtual === 'tabela'
+      ? 90_000
+      : BUCKET_SEC[periodoPreset] != null ? (BUCKET_SEC[periodoPreset]! * 1000) / 2 : null;
+
+  useEffect(() => {
+    if (autoRefreshMs == null || !lastFiltros) return;
+    const id = setInterval(() => {
+      const periodo = computePeriodo(periodoPreset, customInicio, customFim);
+      if (!periodo) return;
+      const f: FiltrosComDatas = { ...lastFiltros, ...periodo };
+      setLastFiltros(f);
+      if (abaAtiva === 'interna') {
+        subAbaAtual === 'tabela' ? fetchInterna(f, paginaInterna) : fetchGraficoInterna(f);
+      } else {
+        subAbaAtual === 'tabela' ? fetchExterna(f, paginaExterna) : fetchGraficoExterna(f);
+      }
+    }, autoRefreshMs);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefreshMs, abaAtiva, subAbaAtual, periodoPreset, customInicio, customFim, paginaInterna, paginaExterna]);
+
   // ── Submit ────────────────────────────────────────────────────────────────
 
   const onSubmit = (filtros: FiltrosForm) => {
@@ -717,7 +761,7 @@ export default function RelatoriosPage() {
         <div className="space-y-2">
           <label className="block text-xs font-medium text-gray-700">Período</label>
           <div className="flex flex-wrap gap-2">
-            {(['24h', '72h', 'semana', 'mes', 'custom'] as PeriodoPreset[]).map((p) => (
+            {(['12h', '24h', '72h', 'semana', 'mes', 'custom'] as PeriodoPreset[]).map((p) => (
               <button key={p} type="button" onClick={() => { setPeriodoPreset(p); setLastFiltros(null); }}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
                   periodoPreset === p
@@ -728,6 +772,9 @@ export default function RelatoriosPage() {
               </button>
             ))}
           </div>
+          <p className="text-xs text-gray-400">
+            O agrupamento indicado aplica-se apenas ao Gráfico — a Tabela sempre mostra as leituras individuais de 3 minutos.
+          </p>
           {periodoPreset === 'custom' && (
             <div className="flex flex-wrap gap-3 items-end pt-1">
               <div>
@@ -761,6 +808,13 @@ export default function RelatoriosPage() {
 
       {/* Main tabs — exibido após primeira consulta */}
       {lastFiltros && (
+        <>
+        {autoRefreshMs != null && (
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-sm text-blue-700">
+            <RefreshCw size={14} className="animate-spin flex-shrink-0" />
+            Atualizando automaticamente a cada {formatIntervaloRefresh(autoRefreshMs)}...
+          </div>
+        )}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="flex border-b border-gray-200">
             {hasInterna && <button onClick={() => setAbaAtiva('interna')} className={mainTabCls('interna')}>Leituras Internas</button>}
@@ -1237,6 +1291,7 @@ export default function RelatoriosPage() {
             </div>
           )}
         </div>
+        </>
       )}
 
       {showIntervaloInfo && <IntervaloGraficoModal onClose={() => setShowIntervaloInfo(false)} />}

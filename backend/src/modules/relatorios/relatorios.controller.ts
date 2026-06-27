@@ -213,7 +213,7 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
     if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
     if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
 
-    const bucketSec = diffHoras <= 24 ? 900 : diffHoras <= 72 ? 1800 : diffHoras <= 24 * 7 ? 3600 : 10800;
+    const bucketSec = diffHoras <= 12 ? 180 : diffHoras <= 24 ? 900 : diffHoras <= 72 ? 1800 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
     type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
     const rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
@@ -485,7 +485,7 @@ export async function buscarGraficoExterno(
     if (data_inicio) { params.push(data_inicio); whereClause.push(`l.timestamp >= $${params.length}`); }
     if (data_fim)    { params.push(data_fim);    whereClause.push(`l.timestamp <= $${params.length}`); }
 
-    const bucketSec = diffHoras <= 24 ? 900 : diffHoras <= 72 ? 1800 : diffHoras <= 24 * 7 ? 3600 : 10800;
+    const bucketSec = diffHoras <= 12 ? 180 : diffHoras <= 24 ? 900 : diffHoras <= 72 ? 1800 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
     type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
     const rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
