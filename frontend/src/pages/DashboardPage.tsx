@@ -490,7 +490,53 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Tabelas de leituras por local */}
+              {/* Último carregamento */}
+              <div className="bg-white rounded-xl shadow p-5">
+                <h2 className="font-semibold text-gray-700 mb-3">Último Carregamento Registrado</h2>
+                {painel.silo.ultimo_carregamento ? (
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-gray-800">
+                      Nível dos grãos: {Number(painel.silo.ultimo_carregamento.nivel_m).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} metros
+                      <span className="font-normal text-gray-500 ml-2">
+                        - Volume: {Number(painel.silo.ultimo_carregamento.volume_sacos).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sacos de 60 kg
+                      </span>
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {fmtTs(painel.silo.ultimo_carregamento.hora_referencia)}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">Nenhum carregamento registrado para este silo.</p>
+                )}
+              </div>
+
+              {/* Relé de aeração */}
+              {painel.rele !== null && (
+                <div className="bg-white rounded-xl shadow p-5">
+                  <h2 className="font-semibold text-gray-700 mb-3">Relé de Aeração</h2>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                          painel.rele.ligado ? 'bg-green-500' : 'bg-gray-400'
+                        }`}
+                      />
+                      <span
+                        className={`font-semibold text-sm ${
+                          painel.rele.ligado ? 'text-green-700' : 'text-gray-500'
+                        }`}
+                      >
+                        {painel.rele.ligado ? 'Ligado' : 'Desligado'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      Última leitura: {fmtTs(painel.rele.timestamp)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tabelas de leituras por local (interno ao silo, depois externo ao silo) */}
               {painel.resumo_por_local.length > 0 && painel.resumo_por_local.map((grupo) => {
                 const grandezasPresentes = grandezasDoLocal(grupo.resumo_alturas);
                 return (
@@ -570,52 +616,6 @@ export default function DashboardPage() {
                   </div>
                 );
               })}
-
-              {/* Relé de aeração */}
-              {painel.rele !== null && (
-                <div className="bg-white rounded-xl shadow p-5">
-                  <h2 className="font-semibold text-gray-700 mb-3">Relé de Aeração</h2>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                          painel.rele.ligado ? 'bg-green-500' : 'bg-gray-400'
-                        }`}
-                      />
-                      <span
-                        className={`font-semibold text-sm ${
-                          painel.rele.ligado ? 'text-green-700' : 'text-gray-500'
-                        }`}
-                      >
-                        {painel.rele.ligado ? 'Ligado' : 'Desligado'}
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      Última leitura: {fmtTs(painel.rele.timestamp)}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Último carregamento */}
-              <div className="bg-white rounded-xl shadow p-5">
-                <h2 className="font-semibold text-gray-700 mb-3">Último Carregamento Registrado</h2>
-                {painel.silo.ultimo_carregamento ? (
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm text-gray-800">
-                      {Number(painel.silo.ultimo_carregamento.nivel_m).toFixed(2)} m
-                      <span className="font-normal text-gray-500 ml-2">
-                        · {Number(painel.silo.ultimo_carregamento.volume_sacos).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} sacos
-                      </span>
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {fmtTs(painel.silo.ultimo_carregamento.hora_referencia)}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400">Nenhum carregamento registrado para este silo.</p>
-                )}
-              </div>
             </>
           ) : null}
         </div>
