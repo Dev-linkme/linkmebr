@@ -266,6 +266,7 @@ export default function EventosPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição Resumida</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsável</th>
@@ -275,6 +276,7 @@ export default function EventosPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {eventos.map((e) => (
                       <tr key={e.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-500 font-mono whitespace-nowrap">{e.id}</td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{formatHora(e.hora_referencia)}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{e.descricao_resumida}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{e.usuario?.nome_completo ?? '—'}</td>
