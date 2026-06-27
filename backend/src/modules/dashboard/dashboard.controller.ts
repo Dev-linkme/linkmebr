@@ -133,7 +133,15 @@ export async function detalharSilo(
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
-    res.json(JSON.parse(JSON.stringify(silo, (_, v) => typeof v === 'bigint' ? v.toString() : v)));
+    const ultimoCarregamento = await prisma.carregamento.findFirst({
+      where: { silo_id: id },
+      orderBy: { hora_referencia: 'desc' },
+      select: { hora_referencia: true, nivel_m: true, volume_sacos: true },
+    });
+
+    const resultado = { ...silo, ultimo_carregamento: ultimoCarregamento };
+
+    res.json(JSON.parse(JSON.stringify(resultado, (_, v) => typeof v === 'bigint' ? v.toString() : v)));
   } catch (err) {
     next(err);
   }

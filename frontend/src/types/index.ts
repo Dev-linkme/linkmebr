@@ -32,6 +32,11 @@ export interface Silo {
   total_sensores_ativos?: number;
   alertas_ativos?: number;
   empresa?: Empresa;
+  ultimo_carregamento?: {
+    hora_referencia: string;
+    nivel_m: number;
+    volume_sacos: number;
+  } | null;
 }
 
 export interface Barra {

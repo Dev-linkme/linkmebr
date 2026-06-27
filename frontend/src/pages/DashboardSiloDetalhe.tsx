@@ -9,6 +9,7 @@ import {
   Wind,
   ChevronDown,
   ChevronRight,
+  Boxes,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -210,6 +211,29 @@ export default function DashboardSiloDetalhe() {
           </div>
         </div>
       )}
+
+      {/* Último carregamento */}
+      <div className="bg-white rounded-xl shadow p-5">
+        <h2 className="font-semibold text-gray-700 mb-4">Último Carregamento Registrado</h2>
+        {silo.ultimo_carregamento ? (
+          <div className="flex items-center gap-3 bg-green-50 rounded-lg p-4 max-w-md">
+            <Boxes size={28} className="text-green-600 flex-shrink-0" />
+            <div>
+              <p className="text-xl font-bold text-gray-800">
+                {Number(silo.ultimo_carregamento.nivel_m).toFixed(2)} m
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  · {Number(silo.ultimo_carregamento.volume_sacos).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} sacos
+                </span>
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Registrado em {new Date(silo.ultimo_carregamento.hora_referencia).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">Nenhum carregamento registrado para este silo.</p>
+        )}
+      </div>
 
       {/* Leituras por barra */}
       <div className="space-y-3">
