@@ -68,13 +68,13 @@ type PeriodoPreset       = '12h' | '24h' | '72h' | 'semana' | 'mes' | 'custom';
 type AgrupamentoGrafico  = 'silo' | 'barra' | 'sensor' | 'altura';
 
 const VALOR_LABELS: Record<ValorTipo, string> = { avg: 'Média', min: 'Mínimo', max: 'Máximo' };
-const PERIODO_LABELS: Record<PeriodoPreset, string> = {
-  '12h':  'Últimas 12h (agrupamento de 3 minutos)',
-  '24h':  'Últimas 24h (agrupamento de 15 minutos)',
-  '72h':  'Últimas 72h (agrupamento de 30 minutos)',
-  semana: 'Última semana (agrupamento de 1 hora)',
-  mes:    'Último mês (agrupamento de 3 horas)',
-  custom: 'Personalizado',
+const PERIODO_LABELS: Record<PeriodoPreset, { titulo: string; agrupamento: string | null }> = {
+  '12h':  { titulo: 'Últimas 12h',     agrupamento: 'agrupamento de 3 minutos' },
+  '24h':  { titulo: 'Últimas 24h',     agrupamento: 'agrupamento de 15 minutos' },
+  '72h':  { titulo: 'Últimas 72h',     agrupamento: 'agrupamento de 30 minutos' },
+  semana: { titulo: 'Última semana',   agrupamento: 'agrupamento de 1 hora' },
+  mes:    { titulo: 'Último mês',      agrupamento: 'agrupamento de 3 horas' },
+  custom: { titulo: 'Personalizado',   agrupamento: null },
 };
 // Tamanho do bucket (segundos) por preset — usado para o intervalo de auto-refresh do Gráfico.
 // Espelha o bucketSec calculado no backend (relatorios.controller.ts); custom não tem bucket fixo.
@@ -116,6 +116,9 @@ function formatFullTimestamp(ts: string): string {
 function formatRangeDate(ts: string | null | undefined): string {
   if (!ts) return '—';
   return formatFullTimestamp(ts);
+}
+function formatHora(d: Date): string {
+  return d.toLocaleTimeString('pt-BR', { timeZone: BRT, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 function formatIntervaloRefresh(ms: number): string {
   const min = ms / 60_000;
@@ -274,9 +277,10 @@ function SingleSensorChart({ sensor, series, unidade }: {
 // ─── Aviso de intervalo do gráfico ────────────────────────────────────────────
 
 const BUCKET_TABLE: { periodo: string; bucket: string }[] = [
-  { periodo: 'Até 24h',     bucket: '15 minutos' },
-  { periodo: 'Até 72h',     bucket: '30 minutos' },
-  { periodo: 'Até 7 dias',  bucket: '1 hora' },
+  { periodo: 'Até 12h',         bucket: '3 minutos (sem agrupamento — leitura nativa)' },
+  { periodo: 'De 12h a 24h',    bucket: '15 minutos' },
+  { periodo: 'De 24h a 72h',    bucket: '30 minutos' },
+  { periodo: 'De 72h a 7 dias', bucket: '1 hora' },
   { periodo: 'Acima de 7 dias', bucket: '3 horas' },
 ];
 
@@ -304,9 +308,10 @@ function IntervaloGraficoModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="space-y-4 text-sm text-gray-700">
           <p>
-            Cada sensor reporta uma leitura aproximadamente a cada <strong>3 minutos</strong>. Os gráficos,
-            porém, agrupam essas leituras em períodos maiores ("buckets"), escolhidos automaticamente
-            conforme o intervalo de datas selecionado na consulta:
+            Cada sensor reporta uma leitura aproximadamente a cada <strong>3 minutos</strong>. Para
+            períodos de até 12h, o gráfico mostra essas leituras sem nenhum agrupamento — exatamente
+            como foram recebidas. Para períodos maiores, as leituras são agrupadas em períodos maiores
+            ("buckets"), escolhidos automaticamente conforme o intervalo de datas selecionado na consulta:
           </p>
           <table className="w-full text-sm border border-gray-200 rounded overflow-hidden">
             <thead className="bg-gray-50">
@@ -458,6 +463,7 @@ export default function RelatoriosPage() {
   const [sortDir,     setSortDir]     = useState<SortDir>('asc');
   const [lastFiltros, setLastFiltros] = useState<FiltrosComDatas | null>(null);
   const [showIntervaloInfo, setShowIntervaloInfo] = useState(false);
+  const [ultimaConsultaEm, setUltimaConsultaEm] = useState<Date | null>(null);
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
@@ -587,6 +593,7 @@ export default function RelatoriosPage() {
       if (!periodo) return;
       const f: FiltrosComDatas = { ...lastFiltros, ...periodo };
       setLastFiltros(f);
+      setUltimaConsultaEm(new Date());
       if (abaAtiva === 'interna') {
         subAbaAtual === 'tabela' ? fetchInterna(f, paginaInterna) : fetchGraficoInterna(f);
       } else {
@@ -607,6 +614,7 @@ export default function RelatoriosPage() {
     }
     const f: FiltrosComDatas = { ...filtros, ...periodo };
     setLastFiltros(f); setSortField(null); setPaginaInterna(1); setPaginaExterna(1);
+    setUltimaConsultaEm(new Date());
     const barraLocal = barraId ? barras.find((b) => String(b.id) === barraId)?.local : null;
     const deveInterna = hasInterna && (!barraLocal || barraLocal === 'interno ao silo');
     const deveExterna = hasExterna && (!barraLocal || barraLocal === 'externo ao silo');
@@ -763,12 +771,17 @@ export default function RelatoriosPage() {
           <div className="flex flex-wrap gap-2">
             {(['12h', '24h', '72h', 'semana', 'mes', 'custom'] as PeriodoPreset[]).map((p) => (
               <button key={p} type="button" onClick={() => { setPeriodoPreset(p); setLastFiltros(null); }}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
+                className={`flex flex-col items-center px-3 py-1.5 rounded-md border transition-colors ${
                   periodoPreset === p
                     ? 'bg-primary-600 text-white border-primary-600'
                     : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
                 }`}>
-                {PERIODO_LABELS[p]}
+                <span className="text-sm font-medium">{PERIODO_LABELS[p].titulo}</span>
+                {PERIODO_LABELS[p].agrupamento && (
+                  <span className={`text-[10px] leading-tight ${periodoPreset === p ? 'text-white/80' : 'text-gray-400'}`}>
+                    ({PERIODO_LABELS[p].agrupamento})
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -812,6 +825,7 @@ export default function RelatoriosPage() {
         {autoRefreshMs != null && (
           <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-sm text-blue-700">
             <RefreshCw size={14} className="animate-spin flex-shrink-0" />
+            {ultimaConsultaEm && <>Horário da consulta: {formatHora(ultimaConsultaEm)} — </>}
             Atualizando automaticamente a cada {formatIntervaloRefresh(autoRefreshMs)}...
           </div>
         )}
