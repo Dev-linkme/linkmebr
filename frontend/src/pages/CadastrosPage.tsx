@@ -117,7 +117,7 @@ function TableHeaders({ nivel }: { nivel: Nivel }) {
     case 'barras':
       return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Local', 'loc')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
     case 'sensores':
-      return <>{th('Identificação', 'id')}{th('Cabo Pêndulo', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
+      return <>{th('Identificação', 'id')}{th('Silo', 'silo')}{th('Cabo Pêndulo', 'br')}{th('Tipo', 'tp')}{th('Unidade', 'un')}{th('Altura (m)', 'alt')}{th('ID Labrador', 'lab')}{th('Status', 'st')}</>;
   }
 }
 
@@ -164,9 +164,11 @@ function TableCells({ nivel, item }: { nivel: Nivel; item: AnyItem }) {
     }
     case 'sensores': {
       const barra = item.barra as Record<string, unknown> | undefined;
+      const silo = barra?.silo as Record<string, unknown> | undefined;
       return (
         <>
           {td(<span className="font-medium text-gray-900">{item.identificacao as string}</span>, 'id')}
+          {td((silo?.nome as string) || '—', 'silo')}
           {td((barra?.identificacao as string) || '—', 'br')}
           {td(item.tipo_grandeza as string, 'tp')}
           {td((item.unidade_medida as string) || '—', 'un')}
