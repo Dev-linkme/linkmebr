@@ -155,6 +155,15 @@ function sensorLabel(s: { identificacao: string; barra_identificacao: string; al
   return `${s.barra_identificacao} - ${s.identificacao} (${s.altura_solo_m}m)`;
 }
 
+// Mapeia cada valor de altura_solo_m presente no silo/grandeza para uma cor fixa,
+// pela ordem crescente das alturas distintas — garante que "fundo" (menor altura)
+// seja sempre a mesma cor em todos os gráficos, mesmo que um cabo não tenha sensor
+// em alguma altura intermediária (diferente de usar a posição relativa por gráfico).
+function buildCorPorAltura(sensores: GraficoSensor[]): Map<number, string> {
+  const alturas = [...new Set(sensores.map((s) => s.altura_solo_m))].sort((a, b) => a - b);
+  return new Map(alturas.map((alt, idx) => [alt, LINE_COLORS[idx % LINE_COLORS.length]]));
+}
+
 function yDomainFrom(values: (number | undefined)[]): [number, number] {
   const nums = values.filter((v): v is number => v != null);
   const yMin = nums.length > 0 ? Math.min(...nums) : 0;
@@ -165,18 +174,21 @@ function yDomainFrom(values: (number | undefined)[]): [number, number] {
 
 // ─── MultiSensorChart ─────────────────────────────────────────────────────────
 
-function MultiSensorChart({ titulo, series, sensores, valor, unidade, altura = 240, legenda = true }: {
+function MultiSensorChart({ titulo, series, sensores, valor, unidade, altura = 240, legenda = true, corPorAltura }: {
   titulo?: string; series: GraficoSerie[]; sensores: GraficoSensor[];
   valor: ValorTipo; unidade: string; altura?: number; legenda?: boolean;
+  corPorAltura?: Map<number, string>;
 }) {
   if (sensores.length === 0 || series.length === 0) return null;
-  // Cor por sensor baseada no rank de altura (fundo/meio/topo), não na ordem de
-  // chegada do array — garante a mesma cor para a mesma posição em todos os gráficos.
-  const corPorSensor = new Map(
-    [...sensores]
-      .sort((a, b) => a.altura_solo_m - b.altura_solo_m)
-      .map((s, idx) => [s.id, LINE_COLORS[idx % LINE_COLORS.length]]),
-  );
+  // Cor por sensor: usa o mapa global altura→cor (mesma cor para a mesma altura em
+  // todos os gráficos do silo/grandeza); se não fornecido, cai para o rank local.
+  const corPorSensor = corPorAltura
+    ?? new Map(
+      [...sensores]
+        .sort((a, b) => a.altura_solo_m - b.altura_solo_m)
+        .map((s, idx) => [s.id, LINE_COLORS[idx % LINE_COLORS.length]]),
+    );
+  const getCor = (s: GraficoSensor) => corPorAltura ? corPorAltura.get(s.altura_solo_m) : corPorSensor.get(s.id);
   const sortedBuckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
   const { enriched, gaps } = detectGapsAndInject(sortedBuckets);
   const chartData = enriched.map((bucket) => {
@@ -216,7 +228,7 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade, altura = 2
               fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.4)" strokeDasharray="3 3" />
           ))}
           {sensores.map((s) => (
-            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={corPorSensor.get(s.id)}
+            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={getCor(s)}
               dot={false} strokeWidth={2} connectNulls={false} />
           ))}
         </LineChart>
@@ -865,6 +877,7 @@ export default function RelatoriosPage() {
                 );
                 const sensoresFiltrados = (grafico?.sensores ?? []).filter((s) => s.tipo_grandeza === grandezaInterna);
                 const unidade           = sensoresFiltrados[0]?.unidade_medida ?? '';
+                const corPorAltura      = buildCorPorAltura(sensoresFiltrados);
                 return (
                   <>
                     {/* Grandeza selector */}
@@ -1040,7 +1053,7 @@ export default function RelatoriosPage() {
                           {agrupamento === 'silo' && (
                             <MultiSensorChart
                               titulo={`${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
-                              series={serieFiltrada} sensores={sensoresFiltrados}
+                              series={serieFiltrada} sensores={sensoresFiltrados} corPorAltura={corPorAltura}
                               valor={valorTipo} unidade={unidade} altura={400} legenda={false} />
                           )}
 
@@ -1054,6 +1067,7 @@ export default function RelatoriosPage() {
                                 titulo={`${barra.identificacao} — ${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
                                 series={serieFiltrada}
                                 sensores={sensoresFiltrados.filter((s) => s.barra_id === barra.id)}
+                                corPorAltura={corPorAltura}
                                 valor={valorTipo} unidade={unidade}                              />
                             ));
                           })()}
@@ -1072,6 +1086,7 @@ export default function RelatoriosPage() {
                                 titulo={`${alt} m — ${GRANDEZA_LABELS[grandezaInterna]}${unidade ? ` (${unidade})` : ''}`}
                                 series={serieFiltrada}
                                 sensores={sensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
+                                corPorAltura={corPorAltura}
                                 valor={valorTipo} unidade={unidade}                              />
                             ));
                           })()}
@@ -1108,6 +1123,7 @@ export default function RelatoriosPage() {
                 );
                 const sensoresFiltradosExt = (graficoExterno?.sensores ?? []).filter((s) => s.tipo_grandeza === grandezaExterna);
                 const unidadeExt           = sensoresFiltradosExt[0]?.unidade_medida ?? '';
+                const corPorAlturaExt      = buildCorPorAltura(sensoresFiltradosExt);
                 return (
                   <>
                     {/* Grandeza selector */}
@@ -1273,7 +1289,7 @@ export default function RelatoriosPage() {
                           {agrupamento === 'silo' && (
                             <MultiSensorChart
                               titulo={`${GRANDEZA_LABELS[grandezaExterna]}${unidadeExt ? ` (${unidadeExt})` : ''}`}
-                              series={serieFiltradaExt} sensores={sensoresFiltradosExt}
+                              series={serieFiltradaExt} sensores={sensoresFiltradosExt} corPorAltura={corPorAlturaExt}
                               valor={valorTipo} unidade={unidadeExt} altura={400} legenda={false} />
                           )}
                           {agrupamento === 'barra' && (() => {
@@ -1285,6 +1301,7 @@ export default function RelatoriosPage() {
                                 titulo={`${barra.identificacao} — ${GRANDEZA_LABELS[grandezaExterna]}${unidadeExt ? ` (${unidadeExt})` : ''}`}
                                 series={serieFiltradaExt}
                                 sensores={sensoresFiltradosExt.filter((s) => s.barra_id === barra.id)}
+                                corPorAltura={corPorAlturaExt}
                                 valor={valorTipo} unidade={unidadeExt} />
                             ));
                           })()}
@@ -1299,6 +1316,7 @@ export default function RelatoriosPage() {
                                 titulo={`${alt} m — ${GRANDEZA_LABELS[grandezaExterna]}${unidadeExt ? ` (${unidadeExt})` : ''}`}
                                 series={serieFiltradaExt}
                                 sensores={sensoresFiltradosExt.filter((s) => s.altura_solo_m === alt)}
+                                corPorAltura={corPorAlturaExt}
                                 valor={valorTipo} unidade={unidadeExt} />
                             ));
                           })()}
