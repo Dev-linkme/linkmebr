@@ -2,7 +2,7 @@ export interface Usuario {
   id: number;
   nome_completo: string;
   email: string;
-  perfil: 'administrador_geral' | 'administrador_empresa' | 'operador_empresa';
+  perfil: 'administrador_geral' | 'administrador_empresa' | 'operador_empresa' | 'sistema';
   empresa_id: number | null;
   status: string;
 }

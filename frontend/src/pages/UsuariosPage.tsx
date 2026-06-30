@@ -16,16 +16,18 @@ interface UsuarioFormData {
   empresa_id: string;
 }
 
-const PERFIL_LABELS: Record<Perfil, string> = {
+const PERFIL_LABELS: Record<Perfil | 'sistema', string> = {
   administrador_geral: 'Administrador Geral',
   administrador_empresa: 'Administrador Empresa',
   operador_empresa: 'Operador Empresa',
+  sistema: 'Sistema',
 };
 
-const PERFIL_BADGE: Record<Perfil, string> = {
+const PERFIL_BADGE: Record<Perfil | 'sistema', string> = {
   administrador_geral: 'bg-purple-100 text-purple-800',
   administrador_empresa: 'bg-blue-100 text-blue-800',
   operador_empresa: 'bg-gray-100 text-gray-800',
+  sistema: 'bg-slate-200 text-slate-700',
 };
 
 const SENHA_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
@@ -452,6 +454,7 @@ export default function UsuariosPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {usuarios.map((usr) => {
                   const isSelf = usr.id === authUser?.id;
+                  const isSistema = usr.perfil === 'sistema';
                   return (
                     <tr key={usr.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">
@@ -493,47 +496,51 @@ export default function UsuariosPage() {
                           >
                             <Eye size={16} />
                           </button>
-                          <button
-                            onClick={() => openEdit(usr)}
-                            title="Editar"
-                            className="text-gray-500 hover:text-green-600 p-1 rounded"
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={() => toggleStatus(usr)}
-                            title={
-                              isSelf
-                                ? 'Você não pode desativar sua própria conta'
-                                : usr.status === 'ativo'
-                                ? 'Desativar'
-                                : 'Ativar'
-                            }
-                            disabled={isSelf}
-                            className={`p-1 rounded ${
-                              isSelf
-                                ? 'opacity-30 cursor-not-allowed'
-                                : 'text-gray-500 hover:text-yellow-600'
-                            }`}
-                          >
-                            {usr.status === 'ativo' ? (
-                              <ToggleRight size={18} className="text-green-500" />
-                            ) : (
-                              <ToggleLeft size={18} className="text-gray-400" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => setConfirmDeleteId(usr.id)}
-                            title="Excluir"
-                            disabled={isSelf}
-                            className={`p-1 rounded ${
-                              isSelf
-                                ? 'opacity-30 cursor-not-allowed text-gray-400'
-                                : 'text-gray-500 hover:text-red-600'
-                            }`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {!isSistema && (
+                            <>
+                              <button
+                                onClick={() => openEdit(usr)}
+                                title="Editar"
+                                className="text-gray-500 hover:text-green-600 p-1 rounded"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => toggleStatus(usr)}
+                                title={
+                                  isSelf
+                                    ? 'Você não pode desativar sua própria conta'
+                                    : usr.status === 'ativo'
+                                    ? 'Desativar'
+                                    : 'Ativar'
+                                }
+                                disabled={isSelf}
+                                className={`p-1 rounded ${
+                                  isSelf
+                                    ? 'opacity-30 cursor-not-allowed'
+                                    : 'text-gray-500 hover:text-yellow-600'
+                                }`}
+                              >
+                                {usr.status === 'ativo' ? (
+                                  <ToggleRight size={18} className="text-green-500" />
+                                ) : (
+                                  <ToggleLeft size={18} className="text-gray-400" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(usr.id)}
+                                title="Excluir"
+                                disabled={isSelf}
+                                className={`p-1 rounded ${
+                                  isSelf
+                                    ? 'opacity-30 cursor-not-allowed text-gray-400'
+                                    : 'text-gray-500 hover:text-red-600'
+                                }`}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

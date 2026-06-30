@@ -198,6 +198,10 @@ export async function atualizar(req: Request, res: Response, next: NextFunction)
     const usuario = await prisma.usuario.findUnique({ where: { id } });
     if (!usuario) throw new AppError(404, 'Usuário não encontrado');
 
+    if (usuario.perfil === 'sistema') {
+      throw new AppError(403, 'Usuários de sistema não podem ser editados');
+    }
+
     if (
       req.user?.perfil === 'administrador_empresa' &&
       usuario.empresa_id !== req.user.empresa_id
@@ -256,6 +260,10 @@ export async function alterarStatus(req: Request, res: Response, next: NextFunct
 
     const usuario = await prisma.usuario.findUnique({ where: { id } });
     if (!usuario) throw new AppError(404, 'Usuário não encontrado');
+
+    if (usuario.perfil === 'sistema') {
+      throw new AppError(403, 'Usuários de sistema não podem ser editados');
+    }
 
     if (
       req.user?.perfil === 'administrador_empresa' &&

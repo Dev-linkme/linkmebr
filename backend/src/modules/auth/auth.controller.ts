@@ -21,7 +21,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       include: { empresa: true },
     });
 
-    if (!usuario || usuario.status === 'inativo') {
+    if (!usuario || usuario.status === 'inativo' || usuario.perfil === 'sistema') {
       throw new AppError(401, 'Credenciais inválidas ou usuário inativo');
     }
 
