@@ -170,6 +170,13 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade, altura = 2
   valor: ValorTipo; unidade: string; altura?: number; legenda?: boolean;
 }) {
   if (sensores.length === 0 || series.length === 0) return null;
+  // Cor por sensor baseada no rank de altura (fundo/meio/topo), não na ordem de
+  // chegada do array — garante a mesma cor para a mesma posição em todos os gráficos.
+  const corPorSensor = new Map(
+    [...sensores]
+      .sort((a, b) => a.altura_solo_m - b.altura_solo_m)
+      .map((s, idx) => [s.id, LINE_COLORS[idx % LINE_COLORS.length]]),
+  );
   const sortedBuckets = Array.from(new Set(series.map((s) => s.bucket))).sort();
   const { enriched, gaps } = detectGapsAndInject(sortedBuckets);
   const chartData = enriched.map((bucket) => {
@@ -208,8 +215,8 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade, altura = 2
             <ReferenceArea key={i} x1={gap.x1} x2={gap.x2}
               fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.4)" strokeDasharray="3 3" />
           ))}
-          {sensores.map((s, idx) => (
-            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+          {sensores.map((s) => (
+            <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={corPorSensor.get(s.id)}
               dot={false} strokeWidth={2} connectNulls={false} />
           ))}
         </LineChart>
