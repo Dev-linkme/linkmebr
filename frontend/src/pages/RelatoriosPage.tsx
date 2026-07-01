@@ -29,20 +29,13 @@ function detectGapsAndInject(buckets: string[]): { enriched: string[]; gaps: Gap
   const median = intervals[Math.floor(intervals.length / 2)] ?? 15 * 60 * 1000;
   const threshold = Math.max(median * 3, 15 * 60 * 1000);
 
-  const enriched: string[] = [];
+  const enriched: string[] = [...buckets];
   const gaps: GapInfo[] = [];
-  for (let i = 0; i < buckets.length; i++) {
-    enriched.push(buckets[i]);
-    if (i < buckets.length - 1) {
-      const curr = new Date(buckets[i]).getTime();
-      const next = new Date(buckets[i + 1]).getTime();
-      if (next - curr > threshold) {
-        // Insere dois pontos null para quebrar a linha
-        enriched.push(new Date(curr + 1000).toISOString());
-        enriched.push(new Date(next - 1000).toISOString());
-        // ReferenceArea usa os buckets reais como fronteiras
-        gaps.push({ x1: buckets[i], x2: buckets[i + 1], durationH: Math.round((next - curr) / 3_600_000) });
-      }
+  for (let i = 0; i < buckets.length - 1; i++) {
+    const curr = new Date(buckets[i]).getTime();
+    const next = new Date(buckets[i + 1]).getTime();
+    if (next - curr > threshold) {
+      gaps.push({ x1: buckets[i], x2: buckets[i + 1], durationH: Math.round((next - curr) / 3_600_000) });
     }
   }
   return { enriched, gaps };
@@ -229,7 +222,7 @@ function MultiSensorChart({ titulo, series, sensores, valor, unidade, altura = 2
           ))}
           {sensores.map((s) => (
             <Line key={s.id} type="monotone" dataKey={String(s.id)} stroke={getCor(s)}
-              dot={false} strokeWidth={2} connectNulls={false} />
+              dot={false} strokeWidth={2} connectNulls={true} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -284,9 +277,9 @@ function SingleSensorChart({ sensor, series, unidade }: {
             <ReferenceArea key={i} x1={gap.x1} x2={gap.x2}
               fill="rgba(180,180,180,0.2)" stroke="rgba(180,180,180,0.4)" strokeDasharray="3 3" />
           ))}
-          <Line type="monotone" dataKey="avg" stroke={SENSOR_METRIC_COLORS.avg} strokeWidth={2} dot={false} connectNulls={false} />
-          <Line type="monotone" dataKey="max" stroke={SENSOR_METRIC_COLORS.max} strokeWidth={1.5} dot={false} connectNulls={false} />
-          <Line type="monotone" dataKey="min" stroke={SENSOR_METRIC_COLORS.min} strokeWidth={1.5} dot={false} connectNulls={false} />
+          <Line type="monotone" dataKey="avg" stroke={SENSOR_METRIC_COLORS.avg} strokeWidth={2} dot={false} connectNulls={true} />
+          <Line type="monotone" dataKey="max" stroke={SENSOR_METRIC_COLORS.max} strokeWidth={1.5} dot={false} connectNulls={true} />
+          <Line type="monotone" dataKey="min" stroke={SENSOR_METRIC_COLORS.min} strokeWidth={1.5} dot={false} connectNulls={true} />
         </LineChart>
       </ResponsiveContainer>
     </div>
