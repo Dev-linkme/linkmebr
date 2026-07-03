@@ -986,7 +986,7 @@ export default function RelatoriosPage() {
                                       <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_max, sensor?.tipo_grandeza ?? '')}</td>
                                       <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_min, sensor?.tipo_grandeza ?? '')}</td>
                                       <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
-                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.desvio_padrao, sensor?.tipo_grandeza ?? '')}</td>
+                                      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.desvio_padrao != null ? leitura.desvio_padrao.toFixed(2) : '—'}</td>
                                       <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
                                     </tr>
                                   );
@@ -1228,7 +1228,7 @@ export default function RelatoriosPage() {
                                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_max, sensor?.tipo_grandeza ?? '')}</td>
                                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.valor_min, sensor?.tipo_grandeza ?? '')}</td>
                                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.num_amostras}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtSensor(leitura.desvio_padrao, sensor?.tipo_grandeza ?? '')}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{leitura.desvio_padrao != null ? leitura.desvio_padrao.toFixed(2) : '—'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap"><StatusAnaliseBadge status={leitura.status_analise} regras={regras} /></td>
                                   </tr>
                                 );
