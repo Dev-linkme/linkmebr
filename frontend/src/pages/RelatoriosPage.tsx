@@ -353,24 +353,36 @@ function MultiGrandezaChart({
         </div>
       </div>
       <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={chartData} margin={{ top: 4, right: 20, left: 0, bottom: 4 }}>
+        <LineChart data={chartData} margin={{ top: 22, right: 20, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
 
           {sT && (
-            <YAxis yAxisId="temp" orientation="left" width={50} tick={{ fontSize: 10 }}
+            <YAxis yAxisId="temp" orientation="left" width={50}
+              tick={{ fontSize: 10, fill: MULTI_CORES.temperatura }}
+              axisLine={{ stroke: MULTI_CORES.temperatura }}
+              tickLine={{ stroke: MULTI_CORES.temperatura }}
               domain={yDomainFrom(tVals)} tickFormatter={(v: number) => v.toFixed(1)}
-              label={{ value: sT.unidade_medida, angle: -90, position: 'insideLeft', style: { fontSize: 10 } }} />
+              label={{ value: sT.unidade_medida, angle: 0, position: 'insideTopLeft', offset: 6,
+                style: { fontSize: 10, fill: MULTI_CORES.temperatura, fontWeight: 600 } }} />
           )}
           {sU && (
-            <YAxis yAxisId="umid" orientation="right" width={52} tick={{ fontSize: 10 }}
+            <YAxis yAxisId="umid" orientation="right" width={52}
+              tick={{ fontSize: 10, fill: MULTI_CORES.umidade }}
+              axisLine={{ stroke: MULTI_CORES.umidade }}
+              tickLine={{ stroke: MULTI_CORES.umidade }}
               domain={yDomainFrom(uVals)} tickFormatter={(v: number) => v.toFixed(0)}
-              label={{ value: sU.unidade_medida, angle: 90, position: 'insideRight', style: { fontSize: 10 } }} />
+              label={{ value: sU.unidade_medida, angle: 0, position: 'insideTopRight', offset: 6,
+                style: { fontSize: 10, fill: MULTI_CORES.umidade, fontWeight: 600 } }} />
           )}
           {sC && (
-            <YAxis yAxisId="co2" orientation="right" width={65} tick={{ fontSize: 10 }}
+            <YAxis yAxisId="co2" orientation="right" width={65}
+              tick={{ fontSize: 10, fill: MULTI_CORES.co2 }}
+              axisLine={{ stroke: MULTI_CORES.co2 }}
+              tickLine={{ stroke: MULTI_CORES.co2 }}
               domain={yDomainFrom(cVals)} tickFormatter={(v: number) => v.toFixed(0)}
-              label={{ value: sC.unidade_medida, angle: 90, position: 'insideRight', style: { fontSize: 10 } }} />
+              label={{ value: sC.unidade_medida, angle: 0, position: 'insideTopRight', offset: 6,
+                style: { fontSize: 10, fill: MULTI_CORES.co2, fontWeight: 600 } }} />
           )}
 
           <Tooltip
