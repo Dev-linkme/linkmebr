@@ -286,6 +286,116 @@ function SingleSensorChart({ sensor, series, unidade }: {
   );
 }
 
+// ─── MultiGrandezaChart ───────────────────────────────────────────────────────
+// Mostra temperatura, umidade e CO₂ de uma mesma altura num único gráfico,
+// cada grandeza com seu próprio eixo Y (esquerdo: temperatura; direito 1:
+// umidade; direito 2: CO₂). Disponível apenas no agrupamento por Cabo Pêndulo.
+
+const MULTI_CORES: Record<string, string> = {
+  temperatura: '#ef4444',
+  umidade:     '#3b82f6',
+  co2:         '#22c55e',
+};
+
+function MultiGrandezaChart({
+  titulo, barraId, alturaM, series, sensores,
+}: {
+  titulo: string;
+  barraId: number;
+  alturaM: number;
+  series: GraficoSerie[];
+  sensores: GraficoSensor[];
+}) {
+  const sT = sensores.find((s) => s.barra_id === barraId && s.altura_solo_m === alturaM && s.tipo_grandeza === 'temperatura');
+  const sU = sensores.find((s) => s.barra_id === barraId && s.altura_solo_m === alturaM && s.tipo_grandeza === 'umidade');
+  const sC = sensores.find((s) => s.barra_id === barraId && s.altura_solo_m === alturaM && s.tipo_grandeza === 'co2');
+
+  const rT = sT ? series.filter((d) => d.sensor_id === sT.id) : [];
+  const rU = sU ? series.filter((d) => d.sensor_id === sU.id) : [];
+  const rC = sC ? series.filter((d) => d.sensor_id === sC.id) : [];
+
+  const all = [...rT, ...rU, ...rC];
+  if (all.length === 0) return null;
+
+  const buckets = Array.from(new Set(all.map((d) => d.bucket))).sort();
+  const chartData = buckets.map((bucket) => {
+    const row: Record<string, unknown> = { bucket };
+    const t = rT.find((d) => d.bucket === bucket);
+    const u = rU.find((d) => d.bucket === bucket);
+    const c = rC.find((d) => d.bucket === bucket);
+    if (t) row.temp = t.avg;
+    if (u) row.umid = u.avg;
+    if (c) row.co2  = c.avg;
+    return row;
+  });
+
+  const tVals = chartData.map((r) => r.temp as number | undefined).filter((v): v is number => v != null);
+  const uVals = chartData.map((r) => r.umid as number | undefined).filter((v): v is number => v != null);
+  const cVals = chartData.map((r) => r.co2  as number | undefined).filter((v): v is number => v != null);
+
+  const legendItems = [
+    sT && { cor: MULTI_CORES.temperatura, label: `Temperatura (${sT.unidade_medida})` },
+    sU && { cor: MULTI_CORES.umidade,     label: `Umidade (${sU.unidade_medida})` },
+    sC && { cor: MULTI_CORES.co2,         label: `CO₂ (${sC.unidade_medida})` },
+  ].filter(Boolean) as { cor: string; label: string }[];
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-semibold text-gray-700">{titulo}</h3>
+        <div className="flex flex-wrap items-center gap-4">
+          {legendItems.map((item) => (
+            <span key={item.label} className="flex items-center gap-1.5 text-xs text-gray-600">
+              <svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke={item.cor} strokeWidth="2.5" strokeLinecap="round" /></svg>
+              {item.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={chartData} margin={{ top: 4, right: 20, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="bucket" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={40} />
+
+          {sT && (
+            <YAxis yAxisId="temp" orientation="left" width={50} tick={{ fontSize: 10 }}
+              domain={yDomainFrom(tVals)} tickFormatter={(v: number) => v.toFixed(1)}
+              label={{ value: sT.unidade_medida, angle: -90, position: 'insideLeft', style: { fontSize: 10 } }} />
+          )}
+          {sU && (
+            <YAxis yAxisId="umid" orientation="right" width={52} tick={{ fontSize: 10 }}
+              domain={yDomainFrom(uVals)} tickFormatter={(v: number) => v.toFixed(0)}
+              label={{ value: sU.unidade_medida, angle: 90, position: 'insideRight', style: { fontSize: 10 } }} />
+          )}
+          {sC && (
+            <YAxis yAxisId="co2" orientation="right" width={65} tick={{ fontSize: 10 }}
+              domain={yDomainFrom(cVals)} tickFormatter={(v: number) => v.toFixed(0)}
+              label={{ value: sC.unidade_medida, angle: 90, position: 'insideRight', style: { fontSize: 10 } }} />
+          )}
+
+          <Tooltip
+            labelFormatter={(v) => formatTimestamp(String(v))}
+            formatter={(val, name) => {
+              if (val == null) return ['—', ''];
+              const meta: Record<string, [string, string]> = {
+                temp: ['Temperatura', sT?.unidade_medida ?? ''],
+                umid: ['Umidade',     sU?.unidade_medida ?? ''],
+                co2:  ['CO₂',        sC?.unidade_medida ?? ''],
+              };
+              const [label, unit] = meta[String(name)] ?? [String(name), ''];
+              return [`${(val as number).toFixed(1)} ${unit}`.trim(), label];
+            }}
+          />
+
+          {sT && <Line yAxisId="temp" type="monotone" dataKey="temp" stroke={MULTI_CORES.temperatura} strokeWidth={2} dot={false} connectNulls={true} />}
+          {sU && <Line yAxisId="umid" type="monotone" dataKey="umid" stroke={MULTI_CORES.umidade}     strokeWidth={2} dot={false} connectNulls={true} />}
+          {sC && <Line yAxisId="co2"  type="monotone" dataKey="co2"  stroke={MULTI_CORES.co2}         strokeWidth={2} dot={false} connectNulls={true} />}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // ─── Aviso de intervalo do gráfico ────────────────────────────────────────────
 
 const BUCKET_TABLE: { periodo: string; bucket: string }[] = [
@@ -476,6 +586,7 @@ export default function RelatoriosPage() {
   const [lastFiltros, setLastFiltros] = useState<FiltrosComDatas | null>(null);
   const [showIntervaloInfo, setShowIntervaloInfo] = useState(false);
   const [ultimaConsultaEm, setUltimaConsultaEm] = useState<Date | null>(null);
+  const [modoBarra, setModoBarra] = useState<'grandeza' | 'multi'>('grandeza');
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
@@ -1027,8 +1138,23 @@ export default function RelatoriosPage() {
                             </div>
                           </div>
 
-                          {/* Métrica (oculta no modo Sensor) */}
-                          {agrupamento !== 'sensor' && (
+                          {/* Modo (apenas para agrupamento por Cabo Pêndulo) */}
+                          {agrupamento === 'barra' && (
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-gray-500">Modo:</span>
+                              <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                                <button type="button" onClick={() => setModoBarra('grandeza')} className={btnGroupCls(modoBarra === 'grandeza')}>
+                                  Por Grandeza
+                                </button>
+                                <button type="button" onClick={() => setModoBarra('multi')} className={btnGroupCls(modoBarra === 'multi')}>
+                                  Multi-Grandeza
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Métrica (oculta no modo Sensor e no modo Multi-Grandeza) */}
+                          {agrupamento !== 'sensor' && !(agrupamento === 'barra' && modoBarra === 'multi') && (
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-500">Exibindo:</span>
                               <div className="flex rounded-lg border border-gray-200 overflow-hidden">
@@ -1050,8 +1176,8 @@ export default function RelatoriosPage() {
                               valor={valorTipo} unidade={unidade} altura={400} legenda={false} />
                           )}
 
-                          {/* Barra: um gráfico por barra */}
-                          {agrupamento === 'barra' && (() => {
+                          {/* Barra — modo Por Grandeza: um gráfico por barra */}
+                          {agrupamento === 'barra' && modoBarra === 'grandeza' && (() => {
                             const barrasUnicas = [
                               ...new Map(sensoresFiltrados.map((s) => [s.barra_id, { id: s.barra_id, identificacao: s.barra_identificacao }])).values()
                             ];
@@ -1061,8 +1187,32 @@ export default function RelatoriosPage() {
                                 series={serieFiltrada}
                                 sensores={sensoresFiltrados.filter((s) => s.barra_id === barra.id)}
                                 corPorAltura={corPorAltura}
-                                valor={valorTipo} unidade={unidade}                              />
+                                valor={valorTipo} unidade={unidade} />
                             ));
+                          })()}
+
+                          {/* Barra — modo Multi-Grandeza: um gráfico por (barra, altura) com temp+umid+CO₂ */}
+                          {agrupamento === 'barra' && modoBarra === 'multi' && (() => {
+                            const todasSeries = grafico?.series ?? [];
+                            const todosSensores = grafico?.sensores ?? [];
+                            const barrasUnicas = [
+                              ...new Map(todosSensores.map((s) => [s.barra_id, { id: s.barra_id, identificacao: s.barra_identificacao }])).values()
+                            ];
+                            return barrasUnicas.flatMap((barra) => {
+                              const alturas = [...new Set(
+                                todosSensores.filter((s) => s.barra_id === barra.id).map((s) => s.altura_solo_m)
+                              )].sort((a, b) => a - b);
+                              return alturas.map((alt) => (
+                                <MultiGrandezaChart
+                                  key={`${barra.id}-${alt}`}
+                                  titulo={`${barra.identificacao} — ${alt} m`}
+                                  barraId={barra.id}
+                                  alturaM={alt}
+                                  series={todasSeries}
+                                  sensores={todosSensores}
+                                />
+                              ));
+                            });
                           })()}
 
                           {/* Sensor: um gráfico por sensor com média+máx+mín */}
