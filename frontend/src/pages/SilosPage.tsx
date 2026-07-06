@@ -17,6 +17,7 @@ interface SiloForm {
   longitude?: string;
   descricao?: string;
   id_labrador?: string;
+  tipo_dado?: 'Real' | 'Simulado';
 }
 
 interface SilosResponse {
@@ -40,6 +41,11 @@ function ViewModal({ silo, onClose }: { silo: Silo; onClose: () => void }) {
     { label: 'Sensores ativos', value: String(silo.total_sensores_ativos ?? 0) },
     { label: 'Descrição', value: silo.descricao ?? '—' },
     { label: 'ID Labrador', value: silo.id_labrador != null ? String(silo.id_labrador) : '—' },
+    {
+      label: 'Tipo de Dado',
+      value: silo.tipo_dado === 'Simulado' ? 'Simulado' : 'Real',
+      badge: silo.tipo_dado === 'Simulado' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800',
+    },
     {
       label: 'Status',
       value: silo.status === 'ativo' ? 'Ativo' : 'Inativo',
@@ -124,6 +130,7 @@ export default function SilosPage() {
       longitude: silo.longitude != null ? String(silo.longitude) : '',
       descricao: silo.descricao ?? '',
       id_labrador: silo.id_labrador != null ? String(silo.id_labrador) : '',
+      tipo_dado: (silo.tipo_dado ?? 'Real') as 'Real' | 'Simulado',
     });
     setFormMode(silo.id);
   }
@@ -227,6 +234,13 @@ export default function SilosPage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">ID Labrador</label>
                 <input {...register('id_labrador')} type="number" min="1" className={cls(false)} placeholder="Opcional" />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de Dado</label>
+                <select {...register('tipo_dado')} className={cls(false)}>
+                  <option value="Real">Real</option>
+                  <option value="Simulado">Simulado</option>
+                </select>
+              </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
                 <textarea {...register('descricao')} rows={2} className={cls(false)} placeholder="Descrição opcional" />
@@ -258,13 +272,14 @@ export default function SilosPage() {
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Localização</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cabos / Sensores</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID Labrador</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipo</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {silos.length === 0 && (
-                  <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400">Nenhum silo cadastrado.</td></tr>
+                  <tr><td colSpan={7} className="px-5 py-10 text-center text-gray-400">Nenhum silo cadastrado.</td></tr>
                 )}
                 {silos.map((silo) => (
                   <tr key={silo.id} className="hover:bg-gray-50 transition-colors">
@@ -272,6 +287,11 @@ export default function SilosPage() {
                     <td className="px-5 py-4 text-sm text-gray-500">{[silo.cidade, silo.estado].filter(Boolean).join(' / ') || '—'}</td>
                     <td className="px-5 py-4 text-sm text-gray-600">{silo.total_barras_ativas ?? 0} / {silo.total_sensores_ativos ?? 0}</td>
                     <td className="px-5 py-4 text-sm text-gray-600">{silo.id_labrador != null ? String(silo.id_labrador) : '—'}</td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${silo.tipo_dado === 'Simulado' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {silo.tipo_dado ?? 'Real'}
+                      </span>
+                    </td>
                     <td className="px-5 py-4">
                       <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${silo.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {silo.status}

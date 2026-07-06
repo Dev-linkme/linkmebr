@@ -38,36 +38,43 @@ export async function buscarLeituras(
     if (data_inicio) whereTimestamp.gte = data_inicio;
     if (data_fim) whereTimestamp.lte = data_fim;
 
-    const where = {
+    const sensorWhere = {
       sensor_id: { in: sensorIds },
       ...(Object.keys(whereTimestamp).length > 0 ? { timestamp: whereTimestamp } : {}),
     };
 
-    const [totalRaw, leituras] = await Promise.all([
-      prisma.leituraInterna.count({ where }),
-      prisma.leituraInterna.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [
-          { timestamp: 'desc' },
-          { sensor: { barra_id: 'asc' } },
-          { sensor: { altura_solo_m: 'asc' } },
-        ],
-        include: {
-          sensor: {
-            select: {
-              id: true,
-              identificacao: true,
-              altura_solo_m: true,
-              tipo_grandeza: true,
-              unidade_medida: true,
-              status: true,
-              barra: { select: { id: true, identificacao: true } },
-            },
-          },
+    const sensorInclude = {
+      sensor: {
+        select: {
+          id: true, identificacao: true, altura_solo_m: true,
+          tipo_grandeza: true, unidade_medida: true, status: true,
+          barra: { select: { id: true, identificacao: true } },
         },
-      }),
+      },
+    };
+
+    const orderBy = [
+      { timestamp: 'desc' as const },
+      { sensor: { barra_id: 'asc' as const } },
+      { sensor: { altura_solo_m: 'asc' as const } },
+    ];
+
+    if (silo.tipo_dado === 'Simulado') {
+      const evento_id = Number(req.query.evento_id);
+      if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
+      const where = { ...sensorWhere, evento_id };
+      const [totalRaw, leituras] = await Promise.all([
+        prisma.dadoSimulado.count({ where }),
+        prisma.dadoSimulado.findMany({ where, skip, take: limit, orderBy, include: sensorInclude }),
+      ]);
+      const total = Number(totalRaw);
+      res.json({ dados: leituras.map(serializeLeituraInterna), total, pagina: page, total_paginas: Math.ceil(total / limit) });
+      return;
+    }
+
+    const [totalRaw, leituras] = await Promise.all([
+      prisma.leituraInterna.count({ where: sensorWhere }),
+      prisma.leituraInterna.findMany({ where: sensorWhere, skip, take: limit, orderBy, include: sensorInclude }),
     ]);
 
     const total = Number(totalRaw);
@@ -102,26 +109,36 @@ export async function exportarCSV(req: Request, res: Response, next: NextFunctio
     if (data_inicio) whereTimestamp.gte = data_inicio;
     if (data_fim) whereTimestamp.lte = data_fim;
 
-    const where = {
+    const baseWhere = {
       sensor_id: { in: sensorIds },
       ...(Object.keys(whereTimestamp).length > 0 ? { timestamp: whereTimestamp } : {}),
     };
 
-    const leituras = await prisma.leituraInterna.findMany({
-      where,
-      orderBy: { timestamp: 'asc' },
-      include: {
-        sensor: {
-          select: {
-            id: true,
-            identificacao: true,
-            tipo_grandeza: true,
-            unidade_medida: true,
-            barra: { select: { id: true, identificacao: true } },
-          },
+    const csvInclude = {
+      sensor: {
+        select: {
+          id: true, identificacao: true, tipo_grandeza: true, unidade_medida: true,
+          barra: { select: { id: true, identificacao: true } },
         },
       },
-    });
+    };
+
+    let leituras;
+    if (silo.tipo_dado === 'Simulado') {
+      const evento_id = Number(req.query.evento_id);
+      if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
+      leituras = await prisma.dadoSimulado.findMany({
+        where: { ...baseWhere, evento_id },
+        orderBy: { timestamp: 'asc' },
+        include: csvInclude,
+      });
+    } else {
+      leituras = await prisma.leituraInterna.findMany({
+        where: baseWhere,
+        orderBy: { timestamp: 'asc' },
+        include: csvInclude,
+      });
+    }
 
     const dataInicioStr = data_inicio ? data_inicio.toISOString().split('T')[0] : 'inicio';
     const dataFimStr = data_fim ? data_fim.toISOString().split('T')[0] : 'fim';
@@ -175,6 +192,18 @@ export async function buscarRange(req: Request, res: Response, next: NextFunctio
     const sensor_id = req.query.sensor_id ? Number(req.query.sensor_id) : undefined;
     const sensorIds = await getSensorIds(silo_id, barra_id, sensor_id);
 
+    if (silo.tipo_dado === 'Simulado') {
+      const evento_id = Number(req.query.evento_id);
+      if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
+      const agg = await prisma.dadoSimulado.aggregate({
+        where: { sensor_id: { in: sensorIds }, evento_id },
+        _min: { timestamp: true },
+        _max: { timestamp: true },
+      });
+      res.json({ data_inicio: agg._min.timestamp, data_fim: agg._max.timestamp });
+      return;
+    }
+
     const agg = await prisma.leituraInterna.aggregate({
       where: { sensor_id: { in: sensorIds } },
       _min: { timestamp: true },
@@ -215,6 +244,15 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
 
     const bucketSec = diffHoras <= 12 ? 180 : diffHoras <= 24 ? 900 : diffHoras <= 72 ? 1800 : diffHoras <= 24 * 7 ? 3600 : 10800;
 
+    if (silo.tipo_dado === 'Simulado') {
+      const evento_id = Number(req.query.evento_id);
+      if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
+      params.push(evento_id);
+      whereClause.push(`l.evento_id = $${params.length}`);
+    }
+
+    const tabela = silo.tipo_dado === 'Simulado' ? 'silos.dados_simulados' : 'silos.leitura_interna';
+
     type GraficoRow = { sensor_id: number; bucket: Date; avg: number; max: number; min: number };
     const rows = await prisma.$queryRawUnsafe<GraficoRow[]>(
       `SELECT l.sensor_id,
@@ -222,7 +260,7 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
               AVG(l.valor_avg)::float AS avg,
               MAX(l.valor_max)::float AS max,
               MIN(l.valor_min)::float AS min
-       FROM silos.leitura_interna l
+       FROM ${tabela} l
        WHERE ${whereClause.join(' AND ')}
        GROUP BY l.sensor_id, bucket
        ORDER BY l.sensor_id, bucket`,

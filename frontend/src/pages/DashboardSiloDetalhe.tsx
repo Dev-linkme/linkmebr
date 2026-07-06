@@ -168,8 +168,15 @@ export default function DashboardSiloDetalhe() {
         </div>
       </div>
 
+      {/* Badge Simulado */}
+      {silo.tipo_dado === 'Simulado' && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl px-5 py-3 text-sm text-purple-700 font-medium">
+          Silo com dados simulados — leituras de sensores e clima não são exibidos.
+        </div>
+      )}
+
       {/* Clima */}
-      {current && (
+      {silo.tipo_dado !== 'Simulado' && current && (
         <div className="bg-white rounded-xl shadow p-5">
           <h2 className="font-semibold text-gray-700 mb-4">Condições Atuais</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -212,7 +219,7 @@ export default function DashboardSiloDetalhe() {
         </div>
       )}
 
-      {/* Último carregamento */}
+      {/* Último carregamento — visível para ambos */}
       <div className="bg-white rounded-xl shadow p-5">
         <h2 className="font-semibold text-gray-700 mb-4">Último Carregamento Registrado</h2>
         {silo.ultimo_carregamento ? (
@@ -235,8 +242,8 @@ export default function DashboardSiloDetalhe() {
         )}
       </div>
 
-      {/* Leituras por barra */}
-      <div className="space-y-3">
+      {/* Leituras por barra — apenas silos Real */}
+      {silo.tipo_dado !== 'Simulado' && <div className="space-y-3">
         <h2 className="font-semibold text-gray-700">Leituras por Cabo Pêndulo</h2>
 
         {leituras.length === 0 && (
@@ -328,7 +335,7 @@ export default function DashboardSiloDetalhe() {
             </div>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }

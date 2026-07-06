@@ -29,6 +29,11 @@ export const criarSiloSchema = z.object({
       errorMap: () => ({ message: 'Status deve ser "ativo" ou "inativo"' }),
     })
     .default('ativo'),
+  tipo_dado: z
+    .enum(['Real', 'Simulado'], {
+      errorMap: () => ({ message: 'tipo_dado deve ser "Real" ou "Simulado"' }),
+    })
+    .default('Real'),
   id_labrador: z.number({ coerce: true }).int().positive().optional(),
 });
 

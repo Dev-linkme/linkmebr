@@ -10,7 +10,7 @@ import {
   BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download, Search, Info, X, RefreshCw,
 } from 'lucide-react';
 import api from '../services/api';
-import type { Silo, Barra, Sensor, LeituraInterna, Regra } from '../types/index';
+import type { Silo, Barra, Sensor, LeituraInterna, Regra, Evento } from '../types/index';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -600,6 +600,12 @@ export default function RelatoriosPage() {
   const [ultimaConsultaEm, setUltimaConsultaEm] = useState<Date | null>(null);
   const [modoBarra, setModoBarra] = useState<'grandeza' | 'multi'>('grandeza');
 
+  // Simulação
+  const siloSelecionado  = silos.find((s) => String(s.id) === siloId);
+  const isSimulado       = siloSelecionado?.tipo_dado === 'Simulado';
+  const [eventoSimId,    setEventoSimId]    = useState('');
+  const [eventosSimulados, setEventosSimulados] = useState<Evento[]>([]);
+
   // ── Effects ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -616,11 +622,18 @@ export default function RelatoriosPage() {
     setDados([]); setGrafico(null);
     setDadosExternos([]); setGraficoExterno(null);
     setLastFiltros(null);
+    setEventoSimId(''); setEventosSimulados([]);
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
       .catch(() => toast.error('Erro ao carregar cabos pêndulo'));
-  }, [siloId, setValue]);
+    const silo = silos.find((s) => String(s.id) === siloId);
+    if (silo?.tipo_dado === 'Simulado') {
+      api.get<{ data: Evento[] }>(`/eventos?silo_id=${siloId}&limit=100`)
+        .then((res) => setEventosSimulados(res.data.data ?? []))
+        .catch(() => {});
+    }
+  }, [siloId, setValue, silos]);
 
   useEffect(() => {
     if (!siloId) return;
@@ -663,48 +676,52 @@ export default function RelatoriosPage() {
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
-  const fetchInterna = useCallback(async (f: FiltrosComDatas, page: number) => {
+  const fetchInterna = useCallback(async (f: FiltrosComDatas, page: number, eventoId?: string) => {
     setLoadingInterna(true);
     try {
       const params: Record<string, string | number> = { silo_id: f.silo_id, page, limit: 50, data_inicio: f.data_inicio, data_fim: f.data_fim };
       if (f.barra_id)  params.barra_id  = f.barra_id;
       if (f.sensor_id) params.sensor_id = f.sensor_id;
+      if (eventoId)    params.evento_id  = eventoId;
       const res = await api.get<RelatorioResponse>('/relatorios/leituras', { params });
       setDados(res.data.dados); setPaginaInterna(res.data.pagina); setTotalPagInterna(res.data.total_paginas);
     } catch { toast.error('Erro ao consultar leituras internas'); }
     finally  { setLoadingInterna(false); }
   }, []);
 
-  const fetchGraficoInterna = useCallback(async (f: FiltrosComDatas) => {
+  const fetchGraficoInterna = useCallback(async (f: FiltrosComDatas, eventoId?: string) => {
     setLoadingGrafInterna(true);
     try {
       const params: Record<string, string> = { silo_id: f.silo_id, data_inicio: f.data_inicio, data_fim: f.data_fim };
       if (f.barra_id)  params.barra_id  = f.barra_id;
       if (f.sensor_id) params.sensor_id = f.sensor_id;
+      if (eventoId)    params.evento_id  = eventoId;
       const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
       setGrafico(res.data);
     } catch { toast.error('Erro ao carregar gráfico interno'); }
     finally  { setLoadingGrafInterna(false); }
   }, []);
 
-  const fetchExterna = useCallback(async (f: FiltrosComDatas, page: number) => {
+  const fetchExterna = useCallback(async (f: FiltrosComDatas, page: number, eventoId?: string) => {
     setLoadingExterna(true);
     try {
       const params: Record<string, string | number> = { silo_id: f.silo_id, page, limit: 50, data_inicio: f.data_inicio, data_fim: f.data_fim };
       if (f.barra_id)  params.barra_id  = f.barra_id;
       if (f.sensor_id) params.sensor_id = f.sensor_id;
+      if (eventoId)    params.evento_id  = eventoId;
       const res = await api.get<RelatorioResponse>('/relatorios/leituras-externas', { params });
       setDadosExternos(res.data.dados); setPaginaExterna(res.data.pagina); setTotalPagExterna(res.data.total_paginas);
     } catch { toast.error('Erro ao consultar leituras externas'); }
     finally  { setLoadingExterna(false); }
   }, []);
 
-  const fetchGraficoExterna = useCallback(async (f: FiltrosComDatas) => {
+  const fetchGraficoExterna = useCallback(async (f: FiltrosComDatas, eventoId?: string) => {
     setLoadingGrafExterna(true);
     try {
       const params: Record<string, string> = { silo_id: f.silo_id, data_inicio: f.data_inicio, data_fim: f.data_fim };
       if (f.barra_id)  params.barra_id  = f.barra_id;
       if (f.sensor_id) params.sensor_id = f.sensor_id;
+      if (eventoId)    params.evento_id  = eventoId;
       const res = await api.get<GraficoResponse>('/relatorios/leituras-externas/grafico', { params });
       setGraficoExterno(res.data);
     } catch { toast.error('Erro ao carregar gráfico externo'); }
@@ -729,10 +746,11 @@ export default function RelatoriosPage() {
       const f: FiltrosComDatas = { ...lastFiltros, ...periodo };
       setLastFiltros(f);
       setUltimaConsultaEm(new Date());
+      const evId = isSimulado ? eventoSimId : undefined;
       if (abaAtiva === 'interna') {
-        subAbaAtual === 'tabela' ? fetchInterna(f, paginaInterna) : fetchGraficoInterna(f);
+        subAbaAtual === 'tabela' ? fetchInterna(f, paginaInterna, evId) : fetchGraficoInterna(f, evId);
       } else {
-        subAbaAtual === 'tabela' ? fetchExterna(f, paginaExterna) : fetchGraficoExterna(f);
+        subAbaAtual === 'tabela' ? fetchExterna(f, paginaExterna, evId) : fetchGraficoExterna(f, evId);
       }
     }, autoRefreshMs);
     return () => clearInterval(id);
@@ -747,18 +765,33 @@ export default function RelatoriosPage() {
       toast.error(periodoPreset === 'custom' ? 'Período inválido ou superior a 30 dias' : 'Período inválido');
       return;
     }
+    if (isSimulado && !eventoSimId) {
+      toast.error('Selecione uma Identificação da Simulação antes de consultar');
+      return;
+    }
     const f: FiltrosComDatas = { ...filtros, ...periodo };
     setLastFiltros(f); setSortField(null); setPaginaInterna(1); setPaginaExterna(1);
     setUltimaConsultaEm(new Date());
     const barraLocal = barraId ? barras.find((b) => String(b.id) === barraId)?.local : null;
     const deveInterna = hasInterna && (!barraLocal || barraLocal === 'interno ao silo');
     const deveExterna = hasExterna && (!barraLocal || barraLocal === 'externo ao silo');
-    if (deveInterna) { fetchInterna(f, 1); fetchGraficoInterna(f); }
-    if (deveExterna) { fetchExterna(f, 1); fetchGraficoExterna(f); }
+    const evId = isSimulado ? eventoSimId : undefined;
+    if (deveInterna) { fetchInterna(f, 1, evId); fetchGraficoInterna(f, evId); }
+    if (deveExterna) { fetchExterna(f, 1, evId); fetchGraficoExterna(f, evId); }
   };
 
-  const handlePageInterna = (p: number) => { if (lastFiltros) { setPaginaInterna(p); fetchInterna(lastFiltros, p); } };
-  const handlePageExterna = (p: number) => { if (lastFiltros) { setPaginaExterna(p); fetchExterna(lastFiltros, p); } };
+  const handlePageInterna = (p: number) => {
+    if (lastFiltros) {
+      setPaginaInterna(p);
+      fetchInterna(lastFiltros, p, isSimulado ? eventoSimId : undefined);
+    }
+  };
+  const handlePageExterna = (p: number) => {
+    if (lastFiltros) {
+      setPaginaExterna(p);
+      fetchExterna(lastFiltros, p, isSimulado ? eventoSimId : undefined);
+    }
+  };
 
   // ── Export ────────────────────────────────────────────────────────────────
 
@@ -769,6 +802,7 @@ export default function RelatoriosPage() {
       const params: Record<string, string> = { silo_id: lastFiltros.silo_id, data_inicio: lastFiltros.data_inicio, data_fim: lastFiltros.data_fim };
       if (lastFiltros.barra_id)  params.barra_id  = lastFiltros.barra_id;
       if (lastFiltros.sensor_id) params.sensor_id = lastFiltros.sensor_id;
+      if (isSimulado && eventoSimId) params.evento_id = eventoSimId;
       const res = await api.get<string>('/relatorios/leituras/export', { params, responseType: 'text' });
       const csv = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
       const a = document.createElement('a');
@@ -787,6 +821,7 @@ export default function RelatoriosPage() {
       const params: Record<string, string> = { silo_id: lastFiltros.silo_id, data_inicio: lastFiltros.data_inicio, data_fim: lastFiltros.data_fim };
       if (lastFiltros.barra_id)  params.barra_id  = lastFiltros.barra_id;
       if (lastFiltros.sensor_id) params.sensor_id = lastFiltros.sensor_id;
+      if (isSimulado && eventoSimId) params.evento_id = eventoSimId;
       const res = await api.get<string>('/relatorios/leituras-externas/export', { params, responseType: 'text' });
       const csv = typeof res.data === 'string' ? res.data : Papa.unparse(res.data as unknown as object[]);
       const a = document.createElement('a');
@@ -900,6 +935,30 @@ export default function RelatoriosPage() {
           </div>
         </div>
 
+        {/* Identificação da Simulação — apenas para silos Simulados */}
+        {isSimulado && (
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Identificação da Simulação <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={eventoSimId}
+              onChange={(e) => setEventoSimId(e.target.value)}
+              className="w-full border border-purple-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-purple-50"
+            >
+              <option value="">Selecione a simulação...</option>
+              {eventosSimulados.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.descricao_resumida} — {new Date(ev.hora_referencia).toLocaleDateString('pt-BR')}
+                </option>
+              ))}
+            </select>
+            {eventosSimulados.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">Nenhum evento cadastrado para este silo.</p>
+            )}
+          </div>
+        )}
+
         {/* Period selector */}
         <div className="space-y-2">
           <label className="block text-xs font-medium text-gray-700">Período</label>
@@ -946,7 +1005,7 @@ export default function RelatoriosPage() {
         </div>
 
         <div className="flex justify-end">
-          <button type="submit" disabled={loadingInterna || loadingExterna || !siloId}
+          <button type="submit" disabled={loadingInterna || loadingExterna || !siloId || (isSimulado && !eventoSimId)}
             className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors">
             <Search size={15} />
             {(loadingInterna || loadingExterna) ? t('geral.carregando') : t('relatorios.consultar')}

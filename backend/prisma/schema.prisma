@@ -63,6 +63,7 @@ model Silo {
   longitude       Decimal?  @db.Decimal(10, 7)
   descricao       String?   @db.Text
   status          String    @default("ativo") @db.VarChar(10)
+  tipo_dado       String    @default("Real") @db.VarChar(20)
   criado_em       DateTime  @default(now()) @db.Timestamptz()
   atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
   id_labrador     Int?
@@ -104,11 +105,35 @@ model Evento {
   criado_em          DateTime @default(now()) @db.Timestamptz()
   atualizado_em      DateTime @default(now()) @updatedAt @db.Timestamptz()
 
-  silo               Silo     @relation(fields: [silo_id], references: [id])
-  usuario            Usuario  @relation(fields: [usuario_id], references: [id])
+  silo               Silo            @relation(fields: [silo_id], references: [id])
+  usuario            Usuario         @relation(fields: [usuario_id], references: [id])
+  dados_simulados    DadoSimulado[]
 
   @@index([silo_id, hora_referencia(sort: Desc)])
   @@map("eventos")
+  @@schema("silos")
+}
+
+model DadoSimulado {
+  id              BigInt    @id @default(autoincrement())
+  sensor_id       Int
+  evento_id       Int
+  timestamp       DateTime  @db.Timestamptz()
+  valor_avg       Decimal   @db.Decimal(10, 4)
+  valor_max       Decimal   @db.Decimal(10, 4)
+  valor_min       Decimal   @db.Decimal(10, 4)
+  num_amostras    Int
+  desvio_padrao   Decimal?  @db.Decimal(10, 4)
+  sum             BigInt?
+  sum2            BigInt?
+  status_analise  String?
+
+  sensor          Sensor    @relation(fields: [sensor_id], references: [id])
+  evento          Evento    @relation(fields: [evento_id], references: [id])
+
+  @@unique([sensor_id, evento_id, timestamp], name: "dado_simulado_sensor_evento_ts_uq")
+  @@index([sensor_id, evento_id, timestamp(sort: Desc)], name: "dado_simulado_sensor_evento_ts_idx")
+  @@map("dados_simulados")
   @@schema("silos")
 }
 
@@ -165,6 +190,7 @@ model Sensor {
   barra             Barra            @relation(fields: [barra_id], references: [id])
   leituras_internas LeituraInterna[]
   leituras_externas LeituraExterna[]
+  dados_simulados   DadoSimulado[]
 
   @@map("sensores")
   @@schema("silos")

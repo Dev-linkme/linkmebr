@@ -27,6 +27,7 @@ export interface Silo {
   longitude?: number;
   descricao?: string;
   status: string;
+  tipo_dado?: 'Real' | 'Simulado';
   id_labrador?: number | null;
   total_barras_ativas?: number;
   total_sensores_ativos?: number;

@@ -83,6 +83,7 @@ export async function listarSilos(req: Request, res: Response, next: NextFunctio
         latitude: silo.latitude,
         longitude: silo.longitude,
         status: silo.status,
+        tipo_dado: (silo as unknown as { tipo_dado?: string }).tipo_dado ?? 'Real',
         empresa: silo.empresa,
         total_barras_ativas: silo.barras.length,
         total_sensores_ativos: silo.barras.reduce((n, b) => n + b.sensores.length, 0),
@@ -108,6 +109,12 @@ export async function detalharSilo(
     const id = Number(req.params.id);
     if (isNaN(id)) throw new AppError(400, 'ID inválido');
 
+    const siloBase = await prisma.silo.findUnique({ where: { id }, select: { id: true, empresa_id: true, tipo_dado: true } });
+    if (!siloBase) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, siloBase.empresa_id);
+
+    const isSimulado = siloBase.tipo_dado === 'Simulado';
+
     const silo = await prisma.silo.findUnique({
       where: { id },
       include: {
@@ -119,7 +126,7 @@ export async function detalharSilo(
             sensores: {
               orderBy: { altura_solo_m: 'asc' },
               include: {
-                leituras_internas: {
+                leituras_internas: isSimulado ? false : {
                   orderBy: { timestamp: 'desc' },
                   take: 10,
                 },
@@ -131,7 +138,6 @@ export async function detalharSilo(
     });
 
     if (!silo) throw new AppError(404, 'Silo não encontrado');
-    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
     const ultimoCarregamento = await prisma.carregamento.findFirst({
       where: { silo_id: id },
@@ -190,6 +196,32 @@ export async function painelSilo(req: Request, res: Response, next: NextFunction
 
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    if (silo.tipo_dado === 'Simulado') {
+      const ultimoCarregamento = await prisma.carregamento.findFirst({
+        where: { silo_id: id },
+        orderBy: { hora_referencia: 'desc' },
+        select: { hora_referencia: true, nivel_m: true, volume_sacos: true },
+      });
+      const payload = {
+        silo: {
+          id: silo.id, nome: silo.nome, cidade: silo.cidade, estado: silo.estado,
+          latitude: silo.latitude, longitude: silo.longitude, status: silo.status,
+          tipo_dado: silo.tipo_dado,
+          total_barras_ativas: silo.barras.length,
+          total_sensores_ativos: silo.barras.reduce((n, b) => n + b.sensores.length, 0),
+          alertas_ativos: 0,
+          ultimo_carregamento: ultimoCarregamento,
+        },
+        clima: null,
+        referencia: null,
+        resumo_por_local: [],
+        rele: null,
+      };
+      await redis.setex(painelKey, PAINEL_CACHE_TTL, JSON.stringify(payload));
+      res.json(payload);
+      return;
+    }
 
     // Clima e último carregamento em paralelo com o processamento dos dados do silo
     const climaPromise = silo.latitude && silo.longitude
