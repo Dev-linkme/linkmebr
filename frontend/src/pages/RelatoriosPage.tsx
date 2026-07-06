@@ -663,16 +663,18 @@ export default function RelatoriosPage() {
 
   useEffect(() => {
     if (!siloId) return;
+    if (isSimulado && !eventoSimId) return; // aguarda seleção do evento
     const p: Record<string, string> = { silo_id: siloId };
-    if (barraId)  p.barra_id  = barraId;
-    if (sensorId) p.sensor_id = sensorId;
+    if (barraId)     p.barra_id  = barraId;
+    if (sensorId)    p.sensor_id = sensorId;
+    if (eventoSimId) p.evento_id = eventoSimId;
     const barraLocal = barraId ? barras.find((b) => String(b.id) === barraId)?.local : null;
     if (hasInterna && (!barraLocal || barraLocal === 'interno ao silo'))
       api.get<RangeHint>('/relatorios/leituras/range', { params: p }).then((r) => setRangeInterna(r.data)).catch(() => {});
     if (hasExterna && (!barraLocal || barraLocal === 'externo ao silo'))
       api.get<RangeHint>('/relatorios/leituras-externas/range', { params: p }).then((r) => setRangeExterna(r.data)).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siloId, barraId, sensorId, hasInterna, hasExterna]);
+  }, [siloId, barraId, sensorId, hasInterna, hasExterna, isSimulado, eventoSimId]);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
