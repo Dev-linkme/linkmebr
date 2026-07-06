@@ -107,7 +107,7 @@ model Evento {
 
   silo               Silo            @relation(fields: [silo_id], references: [id])
   usuario            Usuario         @relation(fields: [usuario_id], references: [id])
-  dados_simulados    DadoSimulado[]
+  dados_simulados    DadoSimulado[]  @relation("EventoDadoSimulado")
 
   @@index([silo_id, hora_referencia(sort: Desc)])
   @@map("eventos")
@@ -115,24 +115,23 @@ model Evento {
 }
 
 model DadoSimulado {
-  id              BigInt    @id @default(autoincrement())
   sensor_id       Int
-  evento_id       Int
+  id_evento       Int
   timestamp       DateTime  @db.Timestamptz()
-  valor_avg       Decimal   @db.Decimal(10, 4)
-  valor_max       Decimal   @db.Decimal(10, 4)
-  valor_min       Decimal   @db.Decimal(10, 4)
-  num_amostras    Int
-  desvio_padrao   Decimal?  @db.Decimal(10, 4)
-  sum             BigInt?
-  sum2            BigInt?
+  valor_avg       Float?
+  valor_max       Float?
+  valor_min       Float?
+  num_amostras    Int?
+  desvio_padrao   Float?
+  sum             Float?
+  sum2            Float?
   status_analise  String?
 
   sensor          Sensor    @relation(fields: [sensor_id], references: [id])
-  evento          Evento    @relation(fields: [evento_id], references: [id])
+  evento          Evento    @relation("EventoDadoSimulado", fields: [id_evento], references: [id])
 
-  @@unique([sensor_id, evento_id, timestamp], name: "dado_simulado_sensor_evento_ts_uq")
-  @@index([sensor_id, evento_id, timestamp(sort: Desc)], name: "dado_simulado_sensor_evento_ts_idx")
+  @@id([sensor_id, id_evento, timestamp])
+  @@index([sensor_id, id_evento, timestamp(sort: Desc)], name: "dado_simulado_sensor_evento_ts_idx")
   @@map("dados_simulados")
   @@schema("silos")
 }

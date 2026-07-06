@@ -62,13 +62,13 @@ export async function buscarLeituras(
     if (silo.tipo_dado === 'Simulado') {
       const evento_id = Number(req.query.evento_id);
       if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
-      const where = { ...sensorWhere, evento_id };
+      const where = { ...sensorWhere, id_evento: evento_id };
       const [totalRaw, leituras] = await Promise.all([
         prisma.dadoSimulado.count({ where }),
         prisma.dadoSimulado.findMany({ where, skip, take: limit, orderBy, include: sensorInclude }),
       ]);
       const total = Number(totalRaw);
-      res.json({ dados: leituras.map(serializeLeituraInterna), total, pagina: page, total_paginas: Math.ceil(total / limit) });
+      res.json({ dados: leituras.map(serializeDadoSimulado), total, pagina: page, total_paginas: Math.ceil(total / limit) });
       return;
     }
 
@@ -123,23 +123,6 @@ export async function exportarCSV(req: Request, res: Response, next: NextFunctio
       },
     };
 
-    let leituras;
-    if (silo.tipo_dado === 'Simulado') {
-      const evento_id = Number(req.query.evento_id);
-      if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
-      leituras = await prisma.dadoSimulado.findMany({
-        where: { ...baseWhere, evento_id },
-        orderBy: { timestamp: 'asc' },
-        include: csvInclude,
-      });
-    } else {
-      leituras = await prisma.leituraInterna.findMany({
-        where: baseWhere,
-        orderBy: { timestamp: 'asc' },
-        include: csvInclude,
-      });
-    }
-
     const dataInicioStr = data_inicio ? data_inicio.toISOString().split('T')[0] : 'inicio';
     const dataFimStr = data_fim ? data_fim.toISOString().split('T')[0] : 'fim';
     const filename = `silo_${silo_id}_${dataInicioStr}_${dataFimStr}.csv`;
@@ -150,26 +133,63 @@ export async function exportarCSV(req: Request, res: Response, next: NextFunctio
       'valor_avg', 'valor_max', 'valor_min', 'num_amostras', 'desvio_padrao', 'sum', 'sum2', 'status_analise',
     ].join(',');
 
-    const linhas = leituras.map((l) =>
-      [
-        l.id.toString(),
-        l.sensor_id.toString(),
-        escapeCsvField(l.sensor.identificacao),
-        l.sensor.barra.id.toString(),
-        escapeCsvField(l.sensor.barra.identificacao),
-        escapeCsvField(l.sensor.tipo_grandeza),
-        escapeCsvField(l.sensor.unidade_medida),
-        l.timestamp.toISOString(),
-        l.valor_avg.toString(),
-        l.valor_max.toString(),
-        l.valor_min.toString(),
-        l.num_amostras.toString(),
-        l.desvio_padrao !== null ? l.desvio_padrao.toString() : '',
-        l.sum !== null ? l.sum.toString() : '',
-        l.sum2 !== null ? l.sum2.toString() : '',
-        l.status_analise ?? '',
-      ].join(','),
-    );
+    let linhas: string[];
+
+    if (silo.tipo_dado === 'Simulado') {
+      const evento_id = Number(req.query.evento_id);
+      if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
+      const dados = await prisma.dadoSimulado.findMany({
+        where: { ...baseWhere, id_evento: evento_id },
+        orderBy: { timestamp: 'asc' },
+        include: csvInclude,
+      });
+      linhas = dados.map((l) =>
+        [
+          '',
+          l.sensor_id.toString(),
+          escapeCsvField(l.sensor.identificacao),
+          l.sensor.barra.id.toString(),
+          escapeCsvField(l.sensor.barra.identificacao),
+          escapeCsvField(l.sensor.tipo_grandeza),
+          escapeCsvField(l.sensor.unidade_medida),
+          l.timestamp.toISOString(),
+          l.valor_avg?.toString() ?? '',
+          l.valor_max?.toString() ?? '',
+          l.valor_min?.toString() ?? '',
+          l.num_amostras?.toString() ?? '',
+          l.desvio_padrao != null ? l.desvio_padrao.toString() : '',
+          l.sum != null ? l.sum.toString() : '',
+          l.sum2 != null ? l.sum2.toString() : '',
+          l.status_analise ?? '',
+        ].join(','),
+      );
+    } else {
+      const dados = await prisma.leituraInterna.findMany({
+        where: baseWhere,
+        orderBy: { timestamp: 'asc' },
+        include: csvInclude,
+      });
+      linhas = dados.map((l) =>
+        [
+          l.id.toString(),
+          l.sensor_id.toString(),
+          escapeCsvField(l.sensor.identificacao),
+          l.sensor.barra.id.toString(),
+          escapeCsvField(l.sensor.barra.identificacao),
+          escapeCsvField(l.sensor.tipo_grandeza),
+          escapeCsvField(l.sensor.unidade_medida),
+          l.timestamp.toISOString(),
+          l.valor_avg.toString(),
+          l.valor_max.toString(),
+          l.valor_min.toString(),
+          l.num_amostras.toString(),
+          l.desvio_padrao !== null ? l.desvio_padrao.toString() : '',
+          l.sum !== null ? l.sum.toString() : '',
+          l.sum2 !== null ? l.sum2.toString() : '',
+          l.status_analise ?? '',
+        ].join(','),
+      );
+    }
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
@@ -196,7 +216,7 @@ export async function buscarRange(req: Request, res: Response, next: NextFunctio
       const evento_id = Number(req.query.evento_id);
       if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
       const agg = await prisma.dadoSimulado.aggregate({
-        where: { sensor_id: { in: sensorIds }, evento_id },
+        where: { sensor_id: { in: sensorIds }, id_evento: evento_id },
         _min: { timestamp: true },
         _max: { timestamp: true },
       });
@@ -248,7 +268,7 @@ export async function buscarGrafico(req: Request, res: Response, next: NextFunct
       const evento_id = Number(req.query.evento_id);
       if (!evento_id || isNaN(evento_id)) throw new AppError(400, 'evento_id é obrigatório para silos simulados');
       params.push(evento_id);
-      whereClause.push(`l.evento_id = $${params.length}`);
+      whereClause.push(`l.id_evento = $${params.length}`);
     }
 
     const tabela = silo.tipo_dado === 'Simulado' ? 'silos.dados_simulados' : 'silos.leitura_interna';
@@ -774,6 +794,46 @@ function serializeLeituraInterna(l: {
     desvio_padrao: l.desvio_padrao ? l.desvio_padrao.toNumber() : null,
     sum: l.sum !== null ? l.sum.toString() : null,
     sum2: l.sum2 !== null ? l.sum2.toString() : null,
+    status_analise: l.status_analise ?? null,
+    sensor: {
+      ...l.sensor,
+      altura_solo_m: l.sensor.altura_solo_m.toNumber(),
+    },
+  };
+}
+
+function serializeDadoSimulado(l: {
+  sensor_id: number;
+  timestamp: Date;
+  valor_avg: number | null;
+  valor_max: number | null;
+  valor_min: number | null;
+  num_amostras: number | null;
+  desvio_padrao: number | null;
+  sum: number | null;
+  sum2: number | null;
+  status_analise: string | null;
+  sensor: {
+    id: number;
+    identificacao: string;
+    altura_solo_m: { toNumber(): number };
+    tipo_grandeza: string;
+    unidade_medida: string;
+    status: string;
+    barra: { id: number; identificacao: string };
+  };
+}) {
+  return {
+    id: `sim-${l.sensor_id}-${l.timestamp.getTime()}`,
+    sensor_id: l.sensor_id,
+    timestamp: l.timestamp.toISOString(),
+    valor_avg: l.valor_avg ?? 0,
+    valor_max: l.valor_max ?? 0,
+    valor_min: l.valor_min ?? 0,
+    num_amostras: l.num_amostras ?? 0,
+    desvio_padrao: l.desvio_padrao,
+    sum: l.sum != null ? String(l.sum) : null,
+    sum2: l.sum2 != null ? String(l.sum2) : null,
     status_analise: l.status_analise ?? null,
     sensor: {
       ...l.sensor,
