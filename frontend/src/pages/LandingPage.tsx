@@ -17,6 +17,7 @@ import {
   Cpu,
   Wifi,
   AlertTriangle,
+  BookOpen,
 } from 'lucide-react';
 import api from '../services/api';
 import type { Faq } from '../types/index.ts';
@@ -133,6 +134,15 @@ export default function LandingPage() {
                 className="inline-flex items-center gap-2 border border-white/40 text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/10 transition-colors"
               >
                 {t('como_funciona.titulo')}
+              </a>
+              <a
+                href="/visaogeral.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 border border-white/25 text-white/80 font-medium px-6 py-3 rounded-xl hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <BookOpen size={18} />
+                Documentação Técnica
               </a>
             </div>
           </div>

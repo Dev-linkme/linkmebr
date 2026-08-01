@@ -1,0 +1,1371 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Projeto Silos — Documentação Geral</title>
+<style>
+  :root {
+    --bg: #F5F4EF;
+    --bg-alt: #ECEAE2;
+    --surface: #FFFFFF;
+    --border: #D6D2C4;
+    --text: #1A1A16;
+    --text-muted: #6B6859;
+    --accent: #2B6E32;
+    --accent-light: #E6F0E7;
+    --server: #B8510F;
+    --server-light: #FDF0E8;
+    --ia: #1B4F8A;
+    --ia-light: #E8EFF8;
+    --sim: #6B3FA0;
+    --sim-light: #F1ECF8;
+    --portal: #2B6E32;
+    --portal-light: #E6F0E7;
+    --sidebar-w: 260px;
+    --font-head: "Helvetica Neue", "Arial", system-ui, sans-serif;
+    --font-body: Georgia, "Times New Roman", serif;
+    --font-mono: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+    --radius: 4px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111612;
+      --bg-alt: #191D19;
+      --surface: #1E2420;
+      --border: #2E3830;
+      --text: #E8E6DC;
+      --text-muted: #8A9088;
+      --accent: #4DAA58;
+      --accent-light: #1A2B1C;
+      --server: #E07040;
+      --server-light: #2B1A10;
+      --ia: #5B8FD0;
+      --ia-light: #121D2B;
+      --sim: #A070D0;
+      --sim-light: #1E1428;
+      --portal: #4DAA58;
+      --portal-light: #1A2B1C;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F4EF; --bg-alt: #ECEAE2; --surface: #FFFFFF; --border: #D6D2C4;
+    --text: #1A1A16; --text-muted: #6B6859; --accent: #2B6E32; --accent-light: #E6F0E7;
+    --server: #B8510F; --server-light: #FDF0E8; --ia: #1B4F8A; --ia-light: #E8EFF8;
+    --sim: #6B3FA0; --sim-light: #F1ECF8; --portal: #2B6E32; --portal-light: #E6F0E7;
+  }
+  :root[data-theme="dark"] {
+    --bg: #111612; --bg-alt: #191D19; --surface: #1E2420; --border: #2E3830;
+    --text: #E8E6DC; --text-muted: #8A9088; --accent: #4DAA58; --accent-light: #1A2B1C;
+    --server: #E07040; --server-light: #2B1A10; --ia: #5B8FD0; --ia-light: #121D2B;
+    --sim: #A070D0; --sim-light: #1E1428; --portal: #4DAA58; --portal-light: #1A2B1C;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.7;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* SIDEBAR */
+  #sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    background: var(--bg-alt);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    overflow-y: auto;
+    padding: 24px 0 40px;
+    z-index: 100;
+  }
+  .sidebar-logo {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .sidebar-logo h1 {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+  .sidebar-logo p { font-size: 11px; color: var(--text-muted); font-family: var(--font-head); }
+  .nav-group { margin-bottom: 8px; }
+  .nav-label {
+    font-family: var(--font-head);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 8px 20px 4px;
+  }
+  .nav-group a {
+    display: block;
+    padding: 5px 20px;
+    font-family: var(--font-head);
+    font-size: 12.5px;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .nav-group a:hover { color: var(--text); background: var(--bg); }
+  .nav-group a.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-light); }
+  .nav-group a.mod-server:hover, .nav-group a.mod-server.active { color: var(--server); border-left-color: var(--server); background: var(--server-light); }
+  .nav-group a.mod-ia:hover, .nav-group a.mod-ia.active { color: var(--ia); border-left-color: var(--ia); background: var(--ia-light); }
+  .nav-group a.mod-sim:hover, .nav-group a.mod-sim.active { color: var(--sim); border-left-color: var(--sim); background: var(--sim-light); }
+  .nav-group a.mod-portal:hover, .nav-group a.mod-portal.active { color: var(--portal); border-left-color: var(--portal); background: var(--portal-light); }
+  .nav-sub { padding-left: 16px; }
+  .nav-sub a { font-size: 11.5px; }
+
+  /* THEME TOGGLE */
+  #theme-btn {
+    position: fixed;
+    top: 14px; right: 16px;
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--font-head);
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    letter-spacing: .04em;
+  }
+  #theme-btn:hover { color: var(--text); }
+
+  /* MAIN */
+  #main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 48px 64px 96px;
+    max-width: calc(var(--sidebar-w) + 960px);
+  }
+  @media (max-width: 900px) {
+    #sidebar { display: none; }
+    #main { margin-left: 0; padding: 32px 24px 64px; }
+    #theme-btn { top: 10px; right: 10px; }
+  }
+
+  /* TYPOGRAPHY */
+  h1, h2, h3, h4 {
+    font-family: var(--font-head);
+    text-wrap: balance;
+    line-height: 1.25;
+    color: var(--text);
+  }
+  h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 12px; }
+  h2 { font-size: 1.5rem; font-weight: 700; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.15rem; font-weight: 700; margin: 32px 0 12px; }
+  h4 { font-size: 1rem; font-weight: 700; margin: 20px 0 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem; }
+  p { margin-bottom: 14px; max-width: 72ch; }
+  a { color: var(--accent); }
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+
+  /* SECTIONS */
+  .section { margin-bottom: 16px; }
+  .module-header {
+    border-left: 4px solid var(--accent);
+    padding: 16px 20px;
+    background: var(--accent-light);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin-bottom: 24px;
+  }
+  .module-header.server { border-left-color: var(--server); background: var(--server-light); }
+  .module-header.ia { border-left-color: var(--ia); background: var(--ia-light); }
+  .module-header.sim { border-left-color: var(--sim); background: var(--sim-light); }
+  .module-header h2 { border: none; margin: 0 0 4px; padding: 0; font-size: 1.3rem; }
+  .module-header.server h2 { color: var(--server); }
+  .module-header.ia h2 { color: var(--ia); }
+  .module-header.sim h2 { color: var(--sim); }
+  .module-header.portal h2 { color: var(--portal); }
+  .module-header p { margin: 0; font-size: .9rem; color: var(--text-muted); font-family: var(--font-head); }
+  .badge {
+    display: inline-block;
+    font-family: var(--font-head);
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+  .badge-green { background: var(--accent-light); color: var(--accent); }
+  .badge-amber { background: var(--server-light); color: var(--server); }
+  .badge-blue { background: var(--ia-light); color: var(--ia); }
+  .badge-purple { background: var(--sim-light); color: var(--sim); }
+
+  /* CODE */
+  pre, code {
+    font-family: var(--font-mono);
+    font-size: .82rem;
+    background: var(--bg-alt);
+    border-radius: var(--radius);
+  }
+  code { padding: 1px 5px; }
+  pre {
+    padding: 16px 20px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    margin: 16px 0;
+    line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  /* TABLES */
+  .table-wrap { overflow-x: auto; margin: 16px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-head);
+    font-size: .84rem;
+    min-width: 500px;
+  }
+  thead th {
+    background: var(--bg-alt);
+    font-weight: 700;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--border);
+    font-size: .76rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--bg-alt); }
+
+  /* CALLOUTS */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-light);
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-family: var(--font-head);
+    font-size: .88rem;
+  }
+  .callout.warn { border-left-color: var(--server); background: var(--server-light); }
+  .callout.info { border-left-color: var(--ia); background: var(--ia-light); }
+  .callout p { margin: 0; max-width: 100%; }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  /* ARCH DIAGRAM */
+  .arch-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 24px 0;
+  }
+  @media (max-width: 700px) { .arch-box { grid-template-columns: 1fr; } }
+  .arch-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .arch-card h4 { margin: 0 0 6px; font-size: .75rem; }
+  .arch-card p { font-size: .85rem; margin: 0; font-family: var(--font-head); color: var(--text-muted); max-width: 100%; }
+  .arch-card.c-portal { border-top: 3px solid var(--portal); }
+  .arch-card.c-server { border-top: 3px solid var(--server); }
+  .arch-card.c-ia { border-top: 3px solid var(--ia); }
+  .arch-card.c-sim { border-top: 3px solid var(--sim); }
+
+  /* HERO */
+  .hero { margin-bottom: 48px; }
+  .hero-eyebrow {
+    font-family: var(--font-head);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .hero p { font-size: 1.05rem; color: var(--text-muted); margin-bottom: 8px; }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-head);
+    font-size: .8rem;
+    color: var(--text-muted);
+  }
+  .hero-meta span strong { color: var(--text); font-weight: 700; display: block; }
+
+  /* TOC */
+  .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; }
+  @media (max-width: 600px) { .toc-grid { grid-template-columns: 1fr; } }
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    font-family: var(--font-head);
+    font-size: .85rem;
+    color: var(--text);
+    background: var(--surface);
+    transition: border-color .15s, background .15s;
+  }
+  .toc-item:hover { border-color: var(--accent); background: var(--accent-light); color: var(--text); }
+  .toc-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .toc-dot.green { background: var(--portal); }
+  .toc-dot.amber { background: var(--server); }
+  .toc-dot.blue { background: var(--ia); }
+  .toc-dot.purple { background: var(--sim); }
+  .toc-dot.gray { background: var(--text-muted); }
+
+  /* LISTS */
+  ul, ol { margin: 8px 0 14px 20px; }
+  li { margin-bottom: 4px; }
+  li p { margin-bottom: 0; }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--border); margin: 40px 0; }
+
+  /* FLOW DIAGRAM */
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0;
+    font-family: var(--font-head);
+    font-size: .82rem;
+  }
+  .flow-node {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: var(--radius);
+  }
+  .flow-arrow { color: var(--text-muted); font-size: 1rem; }
+
+  /* STATUS PILLS */
+  .pill {
+    display: inline-block;
+    font-family: var(--font-head);
+    font-size: .72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin: 1px;
+  }
+  .pill-ok { background: #E6F0E7; color: #2B6E32; }
+  .pill-err { background: #FDE8E8; color: #9B2222; }
+  .pill-warn { background: #FDF0E8; color: #B8510F; }
+  .pill-pend { background: var(--bg-alt); color: var(--text-muted); }
+  :root[data-theme="dark"] .pill-ok { background: #1A2B1C; color: #4DAA58; }
+  :root[data-theme="dark"] .pill-err { background: #2B1414; color: #E07070; }
+  :root[data-theme="dark"] .pill-warn { background: #2B1A10; color: #E07040; }
+  @media (prefers-color-scheme: dark) {
+    .pill-ok { background: #1A2B1C; color: #4DAA58; }
+    .pill-err { background: #2B1414; color: #E07070; }
+    .pill-warn { background: #2B1A10; color: #E07040; }
+  }
+
+  /* SCROLLSPY */
+  .active { font-weight: 600; }
+</style>
+
+<button id="theme-btn" onclick="toggleTheme()">☀ / ☾</button>
+
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <h1>Projeto Silos</h1>
+    <p>Documentação Geral — v1.0</p>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Visão Geral</div>
+    <a href="#overview">Introdução</a>
+    <a href="#architecture">Arquitetura do Ecossistema</a>
+    <a href="#hardware">Hardware de Campo</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Módulos</div>
+    <a href="#linkmebr" class="mod-portal">linkme-br (Portal Web)</a>
+    <div class="nav-sub">
+      <a href="#portal-stack" class="mod-portal">Stack Técnica</a>
+      <a href="#portal-features" class="mod-portal">Funcionalidades</a>
+      <a href="#portal-acl" class="mod-portal">Controle de Acesso</a>
+      <a href="#portal-commands" class="mod-portal">Comandos Remotos</a>
+      <a href="#portal-ia" class="mod-portal">Interface com IA</a>
+    </div>
+    <a href="#linkme-server" class="mod-server">linkme-server</a>
+    <div class="nav-sub">
+      <a href="#server-mqtt" class="mod-server">MQTT &amp; Payloads</a>
+      <a href="#server-api" class="mod-server">API REST</a>
+      <a href="#server-commands" class="mod-server">Comandos Remotos</a>
+      <a href="#server-ota" class="mod-server">OTA de Firmware</a>
+      <a href="#server-std" class="mod-server">Análise Desvio Padrão</a>
+    </div>
+    <a href="#linkme-ia" class="mod-ia">linkme-ia (IA)</a>
+    <div class="nav-sub">
+      <a href="#ia-arch" class="mod-ia">Arquitetura TCN</a>
+      <a href="#ia-pipeline" class="mod-ia">Pipeline de Treino</a>
+      <a href="#ia-inference" class="mod-ia">Inferência</a>
+      <a href="#ia-aerator" class="mod-ia">Controle de Aeração</a>
+    </div>
+    <a href="#linkme-labrador-fake" class="mod-sim">linkme-labrador-fake</a>
+    <div class="nav-sub">
+      <a href="#sim-sensors" class="mod-sim">Sensores Simulados</a>
+      <a href="#sim-models" class="mod-sim">Modelos Físicos</a>
+      <a href="#sim-scenarios" class="mod-sim">Cenários</a>
+      <a href="#sim-frontend" class="mod-sim">Painel de Controle</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Infraestrutura</div>
+    <a href="#database">Banco de Dados</a>
+    <a href="#integration">Integração entre Módulos</a>
+    <a href="#deploy">Deploy &amp; CI/CD</a>
+    <a href="#security">Segurança</a>
+  </div>
+</nav>
+
+<main id="main">
+
+  <!-- HERO -->
+  <section id="overview" class="hero section">
+    <div class="hero-eyebrow">Projeto Silos — Documentação Técnica Geral</div>
+    <h1>Plataforma IoT + IA para Monitoramento de Silos de Grãos</h1>
+    <p>Sistema multi-tenant de telemetria, análise preditiva e controle remoto aplicado ao agronegócio brasileiro. Sensores embarcados em silos de soja transmitem dados via LoRa → gateway Labrador → nuvem, onde são processados por modelos de IA e exibidos em um portal web.</p>
+    <div class="hero-meta">
+      <span><strong>Infraestrutura</strong>DigitalOcean Droplet (157.245.139.143)</span>
+      <span><strong>Protocolo IoT</strong>MQTT 3.1.1 TLS (porta 8883)</span>
+      <span><strong>Banco de Dados</strong>PostgreSQL (schema <code>silos</code> + <code>silos_ia</code>)</span>
+      <span><strong>Modelo de IA</strong>TCN — Temporal Convolutional Network</span>
+      <span><strong>Firmware ESP32</strong>LoRa, ciclos de 3 minutos</span>
+      <span><strong>Previsão</strong>48 horas à frente (horizonte)</span>
+    </div>
+  </section>
+
+  <!-- TOC -->
+  <h3>Conteúdo deste Documento</h3>
+  <div class="toc-grid">
+    <a href="#architecture" class="toc-item"><span class="toc-dot gray"></span>Arquitetura Geral</a>
+    <a href="#hardware" class="toc-item"><span class="toc-dot gray"></span>Hardware de Campo</a>
+    <a href="#linkmebr" class="toc-item"><span class="toc-dot green"></span>Portal Web (linkmebr)</a>
+    <a href="#linkme-server" class="toc-item"><span class="toc-dot amber"></span>Servidor de Dados (linkme-server)</a>
+    <a href="#linkme-ia" class="toc-item"><span class="toc-dot blue"></span>Pipeline de IA (linkme-ia)</a>
+    <a href="#linkme-labrador-fake" class="toc-item"><span class="toc-dot purple"></span>Simulador (linkme-labrador-fake)</a>
+    <a href="#database" class="toc-item"><span class="toc-dot gray"></span>Banco de Dados</a>
+    <a href="#integration" class="toc-item"><span class="toc-dot gray"></span>Integração entre Módulos</a>
+    <a href="#deploy" class="toc-item"><span class="toc-dot gray"></span>Deploy &amp; CI/CD</a>
+    <a href="#security" class="toc-item"><span class="toc-dot gray"></span>Segurança</a>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ARCHITECTURE -->
+  <section id="architecture" class="section">
+    <h2>Arquitetura do Ecossistema</h2>
+    <p>O projeto é composto por quatro módulos de software que se comunicam entre si e com o hardware de campo. A topologia geral é:</p>
+
+    <pre>Silo Físico (ESP32 DTG01–04 + DTG05)
+  │  LoRa
+  ▼
+Labrador Gateway (Linux ARM, no campo)
+  │  MQTT TLS 8883 (Publisher)
+  │  HTTP GET /v1/firmwares/{file} (OTA pull)
+  ▼
+linkme-server (Python + FastAPI)
+  ├── PostgreSQL  ────────► linkmebr (portal web)
+  ├── MQTT Subscriber/Publisher       │ HTTPS REST
+  ├── /v1/labrador/comandos           ▼
+  └── /v1/ia/*  ◄──────── linkme-ia (TCN)
+                    HTTP
+linkme-labrador-fake (simulador)
+  └── Emula o Labrador real para testes</pre>
+
+    <h3>Os Quatro Módulos</h3>
+    <div class="arch-box">
+      <div class="arch-card c-portal">
+        <h4 class="badge badge-green">linkmebr</h4>
+        <p>Portal web React + Node.js. Dashboard com mapa Leaflet, relatórios, exportação CSV/JSON, esquemáticos, previsões de IA, comandos remotos, administração multi-tenant.</p>
+      </div>
+      <div class="arch-card c-server">
+        <h4 class="badge badge-amber">linkme-server</h4>
+        <p>Servidor Python + FastAPI. Recebe telemetria MQTT do Labrador, persiste em PostgreSQL, expõe API REST para o portal e para o módulo de IA, roteia comandos remotos.</p>
+      </div>
+      <div class="arch-card c-ia">
+        <h4 class="badge badge-blue">linkme-ia</h4>
+        <p>Pipeline Python + TensorFlow. Treina modelo TCN com dados históricos, gera previsões de 48h para temperatura, umidade e CO2, sugere acionamento de aeradores.</p>
+      </div>
+      <div class="arch-card c-sim">
+        <h4 class="badge badge-purple">linkme-labrador-fake</h4>
+        <p>Simulador Python + React. Emula o gateway Labrador e os sensores físicos com modelos termodinâmicos realistas. Usado para desenvolvimento e validação offline.</p>
+      </div>
+    </div>
+
+    <h3>Fluxo de Dados (Leitura de Sensor)</h3>
+    <div class="flow">
+      <span class="flow-node">ESP32 acumula medições (3 min)</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">Pacote LoRa → Labrador</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">MQTT <code>silos/&lt;id&gt;/leituras/&lt;node&gt;</code></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">linkme-server deserializa</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">PostgreSQL <code>silos.leitura_interna</code></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">Portal / IA</span>
+    </div>
+
+    <h3>Fluxo de Comando Remoto</h3>
+    <div class="flow">
+      <span class="flow-node">Operador clica no portal</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">POST /v1/labrador/comandos</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">linkme-server assina HMAC</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">MQTT → Labrador</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">ESP32 executa</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">Resultado via MQTT</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-node">Portal exibe (polling 1–2s)</span>
+    </div>
+  </section>
+
+  <!-- HARDWARE -->
+  <section id="hardware" class="section">
+    <h2>Hardware de Campo</h2>
+
+    <h3>Gateway Labrador</h3>
+    <p>Dispositivo Linux ARM instalado fisicamente no silo. Responsável por receber pacotes LoRa dos DTGs e retransmitir via MQTT para o servidor na nuvem.</p>
+    <ul>
+      <li>Arquitetura: Linux ARM (armhf), Docker Compose</li>
+      <li>Conectividade: Internet (MQTT TLS 8883) + rádio LoRa local</li>
+      <li>Autenticação MQTT: <code>client_id = labrador-silo&lt;N&gt;</code>, escopo <code>ingest</code></li>
+      <li>Deduplicação de pacotes: hash SHA-256 do conteúdo JSON</li>
+      <li>Fallback REST: quando MQTT indisponível, usa endpoint HTTP alternativo</li>
+    </ul>
+
+    <h3>Nós Sensores DTG</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Dispositivo</th><th>node_id</th><th>Tipo</th><th>Sensores</th><th>Observação</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>DTG01</td><td>101</td><td>sensor_interno</td><td>Temperatura + Umidade (SHT31) + CO2 (MH-Z19C)</td><td>Cabo interno, barra 1</td></tr>
+          <tr><td>DTG02</td><td>102</td><td>sensor_interno</td><td>Temperatura + Umidade + CO2</td><td>Barra 2</td></tr>
+          <tr><td>DTG03</td><td>103</td><td>sensor_interno</td><td>Temperatura + Umidade + CO2</td><td>Barra 3</td></tr>
+          <tr><td>DTG04</td><td>104</td><td>sensor_interno</td><td>Temperatura + Umidade + CO2</td><td>Barra 4</td></tr>
+          <tr><td>DTG05 v1.2+</td><td>201</td><td>sensor_interno</td><td>Temperatura + Umidade (SHT31) + CO2 (MH-Z19C) + Relé</td><td>Externo/aerador; firmware v1.2 migrou de <code>leitura_externa</code> → <code>leitura_interna</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Protocolo de Acumulação (ESP32)</h3>
+    <p>Cada ESP32 acumula leituras ao longo de um ciclo de <strong>3 minutos</strong> e transmite estatísticas — nunca o valor bruto individual. O servidor reconstrói média e desvio padrão a partir dessas estatísticas.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Campo transmitido</th><th>Descrição</th><th>Escala</th></tr></thead>
+        <tbody>
+          <tr><td><code>sum</code></td><td>Σ das leituras no ciclo</td><td>×100 (temp/umid)</td></tr>
+          <tr><td><code>sum2</code></td><td>Σ dos quadrados</td><td>×100</td></tr>
+          <tr><td><code>valid_count</code></td><td>Número de amostras válidas</td><td>—</td></tr>
+          <tr><td><code>max</code> / <code>min</code></td><td>Extremos do ciclo</td><td>×100</td></tr>
+          <tr><td><code>tipo</code></td><td>0=temp, 1=umid, 2=CO2</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Reconstrução server-side: <code>avg = sum / valid_count / 100</code> (temp/umid) ou <code>sum / valid_count</code> (CO2).</p>
+
+    <div class="callout warn">
+      <p><strong>Limitação conhecida — Desvio Padrão</strong> O ESP32 calcula o desvio padrão corretamente internamente (método <code>TipoEstatistica::desvio()</code>, em double precision), mas <em>não o transmite</em>. A reconstrução servidor-lado a partir de <code>sum</code>/<code>sum2</code> sofre cancelamento catastrófico (~18% de erro). Recomendação: transmitir <code>desvio()</code> diretamente como campo extra (escala ×10000, <code>uint16</code>).</p>
+    </div>
+
+    <h3>Firmware OTA</h3>
+    <p>Modelo <em>pull</em>: o Labrador busca o binário autenticado via <code>GET /v1/firmwares/{file_name}</code> (escopo <code>ingest</code>). A resposta inclui o header <code>X-Firmware-SHA256</code> para validação. Categorias: <code>DTG01-04</code> e <code>DTG05</code>.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- LINKMEBR -->
+  <section id="linkmebr" class="section">
+    <div class="module-header portal">
+      <h2>linkmebr — Portal Web</h2>
+      <p>Interface web multi-tenant para operadores e administradores de silos</p>
+    </div>
+
+    <section id="portal-stack">
+      <h3>Stack Técnica</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Camada</th><th>Tecnologia</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Backend</strong></td><td>Node.js + TypeScript + Express + Prisma ORM</td></tr>
+            <tr><td><strong>Banco</strong></td><td>PostgreSQL (schema <code>silos</code>), Redis (blacklist JWT)</td></tr>
+            <tr><td><strong>Frontend</strong></td><td>React 19 + Vite + Tailwind CSS</td></tr>
+            <tr><td><strong>Mapa</strong></td><td>Leaflet.js</td></tr>
+            <tr><td><strong>Auth</strong></td><td>JWT (8h default), bcrypt, Helmet, rate limiting</td></tr>
+            <tr><td><strong>i18n</strong></td><td>pt-BR, en, es (JSON estático + FAQ dinâmico via DB)</td></tr>
+            <tr><td><strong>Deploy</strong></td><td>Docker Compose, GitHub Actions CI/CD</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="portal-features">
+      <h3>Funcionalidades do Portal</h3>
+
+      <h4>Landing Page</h4>
+      <p>Página pública com apresentação do produto, seção FAQ (carregada do banco), formulário de contato com rate limit (3 req/hora), suporte a múltiplos idiomas.</p>
+
+      <h4>Dashboard com Mapa</h4>
+      <p>Mapa interativo (Leaflet) exibindo a localização geográfica dos silos da empresa. Ao selecionar um silo, exibe dados em tempo real com gráficos de série temporal.</p>
+
+      <h4>Relatórios e Agregação Automática</h4>
+      <p>O sistema agrega automaticamente os dados brutos (ciclos de 3 min) de acordo com o intervalo selecionado:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Intervalo de consulta</th><th>Resolução retornada</th></tr></thead>
+          <tbody>
+            <tr><td>≤ 12h</td><td>3 min (nativo)</td></tr>
+            <tr><td>12h – 24h</td><td>15 min</td></tr>
+            <tr><td>24h – 72h</td><td>30 min</td></tr>
+            <tr><td>72h – 7d</td><td>1h</td></tr>
+            <tr><td>> 7d</td><td>3h</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Exportação de Dados</h4>
+      <p>Download em ZIP contendo CSV e JSON. Seleção de período, sensor, e formato. Integra os endpoints <code>GET /v1/export/leitura_interna</code> e <code>GET /v1/export/leitura_externa</code> do linkme-server.</p>
+
+      <h4>Esquemáticos</h4>
+      <p>Visualização gráfica da estrutura física do silo — barras, alturas, sensores — com indicação visual de status e alertas.</p>
+
+      <h4>Eventos e Alertas</h4>
+      <p>Listagem de eventos gerados pelo sistema: alertas de temperatura, umidade, CO2 fora dos limites, eventos de aeração, etc.</p>
+
+      <h4>Previsões de IA</h4>
+      <p>Exibição das previsões de 48h geradas pelo linkme-ia: 960 timestamps (intervalo de 3 min), por sensor. A UI consome <code>GET /v1/ia/previsoes/{silo_id}</code>.</p>
+
+      <h4>Administração</h4>
+      <ul>
+        <li>Gestão de empresas, usuários, silos, barras e sensores</li>
+        <li>Upload de firmware (multipart/form-data → <code>POST /v1/firmwares</code>)</li>
+        <li>Disparo e monitoramento de comandos remotos</li>
+        <li>Solicitações de contato recebidas via landing page</li>
+      </ul>
+    </section>
+
+    <section id="portal-acl">
+      <h3>Controle de Acesso (ACL)</h3>
+      <p>Hierarquia: <strong>Empresa → Usuários → Silos → Barras → Sensores</strong></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Papel</th><th>Permissões</th></tr></thead>
+          <tbody>
+            <tr><td><code>administrador_geral</code></td><td>Acesso total a todas as empresas e configurações do sistema</td></tr>
+            <tr><td><code>administrador_empresa</code></td><td>Gestão de usuários, silos e configurações da própria empresa</td></tr>
+            <tr><td><code>operador_empresa</code></td><td>Visualização de dados, relatórios, disparar comandos dentro da empresa</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Rate limiting: login 5 tentativas / 15 min; contato 3 req / hora.</p>
+    </section>
+
+    <section id="portal-commands">
+      <h3>Interface de Comandos Remotos</h3>
+      <div class="callout">
+        <p><strong>Regra fundamental:</strong> O frontend nunca se comunica diretamente com o Labrador ou com o broker MQTT. Todos os endpoints são no linkme-server.</p>
+      </div>
+
+      <h4>Catálogo de Comandos</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Tipo</th><th>Descrição</th><th>Parâmetro</th><th>Timeout</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><code>sistema</code></td><td>Liberar espaço em disco</td><td>—</td><td>5s</td></tr>
+            <tr><td>2</td><td><code>banco</code></td><td>Contagem de registros por tabela</td><td>—</td><td>5s</td></tr>
+            <tr><td>3</td><td><code>lora</code></td><td>STATUS do DTG (valida comunicação)</td><td>node_id</td><td>15s</td></tr>
+            <tr><td>4</td><td><code>lora</code></td><td>REBOOT do DTG</td><td>node_id</td><td>15s</td></tr>
+            <tr><td>5</td><td><code>lora</code></td><td>Ligar relé (DTG05 only)</td><td>node_id=201</td><td>15s</td></tr>
+            <tr><td>6</td><td><code>lora</code></td><td>Desligar relé (DTG05 only)</td><td>node_id=201</td><td>15s</td></tr>
+            <tr><td>7</td><td><code>lora</code></td><td>OTA de firmware</td><td>node_id + file_name</td><td>15s</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Estados do Comando</h4>
+      <p>
+        <span class="pill pill-pend">pendente</span>
+        <span class="pill pill-ok">ok</span>
+        <span class="pill pill-err">falha_validacao</span>
+        <span class="pill pill-err">falha_execucao</span>
+        <span class="pill pill-err">timeout</span>
+        <span class="pill pill-err">node_desconhecido</span>
+        <span class="pill pill-err">comando_id_desconhecido</span>
+      </p>
+      <p>Polling recomendado: <strong>1–2s</strong>, parar quando <code>status != 'pendente'</code>. O servidor garante timeout automático (5s ou 15s) — o frontend não precisa implementar timeout próprio.</p>
+
+      <h4>Endpoints de Comando (todos no linkme-server)</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Método</th><th>Rota</th><th>Escopo</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td>POST</td><td><code>/v1/labrador/comandos</code></td><td>admin</td><td>Enfileira um comando</td></tr>
+            <tr><td>GET</td><td><code>/v1/labrador/comandos/{request_id}</code></td><td>read</td><td>Consulta resultado/status</td></tr>
+            <tr><td>DELETE</td><td><code>/v1/labrador/comandos/{request_id}</code></td><td>admin</td><td>Remove registro (sem desfazer)</td></tr>
+            <tr><td>GET</td><td><code>/v1/labrador/comandos?silo_id=</code></td><td>read</td><td>Histórico de comandos do silo</td></tr>
+            <tr><td>GET</td><td><code>/v1/labrador/silos/{silo_id}/comandos</code></td><td>read</td><td>Comandos habilitados para o silo</td></tr>
+            <tr><td>POST</td><td><code>/v1/firmwares</code></td><td>admin</td><td>Upload de firmware (.bin)</td></tr>
+            <tr><td>GET</td><td><code>/v1/firmwares?categoria=</code></td><td>read</td><td>Lista firmwares disponíveis</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="portal-ia">
+      <h3>Interface com o Módulo de IA</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Método</th><th>Rota</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td>POST</td><td><code>/v1/ia/treino</code></td><td>Solicita treino (modo: <code>full</code> ou <code>incremental</code>)</td></tr>
+            <tr><td>GET</td><td><code>/v1/ia/jobs?silo_id=</code></td><td>Lista jobs de treino com status</td></tr>
+            <tr><td>GET</td><td><code>/v1/ia/previsoes/{silo_id}</code></td><td>Retorna previsões de 48h (960 pontos × 36 sensores)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Modos expostos na UI: <code>full</code> e <code>incremental</code> (o modo <code>bootstrap</code> é interno ao pipeline).</p>
+    </section>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- LINKME-SERVER -->
+  <section id="linkme-server" class="section">
+    <div class="module-header server">
+      <h2>linkme-server — Servidor de Dados e Comandos</h2>
+      <p>Backend Python responsável por ingestão MQTT, persistência, API REST e roteamento de comandos</p>
+    </div>
+
+    <h3>Stack Técnica</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Componente</th><th>Tecnologia</th></tr></thead>
+        <tbody>
+          <tr><td>Linguagem</td><td>Python 3.11+</td></tr>
+          <tr><td>Framework HTTP</td><td>FastAPI + uvicorn</td></tr>
+          <tr><td>Banco</td><td>PostgreSQL via psycopg2</td></tr>
+          <tr><td>MQTT</td><td>paho-mqtt (subscriber + publisher)</td></tr>
+          <tr><td>Autenticação</td><td>JWT HS256, múltiplos escopos</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Estrutura de Arquivos</h3>
+    <pre>linkme-server/
+├── main.py
+├── api/routes/
+│   ├── ingest.py        # /v1/ingest/*
+│   ├── query.py         # /v1/export/*
+│   ├── status.py        # /v1/status, /v1/estrutura
+│   ├── dados.py
+│   ├── comandos.py      # /v1/labrador/comandos
+│   └── firmwares.py     # /v1/firmwares
+├── db/
+│   ├── connection.py
+│   ├── schema_silos.sql
+│   ├── sanitizer.py     # cálculo avg/std
+│   └── migration_013.sql # tabela de comandos
+├── mqtt/
+│   ├── subscriber.py
+│   └── handlers.py
+└── comandos/
+    ├── signature.py     # HMAC-SHA256
+    ├── catalogo.py      # catálogo fixo de comandos
+    ├── dispatch.py      # publicação MQTT
+    └── timeout_sweeper.py</pre>
+
+    <section id="server-mqtt">
+      <h3>MQTT — Tópicos e Payloads</h3>
+
+      <h4>Subscrição (dados do campo)</h4>
+      <p>Tópico: <code>silos/&lt;silo_id&gt;/leituras/&lt;node_id&gt;</code></p>
+
+      <p><strong>Payload sensor_interno (DTG01–04 e DTG05 v1.2+):</strong></p>
+      <pre>{
+  "time": 1700000000,
+  "silo_id": 1,
+  "node_id": 101,
+  "uptime_esp32_s": 3600,
+  "rssi_dbm": -75,
+  "snr_db": 8.5,
+  "interna": [
+    { "sensor_id": 1, "tipo": 0, "sum": 25488, "sum2": 64977, "valid_count": 18, "max": 2550, "min": 2510 },
+    { "sensor_id": 2, "tipo": 1, "sum": 12200, "sum2": 15000, "valid_count": 18, "max": 700, "min": 650 },
+    { "sensor_id": 3, "tipo": 2, "sum": 7560,  "sum2": 3185280, "valid_count": 18, "max": 450, "min": 400 }
+  ]
+}</pre>
+
+      <p><strong>Detecção de tipo de payload:</strong></p>
+      <ul>
+        <li>Chave <code>interna</code> → <code>sensor_interno</code></li>
+        <li>Chave <code>dtg05</code> ou <code>externa</code> → <code>sensor_externo</code> (legado, DTG05 pré-v1.2)</li>
+        <li>Campo <code>"type": "heartbeat"</code> → heartbeat do Labrador</li>
+      </ul>
+
+      <p><strong>Payload heartbeat:</strong></p>
+      <pre>{
+  "type": "heartbeat",
+  "timestamp": 1700000000.5,
+  "cpu_percent": 15.2,
+  "ram_percent": 42.1,
+  "disk_percent": 28.0
+}</pre>
+    </section>
+
+    <section id="server-api">
+      <h3>API REST — Endpoints</h3>
+
+      <h4>Autenticação (JWT)</h4>
+      <pre>POST /v1/ingest/auth/token
+Content-Type: application/json
+{ "client_id": "...", "client_secret": "..." }
+
+→ { "access_token": "...", "expires_in": 3600, "scope": "admin|read|ingest|export" }</pre>
+
+      <h4>Estrutura dos Silos</h4>
+      <pre>GET /v1/estrutura
+Authorization: Bearer &lt;token&gt;
+
+→ Hierarquia: silos → barras → sensores</pre>
+
+      <h4>Exportação de Leituras (streaming NDJSON)</h4>
+      <pre>GET /v1/export/leitura_interna
+  ?silo_id=1&amp;sensor=101&amp;start=2026-01-01T00:00:00Z&amp;end=2026-01-07T00:00:00Z&amp;formato=ndjson
+
+GET /v1/export/leitura_externa   # legado DTG05 pré-v1.2</pre>
+
+      <p>Códigos <code>status_analise</code>: E1–E6 (erros), A1–A6 e AH (avisos de qualidade de dados).</p>
+    </section>
+
+    <section id="server-commands">
+      <h3>Comandos Remotos — Canal MQTT</h3>
+      <p>O linkme-server assina cada comando com HMAC-SHA256 antes de publicar:</p>
+      <pre>mensagem = f"{type}|{comando_id}|{parametro or ''}|{parametro_extra or ''}|{timestamp}|{nonce}"
+signature = HMAC-SHA256(COMANDO_HMAC_SECRET, mensagem).hexdigest()</pre>
+
+      <p>Payload publicado em <code>silos/silo&lt;N&gt;/comandos</code>:</p>
+      <pre>{
+  "type": "comando",
+  "request_id": "f3a1c2e0-...",
+  "comando_id": 4,
+  "parametro": 104,
+  "parametro_extra": null,
+  "timestamp": 1700000000,
+  "nonce": "a1b2c3d4",
+  "signature": "9f8e7d..."
+}</pre>
+
+      <p>Resultado recebido do Labrador via MQTT:</p>
+      <pre>{
+  "type": "comando_resultado",
+  "request_id": "f3a1c2e0-...",
+  "comando_id": 4,
+  "parametro": 104,
+  "tipo": "lora",
+  "status": "ok",
+  "resultado": "ACK;104;REBOOT;OK",
+  "returncode": null,
+  "timestamp": 1700000002
+}</pre>
+
+      <p>O <strong>timeout_sweeper</strong> monitora comandos <code>pendente</code> e os marca como <code>timeout</code> automaticamente: 5s para sistema/banco, 15s para lora/OTA.</p>
+    </section>
+
+    <section id="server-ota">
+      <h3>OTA de Firmware</h3>
+      <p>Modelo pull: o Labrador autentica e busca o binário. O frontend só faz upload e lista — nunca baixa o <code>.bin</code>.</p>
+      <pre>GET /v1/firmwares/{file_name}
+Authorization: Bearer &lt;token scope=ingest&gt;
+X-Firmware-SHA256: &lt;hash para validação no Labrador&gt;</pre>
+    </section>
+
+    <section id="server-std">
+      <h3>Análise de Desvio Padrão — Limitação Conhecida</h3>
+      <p>O ESP32 calcula o desvio padrão corretamente em double dentro do firmware (<code>TipoEstatistica::desvio()</code>), mas transmite apenas <code>sum</code> e <code>sum2</code>. A reconstrução servidor-lado produz erro de ~18% por cancelamento catastrófico.</p>
+      <p><strong>Recomendação pendente:</strong> Incluir <code>desvio()</code> pré-calculado no payload (campo extra, escala ×10000, <code>uint16</code>). Mudança requer: atualização do parser no Labrador, atualização de <code>db/sanitizer.py</code>, e reprocessamento dos dados históricos.</p>
+    </section>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- LINKME-IA -->
+  <section id="linkme-ia" class="section">
+    <div class="module-header ia">
+      <h2>linkme-ia — Pipeline de Inteligência Artificial</h2>
+      <p>Treinamento e inferência de modelo TCN para previsão de 48h de condições no silo</p>
+    </div>
+
+    <h3>Visão Geral</h3>
+    <p>O linkme-ia é um serviço Python independente que consome dados do linkme-server via API REST (escopo <code>export</code>), treina um modelo de rede neural temporal (TCN) e publica previsões de 48h no banco <code>silos_ia</code>. A integração com o linkme-server é via MQTT e HTTP.</p>
+
+    <section id="ia-arch">
+      <h3>Arquitetura do Modelo TCN</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Camada</th><th>Detalhe</th></tr></thead>
+          <tbody>
+            <tr><td>Entrada</td><td>480 timesteps × 36 features (24h de dados em ciclos de 3 min)</td></tr>
+            <tr><td>Blocos TCN</td><td>6 blocos dilatados (dilation 1, 2, 4, 8, 16, 32)</td></tr>
+            <tr><td>Campo receptivo</td><td>~500 pontos (~25h)</td></tr>
+            <tr><td>Pooling</td><td>GlobalAveragePooling1D</td></tr>
+            <tr><td>Dense</td><td>Dense(512)</td></tr>
+            <tr><td>Saída</td><td>Dense(960 × 36) → Reshape(960, 36) via UpSampling1D(2)</td></tr>
+            <tr><td>Normalização</td><td>MinMaxScaler por sensor</td></tr>
+            <tr><td>Export</td><td>TFLite INT8 (~195 KB), Keras (~2–5 MB)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>A saída são <strong>960 timestamps</strong> (48h × 20 ciclos/hora), com <strong>36 valores por timestamp</strong> (um por sensor monitorado), representando os valores previstos normalizados. O portal exibe esses valores após desnormalização.</p>
+    </section>
+
+    <section id="ia-pipeline">
+      <h3>Pipeline de Treinamento</h3>
+
+      <h4>Modos de Treino</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Modo</th><th>Gatilho</th><th>Dataset</th></tr></thead>
+          <tbody>
+            <tr><td><code>bootstrap</code></td><td>Interno — primeiro treino</td><td>Todo o histórico disponível</td></tr>
+            <tr><td><code>incremental</code></td><td>Automático — diariamente 00:30 UTC</td><td>90% últimas 24h + 10% histórico aleatório (anti-forgetting)</td></tr>
+            <tr><td><code>full</code></td><td>Manual (admin via portal)</td><td>Todo o histórico</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Construção do Dataset</h4>
+      <p>Abordagem em 2 passos: (1) contagem prévia para alocar tensores, (2) streaming com cache em disco. Split temporal 80%/20% (treino/validação, cronológico).</p>
+
+      <h4>Sanitização de Dados</h4>
+      <p>21 regras de sanitização divididas em 3 grupos. Exemplos: outliers físicos (temp > 60°C), gradientes impossíveis, sequências muito longas de valores constantes. Dados marcados com codes <code>A1–A6</code>, <code>AH</code>, <code>E1–E6</code>.</p>
+
+      <h4>EarlyStopping</h4>
+      <p>Monitoramento de <code>val_loss</code>, patience=10, restore_best_weights=True.</p>
+
+      <h4>Armazenamento do Modelo</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Artefato</th><th>Campo DB</th><th>Tamanho aproximado</th></tr></thead>
+          <tbody>
+            <tr><td>TFLite INT8</td><td><code>tflite_bytes</code> (BYTEA)</td><td>~195 KB</td></tr>
+            <tr><td>Keras modelo</td><td><code>keras_bytes</code> (BYTEA)</td><td>~2–5 MB</td></tr>
+            <tr><td>Scaler MinMax</td><td><code>scaler_bytes</code> (BYTEA)</td><td>&lt;5 KB</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ia-inference">
+      <h3>Inferência</h3>
+      <p>Executada diariamente às <strong>01:00 UTC</strong>. Lê as últimas <strong>480 leituras</strong> (24h) do silo, executa um forward pass no modelo TFLite, gera 960 previsões.</p>
+
+      <h4>Payload de Previsão (MQTT)</h4>
+      <pre>{
+  "silo_id": 1,
+  "gerado_em": "2026-01-01T01:00:00Z",
+  "modelo_versao": "v3.2",
+  "horizonte_horas": 48,
+  "intervalo_minutos": 3,
+  "sensores": [
+    { "sensor_id": 101, "tipo": "temperatura", "valores": [25.1, 25.2, ...] }
+  ]
+}</pre>
+
+      <h4>Tópicos MQTT usados pela IA</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Direção</th><th>Tópico</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td>Subscribe</td><td><code>silos/ia/inferencia/comando</code></td><td>Recebe comandos de treino/inferência</td></tr>
+            <tr><td>Publish</td><td><code>ia/modelo/{silo_id}/disponivel</code></td><td>Novo modelo treinado disponível</td></tr>
+            <tr><td>Publish</td><td><code>ia/previsao/{silo_id}/disponivel</code></td><td>Novas previsões disponíveis</td></tr>
+            <tr><td>Publish</td><td><code>aerador/{silo_id}/evento</code></td><td>Sugestão de acionamento/desligamento de aerador</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>API HTTP do linkme-ia (consumida pelo linkme-server)</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Método</th><th>Rota</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td>GET</td><td><code>/health</code></td><td>Health check</td></tr>
+            <tr><td>GET</td><td><code>/api/v1/status</code></td><td>Status geral do pipeline</td></tr>
+            <tr><td>GET</td><td><code>/api/v1/previsoes/{silo_id}</code></td><td>Previsões mais recentes</td></tr>
+            <tr><td>GET</td><td><code>/api/v1/modelo/{silo_id}/tflite</code></td><td>Binário TFLite para deploy no Labrador</td></tr>
+            <tr><td>GET</td><td><code>/api/v1/modelo/{silo_id}/scalers</code></td><td>Parâmetros MinMaxScaler</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Autenticação: JWT HS256 via segredo compartilhado <code>IA_JWT_SECRET</code>.</p>
+    </section>
+
+    <section id="ia-aerator">
+      <h3>Controle de Aeração</h3>
+      <p>O pipeline compara leituras reais vs. previsões e sugere acionamento de aeradores quando os desvios excedem os limites:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variável</th><th>Limiar de desvio</th></tr></thead>
+          <tbody>
+            <tr><td>Temperatura</td><td>≥ 2°C</td></tr>
+            <tr><td>Umidade relativa</td><td>≥ 5%</td></tr>
+            <tr><td>CO2</td><td>≥ 200 ppm</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Sugestão publicada no tópico <code>aerador/{silo_id}/evento</code>. O acionamento efetivo do relé (DTG05) é feito via comando remoto <code>comando_id=5/6</code>.</p>
+    </section>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- LINKME-LABRADOR-FAKE -->
+  <section id="linkme-labrador-fake" class="section">
+    <div class="module-header sim">
+      <h2>linkme-labrador-fake — Simulador</h2>
+      <p>Emulador do gateway Labrador com modelos físicos de silo de soja para testes e desenvolvimento</p>
+    </div>
+
+    <p>O simulador gera dados sintéticos realistas de um silo de soja, publica via MQTT (mesmo protocolo do Labrador real) e salva em <code>silos.dados_simulados</code> (tabela separada dos dados reais). Roda em Docker sobre armhf (compatível com o Labrador físico).</p>
+
+    <section id="sim-sensors">
+      <h3>Sensores Simulados</h3>
+      <p><strong>40 sensores no total:</strong></p>
+      <ul>
+        <li>4 cabos internos × 3 alturas × 3 tipos (Temperatura / Umidade / CO2) = 36 sensores internos</li>
+        <li>1 cabo externo × 4 tipos (Temperatura / Umidade / CO2 / Relé) = 4 sensores externos</li>
+      </ul>
+      <p>Modelo físico do silo: 180 kg de soja, 1150 mm de altura total (600 mm cilindro + 350 mm cone), 600 mm de diâmetro.</p>
+    </section>
+
+    <section id="sim-models">
+      <h3>Modelos Físicos</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Fenômeno</th><th>Modelo</th><th>Parâmetros</th></tr></thead>
+          <tbody>
+            <tr><td>Temperatura</td><td>Inércia térmica exponencial</td><td>τ = 72h</td></tr>
+            <tr><td>Umidade</td><td>Equilíbrio higroscópico</td><td>τ = 48h</td></tr>
+            <tr><td>Umidade de equilíbrio</td><td>Modified Halsey EMC (recalibrado)</td><td>A=9.2035, B=0.0300, C=3.6302</td></tr>
+            <tr><td>Respiração</td><td>Q10 (coeficiente de temperatura)</td><td>Base = 0.5 mg CO2/kgMS/dia</td></tr>
+            <tr><td>Acumulação de CO2</td><td>Saldo produção − escape</td><td>taxa_escape = 0.04/h</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Perfis climáticos externos: Sorriso/MT, 12 meses (Köppen Aw), com variação diária e sazonal.</p>
+    </section>
+
+    <section id="sim-scenarios">
+      <h3>Cenários de Deterioração</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cenário</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td><code>normal</code></td><td>Soja em boas condições, armazenagem estável</td></tr>
+            <tr><td><code>onda_calor</code></td><td>Pico de temperatura externa elevando condições internas</td></tr>
+            <tr><td><code>graos_umidos</code></td><td>Lote com umidade inicial alta, risco de fungos</td></tr>
+            <tr><td><code>fungos</code></td><td>Respiração acelerada, CO2 em elevação, temperatura local alta</td></tr>
+            <tr><td><code>deterioracao</code></td><td>Deterioração avançada, múltiplos parâmetros críticos</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Volume de dados simulados: 3 meses × 40 sensores ≈ 1.766M registros.</p>
+    </section>
+
+    <section id="sim-frontend">
+      <h3>Painel de Controle (Frontend do Simulador)</h3>
+      <p>Interface React para controlar o simulador em tempo real:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Componente</th><th>Função</th></tr></thead>
+          <tbody>
+            <tr><td>StatusCard</td><td>Estado atual: rodando / pausado / parado</td></tr>
+            <tr><td>ConfigForm</td><td>Parâmetros iniciais (cenário, duração, seed)</td></tr>
+            <tr><td>ControlButtons</td><td>Start / Pause / Stop</td></tr>
+            <tr><td>ProgressBar</td><td>Progresso temporal da simulação</td></tr>
+            <tr><td>ConnectionBadge</td><td>Status da conexão SSE</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Stack do Frontend do Simulador</h4>
+      <p>React 18.2 + TypeScript + Vite + Tailwind CSS + Axios + SSE (native EventSource).</p>
+
+      <h4>Endpoints da API do Simulador</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Método</th><th>Rota</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td>GET/POST</td><td><code>/api/status</code></td><td>Estado do simulador</td></tr>
+            <tr><td>POST</td><td><code>/api/start</code></td><td>Inicia simulação</td></tr>
+            <tr><td>POST</td><td><code>/api/pause</code></td><td>Pausa/retoma</td></tr>
+            <tr><td>POST</td><td><code>/api/stop</code></td><td>Para e reseta</td></tr>
+            <tr><td>GET/POST</td><td><code>/api/config</code></td><td>Configuração dos parâmetros</td></tr>
+            <tr><td>GET</td><td><code>/api/preview-condicoes-iniciais</code></td><td>Preview antes de iniciar</td></tr>
+            <tr><td>GET</td><td><code>/api/events</code></td><td>Stream SSE de status (1s)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>FastAPI serve o build React como arquivos estáticos (SPA fallback).</p>
+    </section>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- DATABASE -->
+  <section id="database" class="section">
+    <h2>Banco de Dados</h2>
+    <p>PostgreSQL gerenciado pela DigitalOcean. Dois schemas principais:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Schema</th><th>Usado por</th><th>Conteúdo</th></tr></thead>
+        <tbody>
+          <tr><td><code>silos</code></td><td>linkme-server + linkmebr</td><td>Dados operacionais: empresas, silos, sensores, leituras, comandos, firmwares, alertas</td></tr>
+          <tr><td><code>silos_ia</code></td><td>linkme-ia</td><td>Modelos treinados, jobs de treino, previsões, métricas (prefixo <code>ia_</code>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Principais Tabelas (schema <code>silos</code>)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tabela</th><th>Descrição</th><th>Chave</th></tr></thead>
+        <tbody>
+          <tr><td><code>empresas</code></td><td>Tenants do sistema</td><td>id</td></tr>
+          <tr><td><code>usuarios</code></td><td>Usuários com papel e empresa</td><td>id, empresa_id FK</td></tr>
+          <tr><td><code>silos</code></td><td>Silos físicos, lat/lng, capacidade</td><td>id, empresa_id FK</td></tr>
+          <tr><td><code>barras</code></td><td>Barras de sensores dentro do silo</td><td>id, silo_id FK</td></tr>
+          <tr><td><code>sensores</code></td><td>Sensores individuais em cada barra</td><td>id, barra_id FK, tipo, node_id</td></tr>
+          <tr><td><code>leitura_interna</code></td><td>Dados de telemetria dos DTGs</td><td>id, sensor_id FK, timestamp</td></tr>
+          <tr><td><code>dados_simulados</code></td><td>Dados do simulador (separado dos reais)</td><td>id, sensor_id, timestamp</td></tr>
+          <tr><td><code>alertas</code></td><td>Alertas gerados por regras</td><td>id, silo_id FK, tipo, severidade</td></tr>
+          <tr><td><code>comandos</code></td><td>Histórico de comandos remotos</td><td>request_id (UUID), silo_id, status</td></tr>
+          <tr><td><code>firmwares</code></td><td>Binários de firmware (BYTEA)</td><td>file_name PK, categoria, sha256</td></tr>
+          <tr><td><code>faq</code></td><td>Perguntas frequentes (i18n)</td><td>id, idioma, pergunta, resposta</td></tr>
+          <tr><td><code>solicitacoes_contato</code></td><td>Formulário de contato da landing</td><td>id, email, mensagem, created_at</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Volume Estimado</h3>
+    <p>Referência: 1 empresa × 5 silos × 2 barras × 3 sensores = 30 sensores → ~480 leituras/dia/sensor → <strong>~144.000 registros/dia</strong> na <code>leitura_interna</code>.</p>
+
+    <div class="callout">
+      <p><strong>Firmware armazenado como BYTEA</strong> — Os binários <code>.bin</code> são armazenados diretamente na tabela <code>firmwares</code> como BYTEA (PostgreSQL). Não há sistema de arquivos externo para os firmwares.</p>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- INTEGRATION -->
+  <section id="integration" class="section">
+    <h2>Integração entre Módulos</h2>
+
+    <h3>Mapa de Comunicação</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>De</th><th>Para</th><th>Protocolo</th><th>O que trafega</th></tr></thead>
+        <tbody>
+          <tr><td>Labrador</td><td>linkme-server</td><td>MQTT TLS 8883</td><td>Telemetria de sensores, heartbeats, resultados de comandos</td></tr>
+          <tr><td>linkme-server</td><td>Labrador</td><td>MQTT TLS 8883</td><td>Comandos assinados HMAC</td></tr>
+          <tr><td>Labrador</td><td>linkme-server</td><td>HTTPS GET</td><td>Download de firmware OTA</td></tr>
+          <tr><td>linkme-server</td><td>PostgreSQL</td><td>TCP (psycopg2)</td><td>Persistência de todos os dados</td></tr>
+          <tr><td>linkmebr (backend)</td><td>PostgreSQL</td><td>TCP (Prisma)</td><td>Leitura/escrita portal</td></tr>
+          <tr><td>linkmebr (frontend)</td><td>linkmebr (backend)</td><td>HTTPS REST</td><td>Todos os dados do portal</td></tr>
+          <tr><td>linkme-server</td><td>linkme-ia</td><td>MQTT + HTTP</td><td>Comandos de treino, notificações de modelos/previsões</td></tr>
+          <tr><td>linkme-ia</td><td>linkme-server</td><td>HTTP (JWT IA_JWT_SECRET)</td><td>Download de dados para treino, upload de previsões</td></tr>
+          <tr><td>linkme-labrador-fake</td><td>linkme-server</td><td>MQTT TLS 8883</td><td>Mesmos payloads do Labrador real</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Secrets Compartilhados</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Segredo</th><th>Usado entre</th><th>Propósito</th></tr></thead>
+        <tbody>
+          <tr><td><code>COMANDO_HMAC_SECRET</code></td><td>linkme-server ↔ Labrador</td><td>Assinar e verificar comandos remotos</td></tr>
+          <tr><td><code>IA_JWT_SECRET</code></td><td>linkme-server ↔ linkme-ia</td><td>Auth JWT entre os dois serviços (HS256)</td></tr>
+          <tr><td><code>JWT_SECRET_KEY</code></td><td>linkme-server ↔ clientes (portal, Labrador)</td><td>Tokens de acesso da API REST</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- DEPLOY -->
+  <section id="deploy" class="section">
+    <h2>Deploy &amp; Infraestrutura</h2>
+
+    <h3>Servidor de Produção</h3>
+    <ul>
+      <li><strong>Host:</strong> DigitalOcean Droplet — 157.245.139.143</li>
+      <li><strong>Recursos:</strong> 2 vCPU, 4 GB RAM</li>
+      <li><strong>Orquestração:</strong> Docker Compose</li>
+      <li><strong>CI/CD:</strong> GitHub Actions</li>
+      <li><strong>Reverse Proxy:</strong> nginx (HTTPS/TLS terminação)</li>
+      <li><strong>Banco:</strong> PostgreSQL gerenciado pela DigitalOcean</li>
+    </ul>
+
+    <h3>Variáveis de Ambiente (linkme-server)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Grupo</th><th>Variáveis</th></tr></thead>
+        <tbody>
+          <tr><td>Banco de Dados</td><td><code>DB_HOST</code>, <code>DB_PORT</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_NAME</code></td></tr>
+          <tr><td>MQTT</td><td><code>MQTT_HOST</code>, <code>MQTT_PORT</code>, <code>MQTT_TLS</code>, <code>MQTT_USERNAME</code>, <code>MQTT_PASSWORD</code></td></tr>
+          <tr><td>JWT</td><td><code>JWT_SECRET_KEY</code>, <code>JWT_ALGORITHM</code>, <code>JWT_EXPIRY_SECONDS</code></td></tr>
+          <tr><td>API</td><td><code>API_HOST</code>, <code>API_PORT</code></td></tr>
+          <tr><td>Logs</td><td><code>LOG_LEVEL</code>, <code>LOG_FILE</code>, <code>LOG_ROTATION</code>, <code>LOG_RETENTION</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Prefixo de Variáveis de Ambiente (linkme-ia)</h3>
+    <p>Todas as configurações do módulo de IA usam o prefixo <code>IA_</code> (ex: <code>IA_JWT_SECRET</code>, <code>IA_DB_HOST</code>, <code>IA_MQTT_HOST</code>).</p>
+
+    <h3>Logs (linkme-server)</h3>
+    <ul>
+      <li><code>logs/server.log</code> — Log geral da aplicação</li>
+      <li><code>logs/fluxo_sync_mqtt.log</code> — Log do fluxo MQTT</li>
+      <li><code>logs/fluxo_sync_rest.log</code> — Log do fallback REST</li>
+    </ul>
+
+    <h3>Cliente MicroPython (ESP32C)</h3>
+    <div class="callout info">
+      <p><strong>Restrições MicroPython:</strong> O cliente embarcado usa <code>umqtt.robust</code>, <code>ujson</code>, <code>utime</code>, <code>ntptime</code>. Sem <code>datetime</code>, <code>logging</code>, ou <code>threading</code>. Conexão MQTT: TCP puro, porta 1883 (sem TLS para este cliente específico, user: <code>silo2_mqtt</code>). O acumulador de temperatura/umidade usa escala ×100 igual ao firmware Arduino.</p>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- SECURITY -->
+  <section id="security" class="section">
+    <h2>Segurança</h2>
+
+    <h3>Autenticação JWT</h3>
+    <p>Algoritmo HS256. Múltiplos escopos com permissões distintas:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Escopo</th><th>Quem usa</th><th>Permissões</th></tr></thead>
+        <tbody>
+          <tr><td><code>admin</code></td><td>Portal (admins)</td><td>Disparar comandos, upload de firmware, gestão completa</td></tr>
+          <tr><td><code>read</code></td><td>Portal (operadores e admins)</td><td>Consulta de dados, histórico, previsões</td></tr>
+          <tr><td><code>ingest</code></td><td>Labrador</td><td>Publicação de telemetria, download de firmware OTA</td></tr>
+          <tr><td><code>export</code></td><td>linkme-ia</td><td>Exportação de leituras para treino</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Proteções do Portal (linkmebr)</h3>
+    <ul>
+      <li><strong>JWT:</strong> Expiração em 8h (padrão); blacklist via Redis no logout</li>
+      <li><strong>Senhas:</strong> bcrypt</li>
+      <li><strong>Headers HTTP:</strong> Helmet.js</li>
+      <li><strong>Rate limiting login:</strong> 5 tentativas por 15 minutos por IP</li>
+      <li><strong>Rate limiting contato:</strong> 3 requisições por hora</li>
+      <li><strong>Multi-tenancy:</strong> Isolamento por empresa em todas as queries</li>
+    </ul>
+
+    <h3>Segurança de Comandos Remotos</h3>
+    <ul>
+      <li>Cada comando é assinado com <strong>HMAC-SHA256</strong> usando <code>COMANDO_HMAC_SECRET</code></li>
+      <li>O Labrador verifica a assinatura antes de executar</li>
+      <li>Campos incluídos na assinatura: type, comando_id, parametro, parametro_extra, timestamp, nonce</li>
+      <li>Replay attacks mitigados via <code>timestamp</code> + <code>nonce</code></li>
+    </ul>
+
+    <h3>Transporte</h3>
+    <ul>
+      <li>MQTT: <strong>TLS</strong> na porta 8883 para todos os clientes de produção</li>
+      <li>HTTP: <strong>HTTPS</strong> via nginx (terminação TLS)</li>
+      <li>Exceção: ESP32C com MicroPython usa porta 1883 TCP (sem TLS) por limitação de memória do dispositivo</li>
+    </ul>
+
+    <h3>OTA de Firmware</h3>
+    <ul>
+      <li>Firmware autenticado (escopo <code>ingest</code>) antes do download</li>
+      <li>Hash SHA-256 enviado no header <code>X-Firmware-SHA256</code> para validação no Labrador</li>
+      <li>Upload restrito a usuários com escopo <code>admin</code></li>
+    </ul>
+
+    <h3>Multi-tenancy</h3>
+    <p>Hierarquia de isolamento: <code>empresa → usuários → silos → barras → sensores</code>. Nenhum dado de uma empresa é acessível por usuários de outra empresa, mesmo no mesmo banco. Validação enforçada em todas as queries do backend.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <footer style="font-family: var(--font-head); font-size: .78rem; color: var(--text-muted); padding-top: 16px;">
+    <p>Projeto Silos — Documentação Técnica Geral &bull; Compilado de: linkmebr, linkme-server, linkme-ia, linkme-labrador-fake</p>
+  </footer>
+
+</main>
+
+<script>
+  function toggleTheme() {
+    const root = document.documentElement;
+    const cur = root.getAttribute('data-theme');
+    if (!cur) {
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    } else {
+      root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+    }
+  }
+
+  // Scrollspy
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('#sidebar a[href^="#"]');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        links.forEach(a => {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</html>
