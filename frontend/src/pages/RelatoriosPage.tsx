@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import {
@@ -730,15 +730,80 @@ export default function RelatoriosPage() {
     finally  { setLoadingGrafExterna(false); }
   }, []);
 
+  // Refs para ler o state atual do gráfico dentro do setInterval sem closure stale
+  const graficoRef        = useRef<GraficoResponse | null>(null);
+  const graficoExternoRef = useRef<GraficoResponse | null>(null);
+  useEffect(() => { graficoRef.current        = grafico;        }, [grafico]);
+  useEffect(() => { graficoExternoRef.current = graficoExterno; }, [graficoExterno]);
+
+  // Refresh incremental do gráfico: busca apenas os últimos 2 buckets e mescla
+  // com a série existente, evitando rebuscar todo o período a cada tick.
+  const fetchGraficoInternaIncremental = useCallback(async (
+    f: FiltrosComDatas, windowStart: string, eventoId?: string,
+  ) => {
+    const bucketSec = BUCKET_SEC[periodoPreset] ?? 180;
+    const latestBucket = graficoRef.current?.series.reduce<string | null>(
+      (m: string | null, s: GraficoSerie) => (m === null || s.bucket > m ? s.bucket : m), null,
+    ) ?? null;
+    const incrStart = latestBucket
+      ? new Date(new Date(latestBucket).getTime() - 2 * bucketSec * 1000).toISOString()
+      : windowStart;
+    try {
+      const params: Record<string, string> = { silo_id: f.silo_id, data_inicio: incrStart, data_fim: f.data_fim };
+      if (f.barra_id)  params.barra_id  = f.barra_id;
+      if (f.sensor_id) params.sensor_id = f.sensor_id;
+      if (eventoId)    params.evento_id  = eventoId;
+      const res = await api.get<GraficoResponse>('/relatorios/leituras/grafico', { params });
+      setGrafico((prev) => {
+        if (!prev) return res.data;
+        const refreshed = new Set(res.data.series.map((s: GraficoSerie) => s.bucket));
+        return {
+          ...prev,
+          series: [
+            ...prev.series.filter((s: GraficoSerie) => !refreshed.has(s.bucket) && s.bucket >= windowStart),
+            ...res.data.series,
+          ].sort((a: GraficoSerie, b: GraficoSerie) => a.bucket.localeCompare(b.bucket)),
+        };
+      });
+    } catch { /* silencioso — gráfico mantém dados anteriores */ }
+  }, [periodoPreset]);
+
+  const fetchGraficoExternaIncremental = useCallback(async (
+    f: FiltrosComDatas, windowStart: string, eventoId?: string,
+  ) => {
+    const bucketSec = BUCKET_SEC[periodoPreset] ?? 180;
+    const latestBucket = graficoExternoRef.current?.series.reduce<string | null>(
+      (m: string | null, s: GraficoSerie) => (m === null || s.bucket > m ? s.bucket : m), null,
+    ) ?? null;
+    const incrStart = latestBucket
+      ? new Date(new Date(latestBucket).getTime() - 2 * bucketSec * 1000).toISOString()
+      : windowStart;
+    try {
+      const params: Record<string, string> = { silo_id: f.silo_id, data_inicio: incrStart, data_fim: f.data_fim };
+      if (f.barra_id)  params.barra_id  = f.barra_id;
+      if (f.sensor_id) params.sensor_id = f.sensor_id;
+      if (eventoId)    params.evento_id  = eventoId;
+      const res = await api.get<GraficoResponse>('/relatorios/leituras-externas/grafico', { params });
+      setGraficoExterno((prev) => {
+        if (!prev) return res.data;
+        const refreshed = new Set(res.data.series.map((s: GraficoSerie) => s.bucket));
+        return {
+          ...prev,
+          series: [
+            ...prev.series.filter((s: GraficoSerie) => !refreshed.has(s.bucket) && s.bucket >= windowStart),
+            ...res.data.series,
+          ].sort((a: GraficoSerie, b: GraficoSerie) => a.bucket.localeCompare(b.bucket)),
+        };
+      });
+    } catch { /* silencioso */ }
+  }, [periodoPreset]);
+
   // ── Auto-refresh ──────────────────────────────────────────────────────────
-  // Tabela: sempre 1,5min (granularidade nativa de 3min, em qualquer preset).
-  // Gráfico: metade do bucket daquele preset (custom não tem bucket fixo → sem auto-refresh).
-  const subAbaAtual = abaAtiva === 'interna' ? subAbaInterna : subAbaExterna;
-  const autoRefreshMs = !lastFiltros
-    ? null
-    : subAbaAtual === 'tabela'
-      ? 90_000
-      : BUCKET_SEC[periodoPreset] != null ? (BUCKET_SEC[periodoPreset]! * 1000) / 2 : null;
+  // A cada 90s: tabela (fetch completo da página atual, já limitado a 50 linhas)
+  // e gráfico (incremental — apenas os últimos 2 buckets, mesclados no state).
+  // Ambos sempre atualizados independente da sub-aba visível.
+  // Preset custom tem janela fixa → sem auto-refresh.
+  const autoRefreshMs = lastFiltros && periodoPreset !== 'custom' ? 90_000 : null;
 
   useEffect(() => {
     if (autoRefreshMs == null || !lastFiltros) return;
@@ -750,14 +815,16 @@ export default function RelatoriosPage() {
       setUltimaConsultaEm(new Date());
       const evId = isSimulado ? eventoSimId : undefined;
       if (abaAtiva === 'interna') {
-        subAbaAtual === 'tabela' ? fetchInterna(f, paginaInterna, evId) : fetchGraficoInterna(f, evId);
+        fetchInterna(f, paginaInterna, evId);
+        fetchGraficoInternaIncremental(f, periodo.data_inicio, evId);
       } else {
-        subAbaAtual === 'tabela' ? fetchExterna(f, paginaExterna, evId) : fetchGraficoExterna(f, evId);
+        fetchExterna(f, paginaExterna, evId);
+        fetchGraficoExternaIncremental(f, periodo.data_inicio, evId);
       }
     }, autoRefreshMs);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefreshMs, abaAtiva, subAbaAtual, periodoPreset, customInicio, customFim, paginaInterna, paginaExterna]);
+  }, [autoRefreshMs, abaAtiva, periodoPreset, customInicio, customFim, paginaInterna, paginaExterna]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
