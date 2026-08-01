@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../utils/errors';
 import { prisma } from '../../config/prisma';
+import { Prisma } from '@prisma/client';
 import archiver from 'archiver';
 
 // ── Ingest proxy (exportação individualizada) ─────────────────────────────────
@@ -355,33 +356,52 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
     });
     archive.pipe(res);
 
-    // 5. Processar uma barra por vez — ZIP começa a fluir para o cliente após a 1ª barra
+    // 5. Processar uma barra por vez com paginação cursor-based para limitar pico de memória.
+    //    Silos com muitos dados podem ter centenas de milhares de linhas por barra; carregar
+    //    tudo de uma vez causava OOM e ERR_INCOMPLETE_CHUNKED_ENCODING no cliente.
+    const BATCH = 50_000;
+
     for (const [barraId, barraSensorIds] of sensorIdsByBarra) {
-      const leituras = await prisma.leituraInterna.findMany({
-        where: { sensor_id: { in: barraSensorIds }, ...dateFilter },
-        orderBy: { timestamp: 'asc' },
-      });
-
-      if (leituras.length === 0) continue;
-
       const rowMap = new Map<string, PivotRow>();
-      for (const l of leituras) {
-        const meta = metaMap.get(l.sensor_id);
-        if (!meta) continue;
-        const tsKey = l.timestamp.toISOString();
-        if (!rowMap.has(tsKey)) rowMap.set(tsKey, { timestamp: l.timestamp, cells: emptyCells() });
-        rowMap.get(tsKey)!.cells[meta.height][meta.grandeza] = {
-          sum:  l.sum  ?? null,
-          max:  l.valor_max.toNumber(),
-          min:  l.valor_min.toNumber(),
-          n:    l.num_amostras,
-          sum2: l.sum2 ?? null,
+      let lastId: bigint | null = null;
+
+      while (true) {
+        const where: Prisma.LeituraInternaWhereInput = {
+          sensor_id: { in: barraSensorIds },
+          ...dateFilter,
         };
+        if (lastId !== null) where.id = { gt: lastId };
+        const leituras = await prisma.leituraInterna.findMany({
+          where,
+          orderBy: { id: 'asc' },
+          take: BATCH,
+        });
+
+        if (leituras.length === 0) break;
+
+        for (const l of leituras) {
+          const meta = metaMap.get(l.sensor_id);
+          if (!meta) continue;
+          const tsKey = l.timestamp.toISOString();
+          if (!rowMap.has(tsKey)) rowMap.set(tsKey, { timestamp: l.timestamp, cells: emptyCells() });
+          rowMap.get(tsKey)!.cells[meta.height][meta.grandeza] = {
+            sum:  l.sum  ?? null,
+            max:  l.valor_max.toNumber(),
+            min:  l.valor_min.toNumber(),
+            n:    l.num_amostras,
+            sum2: l.sum2 ?? null,
+          };
+        }
+
+        lastId = leituras[leituras.length - 1].id;
+        if (leituras.length < BATCH) break;
       }
+
+      if (rowMap.size === 0) continue;
 
       const caboNum = barraNumMap.get(barraId)!;
       const fileName = `silo_${siloNum}_cabo_${caboNum}_${ts}.${formato}`;
-      const rows = [...rowMap.values()];
+      const rows = [...rowMap.values()].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
       const content = formato === 'csv'
         ? [CSV_HEADER, ...rows.map((r) => rowToCsvLine(r, siloNum, caboNum))].join('\n')
