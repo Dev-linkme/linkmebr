@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { CalendarClock, Plus, Pencil, Trash2, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import type { Silo, Evento } from '../types/index';
 
 interface EventoFormData {
@@ -71,6 +72,7 @@ function ViewModal({ evento, onClose }: { evento: Evento; onClose: () => void })
 // ─── Página Principal ─────────────────────────────────────────────────────────
 
 export default function EventosPage() {
+  const { isOperador } = useAuth();
   const [silos, setSilos] = useState<Silo[]>([]);
   const [siloId, setSiloId] = useState('');
 
@@ -184,7 +186,7 @@ export default function EventosPage() {
           <CalendarClock size={28} className="text-primary-600" />
           <h1 className="text-2xl font-bold text-gray-900">Eventos</h1>
         </div>
-        {siloId && !showForm && (
+        {siloId && !showForm && !isOperador && (
           <button onClick={openNew} className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded">
             <Plus size={16} /> Novo Evento
           </button>
@@ -214,8 +216,8 @@ export default function EventosPage() {
         </div>
       ) : (
         <>
-          {/* Formulário inline */}
-          {showForm && (
+          {/* Formulário inline — visível apenas para perfis com permissão de escrita */}
+          {showForm && !isOperador && (
             <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-800">{editingId !== null ? 'Editar Evento' : 'Novo Evento'}</h2>
@@ -285,12 +287,16 @@ export default function EventosPage() {
                             <button onClick={() => setViewingEvento(e)} title="Visualizar" className="text-gray-500 hover:text-blue-600 p-1 rounded">
                               <Eye size={16} />
                             </button>
-                            <button onClick={() => openEdit(e)} title="Editar" className="text-gray-500 hover:text-green-600 p-1 rounded">
-                              <Pencil size={16} />
-                            </button>
-                            <button onClick={() => setConfirmDeleteId(e.id)} title="Excluir" className="text-gray-500 hover:text-red-600 p-1 rounded">
-                              <Trash2 size={16} />
-                            </button>
+                            {!isOperador && (
+                              <>
+                                <button onClick={() => openEdit(e)} title="Editar" className="text-gray-500 hover:text-green-600 p-1 rounded">
+                                  <Pencil size={16} />
+                                </button>
+                                <button onClick={() => setConfirmDeleteId(e.id)} title="Excluir" className="text-gray-500 hover:text-red-600 p-1 rounded">
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
