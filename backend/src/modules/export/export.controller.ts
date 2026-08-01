@@ -316,48 +316,28 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
       });
     }
 
-    const sensorIds = [...metaMap.keys()];
+    // Agrupar IDs de sensor por barra para queries independentes
+    const sensorIdsByBarra = new Map<number, number[]>();
+    for (const [sensorId, meta] of metaMap) {
+      if (!sensorIdsByBarra.has(meta.barraId)) sensorIdsByBarra.set(meta.barraId, []);
+      sensorIdsByBarra.get(meta.barraId)!.push(sensorId);
+    }
 
-    // 4. Leituras internas no período
-    const leituras = await prisma.leituraInterna.findMany({
-      where: {
-        sensor_id: { in: sensorIds },
-        ...(start || end
-          ? { timestamp: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } }
-          : {}),
-      },
-      orderBy: { timestamp: 'asc' },
+    if (sensorIdsByBarra.size === 0) throw new AppError(404, 'Nenhum sensor válido encontrado para este silo');
+
+    const dateFilter = (start || end)
+      ? { timestamp: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } }
+      : {};
+
+    // Verificação rápida (LIMIT 1) antes de iniciar o stream — evita ZIP vazio sem poder retornar 404
+    const primeiraLeitura = await prisma.leituraInterna.findFirst({
+      where: { sensor_id: { in: [...metaMap.keys()] }, ...dateFilter },
+      select: { id: true },
     });
+    if (!primeiraLeitura) throw new AppError(404, 'Nenhum dado encontrado para o período selecionado');
 
-    if (leituras.length === 0) {
-      throw new AppError(404, 'Nenhum dado encontrado para o período selecionado');
-    }
-
-    // 5. Pivotar em memória: barra_id → Map<timestamp_iso, PivotRow>
-    const barraData = new Map<number, Map<string, PivotRow>>();
-
-    for (const l of leituras) {
-      const meta = metaMap.get(l.sensor_id);
-      if (!meta) continue;
-
-      if (!barraData.has(meta.barraId)) barraData.set(meta.barraId, new Map());
-      const rowMap = barraData.get(meta.barraId)!;
-
-      const tsKey = l.timestamp.toISOString();
-      if (!rowMap.has(tsKey)) {
-        rowMap.set(tsKey, { timestamp: l.timestamp, cells: emptyCells() });
-      }
-
-      rowMap.get(tsKey)!.cells[meta.height][meta.grandeza] = {
-        sum:  l.sum  ?? null,
-        max:  l.valor_max.toNumber(),
-        min:  l.valor_min.toNumber(),
-        n:    l.num_amostras,
-        sum2: l.sum2 ?? null,
-      };
-    }
-
-    // 6. Gerar ZIP com um arquivo por barra
+    // 4. Iniciar o stream antes das queries por barra — os primeiros bytes fluem após a 1ª barra,
+    //    evitando o timeout do nginx em silos com grande volume de dados.
     const ts = fileTimestamp(new Date());
     const zipName = `silo_${siloNum}_agrupada_${ts}.zip`;
 
@@ -375,12 +355,32 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
     });
     archive.pipe(res);
 
-    for (const [barraId, rowMap] of barraData) {
-      if (rowMap.size === 0) continue;
+    // 5. Processar uma barra por vez — ZIP começa a fluir para o cliente após a 1ª barra
+    for (const [barraId, barraSensorIds] of sensorIdsByBarra) {
+      const leituras = await prisma.leituraInterna.findMany({
+        where: { sensor_id: { in: barraSensorIds }, ...dateFilter },
+        orderBy: { timestamp: 'asc' },
+      });
+
+      if (leituras.length === 0) continue;
+
+      const rowMap = new Map<string, PivotRow>();
+      for (const l of leituras) {
+        const meta = metaMap.get(l.sensor_id);
+        if (!meta) continue;
+        const tsKey = l.timestamp.toISOString();
+        if (!rowMap.has(tsKey)) rowMap.set(tsKey, { timestamp: l.timestamp, cells: emptyCells() });
+        rowMap.get(tsKey)!.cells[meta.height][meta.grandeza] = {
+          sum:  l.sum  ?? null,
+          max:  l.valor_max.toNumber(),
+          min:  l.valor_min.toNumber(),
+          n:    l.num_amostras,
+          sum2: l.sum2 ?? null,
+        };
+      }
+
       const caboNum = barraNumMap.get(barraId)!;
       const fileName = `silo_${siloNum}_cabo_${caboNum}_${ts}.${formato}`;
-
-      // rowMap preserva ordem de inserção (leituras já vieram ordenadas por timestamp ASC)
       const rows = [...rowMap.values()];
 
       const content = formato === 'csv'
@@ -398,6 +398,10 @@ export async function exportarAgrupada(req: Request, res: Response, next: NextFu
         err,
       );
     }
-    next(err);
+    if (!res.headersSent) {
+      next(err);
+    } else {
+      res.destroy(err as Error);
+    }
   }
 }
