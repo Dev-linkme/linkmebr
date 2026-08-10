@@ -64,8 +64,14 @@ async function proxyExport(
     });
 
     if (!ingestRes.ok) {
-      const err = await ingestRes.json().catch(() => ({})) as { detail?: string };
-      throw new AppError(ingestRes.status, err.detail ?? 'Erro na exportação');
+      const body = await ingestRes.json().catch(() => ({})) as { detail?: unknown };
+      const msg = typeof body.detail === 'string'
+        ? body.detail
+        : Array.isArray(body.detail)
+          ? (body.detail as { msg?: string }[]).map((e) => e.msg ?? JSON.stringify(e)).join('; ')
+          : JSON.stringify(body);
+      console.error(`[export/proxy] ingest ${ingestRes.status} ${ingestRes.url}: ${msg}`);
+      throw new AppError(ingestRes.status, msg || 'Erro na exportação');
     }
 
     const contentType = ingestRes.headers.get('Content-Type') ?? 'application/octet-stream';
