@@ -48,25 +48,43 @@ async function proxyExport(
       throw new AppError(503, 'Servidor de exportação não configurado (INGEST_BASE_URL ausente)');
     }
 
-    // O ingest usa id_labrador como silo_id — nosso id interno precisa ser traduzido.
+    // O ingest usa id_labrador tanto para silos quanto para sensores — traduzir antes de encaminhar.
     const ourSiloId = Number(req.query.silo_id);
     if (!ourSiloId || isNaN(ourSiloId)) throw new AppError(400, 'silo_id é obrigatório');
     const silo = await prisma.silo.findUnique({ where: { id: ourSiloId }, select: { id_labrador: true } });
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     if (!silo.id_labrador) throw new AppError(422, 'Silo não possui id_labrador configurado — contate o suporte');
 
+    // Traduzir IDs internos dos sensores para id_labrador
+    const ourSensorIds = (
+      Array.isArray(req.query.sensor) ? req.query.sensor : req.query.sensor ? [req.query.sensor] : []
+    ).map(Number).filter((n) => !isNaN(n));
+
+    let ingestSensorIds: number[] = [];
+    if (ourSensorIds.length > 0) {
+      const sensors = await prisma.sensor.findMany({
+        where: { id: { in: ourSensorIds } },
+        select: { id_labrador: true },
+      });
+      ingestSensorIds = sensors.map((s) => s.id_labrador).filter((id): id is number => id !== null);
+      if (ingestSensorIds.length === 0) {
+        throw new AppError(422, 'Nenhum sensor selecionado possui id_labrador configurado');
+      }
+    }
+
     const token = await getIngestToken();
 
     const url = new URL(`${env.INGEST_BASE_URL}/v1/export/${tabela}`);
-    url.searchParams.set('silo_id', String(silo.id_labrador)); // id_labrador, não nosso id interno
+    url.searchParams.set('silo_id', String(silo.id_labrador));
     for (const [key, value] of Object.entries(req.query)) {
-      if (key === 'silo_id') continue; // já substituído acima
+      if (key === 'silo_id' || key === 'sensor') continue; // substituídos acima
       if (Array.isArray(value)) {
         for (const v of value) url.searchParams.append(key, String(v));
       } else {
         url.searchParams.set(key, String(value));
       }
     }
+    for (const id of ingestSensorIds) url.searchParams.append('sensor', String(id));
 
     const ingestRes = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
