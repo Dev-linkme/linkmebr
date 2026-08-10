@@ -48,10 +48,19 @@ async function proxyExport(
       throw new AppError(503, 'Servidor de exportação não configurado (INGEST_BASE_URL ausente)');
     }
 
+    // O ingest usa id_labrador como silo_id — nosso id interno precisa ser traduzido.
+    const ourSiloId = Number(req.query.silo_id);
+    if (!ourSiloId || isNaN(ourSiloId)) throw new AppError(400, 'silo_id é obrigatório');
+    const silo = await prisma.silo.findUnique({ where: { id: ourSiloId }, select: { id_labrador: true } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    if (!silo.id_labrador) throw new AppError(422, 'Silo não possui id_labrador configurado — contate o suporte');
+
     const token = await getIngestToken();
 
     const url = new URL(`${env.INGEST_BASE_URL}/v1/export/${tabela}`);
+    url.searchParams.set('silo_id', String(silo.id_labrador)); // id_labrador, não nosso id interno
     for (const [key, value] of Object.entries(req.query)) {
+      if (key === 'silo_id') continue; // já substituído acima
       if (Array.isArray(value)) {
         for (const v of value) url.searchParams.append(key, String(v));
       } else {
