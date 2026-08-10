@@ -53,8 +53,13 @@ async function proxyExport(
 
     const token = await getIngestToken();
 
+    // silo_id é conceito interno do nosso backend (o ingest identifica dados por sensor ID);
+    // formato controla o Content-Type da resposta e também é filtrado para não causar 400 no ingest.
+    const INGEST_SKIP = new Set(['silo_id', 'formato']);
+
     const url = new URL(`${INGEST_BASE_URL}/v1/export/${tabela}`);
     for (const [key, value] of Object.entries(req.query)) {
+      if (INGEST_SKIP.has(key)) continue;
       if (Array.isArray(value)) {
         for (const v of value) url.searchParams.append(key, String(v));
       } else {
