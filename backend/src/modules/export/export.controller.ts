@@ -1,14 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../utils/errors';
+import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { Prisma } from '@prisma/client';
 import archiver from 'archiver';
 
 // ── Ingest proxy (exportação individualizada) ─────────────────────────────────
-
-const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? '';
-const INGEST_IA_CLIENT_ID = process.env.INGEST_IA_CLIENT_ID ?? 'server-ia';
-const INGEST_IA_CLIENT_SECRET = process.env.INGEST_IA_CLIENT_SECRET ?? '';
 
 type TokenCache = { token: string; expiresAt: number } | null;
 let tokenCache: TokenCache = null;
@@ -18,12 +15,12 @@ async function getIngestToken(): Promise<string> {
     return tokenCache.token;
   }
 
-  const res = await fetch(`${INGEST_BASE_URL}/v1/ingest/auth/token`, {
+  const res = await fetch(`${env.INGEST_BASE_URL}/v1/ingest/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: INGEST_IA_CLIENT_ID,
-      client_secret: INGEST_IA_CLIENT_SECRET,
+      client_id: env.INGEST_CLIENT_ID,
+      client_secret: env.INGEST_CLIENT_SECRET,
     }),
   });
 
@@ -47,19 +44,14 @@ async function proxyExport(
   next: NextFunction,
 ): Promise<void> {
   try {
-    if (!INGEST_BASE_URL) {
+    if (!env.INGEST_BASE_URL) {
       throw new AppError(503, 'Servidor de exportação não configurado (INGEST_BASE_URL ausente)');
     }
 
     const token = await getIngestToken();
 
-    // silo_id é conceito interno do nosso backend (o ingest identifica dados por sensor ID);
-    // formato controla o Content-Type da resposta e também é filtrado para não causar 400 no ingest.
-    const INGEST_SKIP = new Set(['silo_id', 'formato']);
-
-    const url = new URL(`${INGEST_BASE_URL}/v1/export/${tabela}`);
+    const url = new URL(`${env.INGEST_BASE_URL}/v1/export/${tabela}`);
     for (const [key, value] of Object.entries(req.query)) {
-      if (INGEST_SKIP.has(key)) continue;
       if (Array.isArray(value)) {
         for (const v of value) url.searchParams.append(key, String(v));
       } else {
