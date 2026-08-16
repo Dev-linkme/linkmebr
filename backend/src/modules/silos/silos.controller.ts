@@ -39,7 +39,7 @@ export async function listar(req: Request, res: Response, next: NextFunction): P
           empresa: { select: { id: true, razao_social: true, nome_fantasia: true } },
           _count: { select: { alertas: true } },
           barras: {
-            where: { status: 'ativo' },
+            where: { status: 'ativa' },
             select: { id: true, _count: { select: { sensores: true } } },
           },
         },

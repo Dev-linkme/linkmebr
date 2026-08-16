@@ -232,7 +232,7 @@ export default function BarrasPage() {
     if (!siloId) return;
     setLoading(true);
     Promise.all([
-      api.get<Silo>(`/dashboard/silos/${siloId}`).catch(() => ({ data: null })),
+      api.get<Silo>(`/silos/${siloId}`).catch(() => ({ data: null })),
       api.get<{ data: Barra[] }>(`/silos/${siloId}/barras`).catch(() => ({ data: { data: [] } })),
     ])
       .then(([siloRes, barrasRes]) => {
