@@ -66,7 +66,8 @@ model Silo {
   tipo_dado       String    @default("Real") @db.VarChar(20)
   criado_em       DateTime  @default(now()) @db.Timestamptz()
   atualizado_em   DateTime  @default(now()) @updatedAt @db.Timestamptz()
-  id_labrador     Int?
+  id_labrador          Int?
+  intervalo_coleta_seg Int  @default(180)
 
   empresa         Empresa              @relation(fields: [empresa_id], references: [id])
   barras          Barra[]

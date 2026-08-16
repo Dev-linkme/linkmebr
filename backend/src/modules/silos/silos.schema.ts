@@ -35,6 +35,11 @@ export const criarSiloSchema = z.object({
     })
     .default('Real'),
   id_labrador: z.number({ coerce: true }).int().positive().optional(),
+  intervalo_coleta_seg: z
+    .number({ coerce: true })
+    .int('Intervalo deve ser inteiro')
+    .min(1, 'Intervalo deve ser pelo menos 1 segundo')
+    .default(180),
 });
 
 export const atualizarSiloSchema = criarSiloSchema.partial().omit({ empresa_id: true });

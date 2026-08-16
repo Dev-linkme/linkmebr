@@ -8,7 +8,7 @@ type Grandeza = 'temperatura' | 'umidade' | 'co2';
 type Formato = 'csv' | 'json';
 type ExportPhase = 'idle' | 'running' | 'done' | 'error';
 
-interface Silo { id: number; nome: string; }
+interface Silo { id: number; nome: string; intervalo_coleta_seg?: number; }
 interface Barra { id: number; identificacao: string; }
 interface Sensor {
   id: number;
@@ -43,11 +43,11 @@ function formatDuration(ms: number): string {
   return r > 0 ? `${m} min ${r} s` : `${m} min`;
 }
 
-// Estimativa baseada em ~20 leituras/hora/sensor (coleta a cada 3 min)
-// mais overhead de geração e compressão do arquivo.
-function estimateExportMs(rangeMs: number, nSensors: number): number {
+// Estimativa baseada no intervalo real de coleta do silo + overhead de geração.
+function estimateExportMs(rangeMs: number, nSensors: number, intervaloSeg: number): number {
   if (rangeMs <= 0 || nSensors <= 0) return 5_000;
-  const rows = (rangeMs / 3_600_000) * 20 * nSensors;
+  const readingsPerHour = 3_600 / Math.max(1, intervaloSeg);
+  const rows = (rangeMs / 3_600_000) * readingsPerHour * nSensors;
   return Math.max(3_000, Math.round((rows / 8_000) * 1_000) + 2_000);
 }
 
@@ -161,12 +161,13 @@ export default function ExportacaoPage() {
   const rangeMs    = rangeStart && rangeEnd
     ? Math.max(0, new Date(rangeEnd).getTime() - new Date(rangeStart).getTime())
     : 0;
+  const intervaloSeg = silos.find((s) => s.id === siloId)?.intervalo_coleta_seg ?? 180;
   // Modo individualizado: sensores selecionados (ou todos). Agrupado: ~6 sensores por barra.
   const nSensorsEst = modo === 'individualizada'
     ? (sensoresSelecionados.length > 0 ? sensoresSelecionados.length : sensores.length)
     : barras.length * 6;
   const estimateMs = rangeMs > 0 && nSensorsEst > 0
-    ? estimateExportMs(rangeMs, nSensorsEst)
+    ? estimateExportMs(rangeMs, nSensorsEst, intervaloSeg)
     : null;
 
   // ── Controle do progresso ─────────────────────────────────────────────────

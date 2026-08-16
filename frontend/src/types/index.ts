@@ -29,6 +29,7 @@ export interface Silo {
   status: string;
   tipo_dado?: 'Real' | 'Simulado';
   id_labrador?: number | null;
+  intervalo_coleta_seg?: number;
   total_barras_ativas?: number;
   total_sensores_ativos?: number;
   alertas_ativos?: number;
