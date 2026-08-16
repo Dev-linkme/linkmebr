@@ -37,13 +37,23 @@ export async function listar(req: Request, res: Response, next: NextFunction): P
         orderBy: { nome: 'asc' },
         include: {
           empresa: { select: { id: true, razao_social: true, nome_fantasia: true } },
-          _count: { select: { barras: true, alertas: true } },
+          _count: { select: { alertas: true } },
+          barras: {
+            where: { status: 'ativo' },
+            select: { id: true, _count: { select: { sensores: true } } },
+          },
         },
       }),
     ]);
 
+    const data = silos.map(({ barras, ...silo }) => ({
+      ...silo,
+      total_barras_ativas: barras.length,
+      total_sensores_ativos: barras.reduce((n, b) => n + b._count.sensores, 0),
+    }));
+
     res.json({
-      data: silos,
+      data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (err) {
