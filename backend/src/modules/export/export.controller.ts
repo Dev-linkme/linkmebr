@@ -55,6 +55,23 @@ async function proxyExport(
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     if (!silo.id_labrador) throw new AppError(422, 'Silo não possui id_labrador configurado — contate o suporte');
 
+    // Traduzir IDs internos de barras para id_labrador
+    const ourBarraIds = (
+      Array.isArray(req.query.barra) ? req.query.barra : req.query.barra ? [req.query.barra] : []
+    ).map(Number).filter((n) => !isNaN(n));
+
+    let ingestBarraIds: number[] = [];
+    if (ourBarraIds.length > 0) {
+      const barras = await prisma.barra.findMany({
+        where: { id: { in: ourBarraIds } },
+        select: { id_labrador: true },
+      });
+      ingestBarraIds = barras.map((b) => b.id_labrador).filter((id): id is number => id !== null);
+      if (ingestBarraIds.length === 0) {
+        throw new AppError(422, 'Nenhuma barra selecionada possui id_labrador configurado');
+      }
+    }
+
     // Traduzir IDs internos dos sensores para id_labrador
     const ourSensorIds = (
       Array.isArray(req.query.sensor) ? req.query.sensor : req.query.sensor ? [req.query.sensor] : []
@@ -77,13 +94,14 @@ async function proxyExport(
     const url = new URL(`${env.INGEST_BASE_URL}/v1/export/${tabela}`);
     url.searchParams.set('silo_id', String(silo.id_labrador));
     for (const [key, value] of Object.entries(req.query)) {
-      if (key === 'silo_id' || key === 'sensor') continue; // substituídos acima
+      if (key === 'silo_id' || key === 'barra' || key === 'sensor') continue; // substituídos com id_labrador
       if (Array.isArray(value)) {
         for (const v of value) url.searchParams.append(key, String(v));
       } else {
         url.searchParams.set(key, String(value));
       }
     }
+    for (const id of ingestBarraIds)  url.searchParams.append('barra',  String(id));
     for (const id of ingestSensorIds) url.searchParams.append('sensor', String(id));
 
     const ingestRes = await fetch(url.toString(), {
