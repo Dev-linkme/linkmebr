@@ -10,6 +10,7 @@ import type { Silo, Barra, Sensor } from '../types/index';
 interface BarraComSensores extends Barra {
   sensores: Sensor[];
   loadingSensores: boolean;
+  sensoresCarregados: boolean;
 }
 
 interface BarraForm {
@@ -210,9 +211,9 @@ export default function BarrasPage() {
   const fetchSensores = useCallback(async (barraId: number) => {
     try {
       const res = await api.get<{ data: Sensor[] }>(`/barras/${barraId}/sensores`);
-      setBarras((prev) => prev.map((b) => b.id === barraId ? { ...b, sensores: res.data.data ?? [], loadingSensores: false } : b));
+      setBarras((prev) => prev.map((b) => b.id === barraId ? { ...b, sensores: res.data.data ?? [], loadingSensores: false, sensoresCarregados: true } : b));
     } catch {
-      setBarras((prev) => prev.map((b) => b.id === barraId ? { ...b, loadingSensores: false } : b));
+      setBarras((prev) => prev.map((b) => b.id === barraId ? { ...b, loadingSensores: false, sensoresCarregados: true } : b));
     }
   }, []);
 
@@ -220,13 +221,12 @@ export default function BarrasPage() {
     if (!siloId) return;
     try {
       const res = await api.get<{ data: Barra[] }>(`/silos/${siloId}/barras`);
-      const barrasComSensores: BarraComSensores[] = (res.data.data ?? []).map((b) => ({ ...b, sensores: [], loadingSensores: true }));
+      const barrasComSensores: BarraComSensores[] = (res.data.data ?? []).map((b) => ({ ...b, sensores: [], loadingSensores: false, sensoresCarregados: false }));
       setBarras(barrasComSensores);
-      barrasComSensores.forEach((b) => fetchSensores(b.id));
     } catch {
       toast.error('Erro ao carregar cabos pêndulo');
     }
-  }, [siloId, fetchSensores]);
+  }, [siloId]);
 
   useEffect(() => {
     if (!siloId) return;
@@ -237,20 +237,27 @@ export default function BarrasPage() {
     ])
       .then(([siloRes, barrasRes]) => {
         setSilo(siloRes.data);
-        const barrasComSensores: BarraComSensores[] = (barrasRes.data.data ?? []).map((b: Barra) => ({ ...b, sensores: [], loadingSensores: true }));
+        const barrasComSensores: BarraComSensores[] = (barrasRes.data.data ?? []).map((b: Barra) => ({ ...b, sensores: [], loadingSensores: false, sensoresCarregados: false }));
         setBarras(barrasComSensores);
-        barrasComSensores.forEach((b) => fetchSensores(b.id));
       })
       .finally(() => setLoading(false));
-  }, [siloId, fetchSensores]);
+  }, [siloId]);
 
   function toggleBarra(barraId: number) {
+    const abrindo = !openBarras.has(barraId);
     setOpenBarras((prev) => {
       const next = new Set(prev);
-      if (next.has(barraId)) next.delete(barraId);
+      if (prev.has(barraId)) next.delete(barraId);
       else next.add(barraId);
       return next;
     });
+    if (abrindo) {
+      const barra = barras.find((b) => b.id === barraId);
+      if (barra && !barra.sensoresCarregados && !barra.loadingSensores) {
+        setBarras((prev) => prev.map((b) => b.id === barraId ? { ...b, loadingSensores: true } : b));
+        fetchSensores(barraId);
+      }
+    }
   }
 
   async function onSubmitBarra(data: BarraForm) {
