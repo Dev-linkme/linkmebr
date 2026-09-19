@@ -228,6 +228,8 @@ export default function ExportacaoPage() {
     const params = new URLSearchParams();
     params.set('silo_id', String(siloId));
     params.set('formato', formato);
+    // Passa cabos selecionados para que o ingest filtre por node_id/barra
+    barrasSelecionadas.forEach((id) => params.append('barra', String(id)));
     sensorIds.forEach((id) => params.append('sensor', String(id)));
     if (inicio) params.set('start', new Date(inicio).toISOString());
     if (fim)    params.set('end',   new Date(fim).toISOString());
