@@ -5,7 +5,7 @@ import { prisma } from '../../config/prisma';
 import { Prisma } from '@prisma/client';
 import archiver from 'archiver';
 
-// ── Ingest proxy (exportação individualizada) ─────────────────────────────────
+// ── Ingest proxy (exportação leitura_externa — legado) ────────────────────────
 
 type TokenCache = { token: string; expiresAt: number } | null;
 let tokenCache: TokenCache = null;
@@ -38,7 +38,7 @@ async function getIngestToken(): Promise<string> {
 }
 
 async function proxyExport(
-  tabela: 'leitura_interna' | 'leitura_externa',
+  tabela: 'leitura_externa',
   req: Request,
   res: Response,
   next: NextFunction,
@@ -48,61 +48,24 @@ async function proxyExport(
       throw new AppError(503, 'Servidor de exportação não configurado (INGEST_BASE_URL ausente)');
     }
 
-    // O ingest usa id_labrador tanto para silos quanto para sensores — traduzir antes de encaminhar.
     const ourSiloId = Number(req.query.silo_id);
     if (!ourSiloId || isNaN(ourSiloId)) throw new AppError(400, 'silo_id é obrigatório');
     const silo = await prisma.silo.findUnique({ where: { id: ourSiloId }, select: { id_labrador: true } });
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     if (!silo.id_labrador) throw new AppError(422, 'Silo não possui id_labrador configurado — contate o suporte');
 
-    // Traduzir IDs internos de barras para id_labrador
-    const ourBarraIds = (
-      Array.isArray(req.query.barra) ? req.query.barra : req.query.barra ? [req.query.barra] : []
-    ).map(Number).filter((n) => !isNaN(n));
-
-    let ingestBarraIds: number[] = [];
-    if (ourBarraIds.length > 0) {
-      const barras = await prisma.barra.findMany({
-        where: { id: { in: ourBarraIds } },
-        select: { id_labrador: true },
-      });
-      ingestBarraIds = barras.map((b) => b.id_labrador).filter((id): id is number => id !== null);
-      if (ingestBarraIds.length === 0) {
-        throw new AppError(422, 'Nenhuma barra selecionada possui id_labrador configurado');
-      }
-    }
-
-    // Traduzir IDs internos dos sensores para id_labrador
-    const ourSensorIds = (
-      Array.isArray(req.query.sensor) ? req.query.sensor : req.query.sensor ? [req.query.sensor] : []
-    ).map(Number).filter((n) => !isNaN(n));
-
-    let ingestSensorIds: number[] = [];
-    if (ourSensorIds.length > 0) {
-      const sensors = await prisma.sensor.findMany({
-        where: { id: { in: ourSensorIds } },
-        select: { id_labrador: true },
-      });
-      ingestSensorIds = sensors.map((s) => s.id_labrador).filter((id): id is number => id !== null);
-      if (ingestSensorIds.length === 0) {
-        throw new AppError(422, 'Nenhum sensor selecionado possui id_labrador configurado');
-      }
-    }
-
     const token = await getIngestToken();
 
     const url = new URL(`${env.INGEST_BASE_URL}/v1/export/${tabela}`);
     url.searchParams.set('silo_id', String(silo.id_labrador));
     for (const [key, value] of Object.entries(req.query)) {
-      if (key === 'silo_id' || key === 'barra' || key === 'sensor') continue; // substituídos com id_labrador
+      if (key === 'silo_id') continue;
       if (Array.isArray(value)) {
         for (const v of value) url.searchParams.append(key, String(v));
       } else {
         url.searchParams.set(key, String(value));
       }
     }
-    for (const id of ingestBarraIds)  url.searchParams.append('barra',  String(id));
-    for (const id of ingestSensorIds) url.searchParams.append('sensor', String(id));
 
     const ingestRes = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
@@ -125,10 +88,7 @@ async function proxyExport(
     res.setHeader('Content-Type', contentType);
     if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
 
-    if (!ingestRes.body) {
-      res.end();
-      return;
-    }
+    if (!ingestRes.body) { res.end(); return; }
 
     const reader = ingestRes.body.getReader();
     while (true) {
@@ -142,8 +102,157 @@ async function proxyExport(
   }
 }
 
-export function exportarLeituraInterna(req: Request, res: Response, next: NextFunction): Promise<void> {
-  return proxyExport('leitura_interna', req, res, next);
+// ── Exportação individualizada — leitura_interna (banco local) ────────────────
+
+// Formata Date UTC como "YYYY-MM-DD HH:MM:SS.mmm000+00:00" (compatível com o formato do ingest)
+function toUtcCsvTs(d: Date): string {
+  return d.toISOString().replace('T', ' ').replace(/(\.\d{3})Z$/, '$1000+00:00');
+}
+
+const INDIV_CSV_HEADER =
+  'id,timestamp,silo_id,barra_id,sensor_id,tipo_grandeza,altura_solo_m,' +
+  'valor_avg,valor_max,valor_min,num_amostras,desvio_padrao,sum,sum2,status_analise\n';
+
+export async function exportarLeituraInterna(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const ourSiloId = Number(req.query.silo_id);
+    if (!ourSiloId || isNaN(ourSiloId)) throw new AppError(400, 'silo_id é obrigatório');
+
+    const silo = await prisma.silo.findUnique({ where: { id: ourSiloId }, select: { id: true, id_labrador: true } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+
+    // Filtros opcionais de barra e sensor (IDs internos vindos do frontend)
+    const ourBarraIds = (
+      Array.isArray(req.query.barra) ? req.query.barra : req.query.barra ? [req.query.barra] : []
+    ).map(Number).filter((n) => !isNaN(n));
+
+    const ourSensorIds = (
+      Array.isArray(req.query.sensor) ? req.query.sensor : req.query.sensor ? [req.query.sensor] : []
+    ).map(Number).filter((n) => !isNaN(n));
+
+    // Carrega metadados dos sensores que serão exportados
+    const sensorWhere: Prisma.SensorWhereInput = {
+      barra: { silo_id: ourSiloId },
+      ...(ourBarraIds.length  > 0 ? { barra_id: { in: ourBarraIds  } } : {}),
+      ...(ourSensorIds.length > 0 ? { id:       { in: ourSensorIds } } : {}),
+    };
+
+    const sensores = await prisma.sensor.findMany({
+      where: sensorWhere,
+      select: {
+        id:            true,
+        id_labrador:   true,
+        tipo_grandeza: true,
+        altura_solo_m: true,
+        barra:         { select: { id_labrador: true } },
+      },
+    });
+
+    if (sensores.length === 0) throw new AppError(404, 'Nenhum sensor encontrado para os filtros selecionados');
+
+    type SensorMeta = { idL: number | null; tipo: string; altura: string; barraL: number | null };
+    const metaMap = new Map<number, SensorMeta>();
+    for (const s of sensores) {
+      metaMap.set(s.id, {
+        idL:   s.id_labrador,
+        tipo:  s.tipo_grandeza,
+        altura: s.altura_solo_m.toFixed(2),
+        barraL: s.barra.id_labrador,
+      });
+    }
+
+    const sensorIds = sensores.map((s) => s.id);
+    const siloL     = silo.id_labrador ?? '';
+
+    const start = req.query.start ? new Date(req.query.start as string) : undefined;
+    const end   = req.query.end   ? new Date(req.query.end   as string) : undefined;
+    if (start && isNaN(start.getTime())) throw new AppError(400, 'Parâmetro start inválido');
+    if (end   && isNaN(end.getTime()))   throw new AppError(400, 'Parâmetro end inválido');
+
+    const dateFilter = (start || end)
+      ? { timestamp: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } }
+      : {};
+
+    const formato = (req.query.formato as string) === 'json' ? 'json' : 'csv';
+    const ts      = Date.now();
+
+    if (formato === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="leitura_interna_silo_${siloL}_${ts}.csv"`);
+      res.write(INDIV_CSV_HEADER);
+
+      const BATCH = 50_000;
+      let lastId: bigint | null = null;
+
+      while (true) {
+        const where: Prisma.LeituraInternaWhereInput = {
+          sensor_id: { in: sensorIds },
+          ...dateFilter,
+          ...(lastId !== null ? { id: { gt: lastId } } : {}),
+        };
+
+        const leituras = await prisma.leituraInterna.findMany({
+          where,
+          orderBy: { id: 'asc' },
+          take: BATCH,
+        });
+
+        if (leituras.length === 0) break;
+
+        let chunk = '';
+        for (const l of leituras) {
+          const m = metaMap.get(l.sensor_id);
+          if (!m) continue;
+          chunk +=
+            `${l.id},${toUtcCsvTs(l.timestamp)},${siloL},${m.barraL ?? ''},${m.idL ?? ''},` +
+            `${m.tipo},${m.altura},` +
+            `${Number(l.valor_avg).toFixed(4)},${Number(l.valor_max).toFixed(4)},${Number(l.valor_min).toFixed(4)},` +
+            `${l.num_amostras},${l.desvio_padrao != null ? Number(l.desvio_padrao).toFixed(4) : ''},` +
+            `${l.sum != null ? l.sum.toString() : ''},${l.sum2 != null ? l.sum2.toString() : ''},` +
+            `${l.status_analise ?? ''}\n`;
+        }
+        res.write(chunk);
+
+        lastId = leituras[leituras.length - 1].id;
+        if (leituras.length < BATCH) break;
+      }
+
+      res.end();
+    } else {
+      // JSON — coleta tudo (volumes grandes devem usar CSV)
+      const leituras = await prisma.leituraInterna.findMany({
+        where: { sensor_id: { in: sensorIds }, ...dateFilter },
+        orderBy: [{ sensor_id: 'asc' }, { timestamp: 'asc' }],
+      });
+
+      const rows = leituras.map((l) => {
+        const m = metaMap.get(l.sensor_id);
+        return {
+          id:             l.id.toString(),
+          timestamp:      l.timestamp.toISOString(),
+          silo_id:        silo.id_labrador,
+          barra_id:       m?.barraL ?? null,
+          sensor_id:      m?.idL    ?? null,
+          tipo_grandeza:  m?.tipo   ?? null,
+          altura_solo_m:  m ? Number(m.altura) : null,
+          valor_avg:      Number(l.valor_avg),
+          valor_max:      Number(l.valor_max),
+          valor_min:      Number(l.valor_min),
+          num_amostras:   l.num_amostras,
+          desvio_padrao:  l.desvio_padrao != null ? Number(l.desvio_padrao) : null,
+          sum:            l.sum  != null ? l.sum.toString()  : null,
+          sum2:           l.sum2 != null ? l.sum2.toString() : null,
+          status_analise: l.status_analise ?? null,
+        };
+      });
+
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="leitura_interna_silo_${siloL}_${ts}.json"`);
+      res.json(rows);
+    }
+  } catch (err) {
+    next(err);
+  }
 }
 
 export function exportarLeituraExterna(req: Request, res: Response, next: NextFunction): Promise<void> {
