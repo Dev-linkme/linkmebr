@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middlewares/authenticate';
 import { authorize } from '../../middlewares/authorize';
-import { listarJobs, solicitarTreino, buscarPrevisoes } from './ia.controller';
+import { buscarStatus, solicitarTreino, buscarPrevisoes, buscarRisco } from './ia.controller';
 
 const router = Router();
 
@@ -15,7 +15,8 @@ const adminAuth = [
   authorize('administrador_geral', 'administrador_empresa'),
 ];
 
-router.get('/jobs',               ...auth,      listarJobs);
+router.get('/status',             ...auth,      buscarStatus);
+router.get('/risco/:silo_id',     ...auth,      buscarRisco);
 router.post('/treino',            ...adminAuth, solicitarTreino);
 router.get('/previsoes/:silo_id', ...auth,      buscarPrevisoes);
 

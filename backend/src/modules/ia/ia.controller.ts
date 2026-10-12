@@ -1,19 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
 import { env } from '../../config/env';
-import { getIngestTokenCached } from '../../config/iaClient';
 import { AppError } from '../../utils/errors';
 
-function ingestUrl(path: string) {
-  return `${env.INGEST_BASE_URL}${path}`;
+function iaUrl(path: string) {
+  if (!env.IA_BASE_URL) throw new Error('Serviço de IA não configurado (IA_BASE_URL)');
+  return `${env.IA_BASE_URL}${path}`;
 }
 
-async function ingestHeaders() {
-  const token = await getIngestTokenCached();
-  return { Authorization: `Bearer ${token}` };
+function iaHeaders(req: Request) {
+  return { Authorization: `Bearer ${req.token}` };
 }
 
-function forwardIngestError(err: unknown, next: NextFunction): void {
+function forwardIaError(err: unknown, next: NextFunction): void {
   if (axios.isAxiosError(err) && err.response) {
     const detail = (err.response.data as { detail?: string } | null)?.detail ?? 'Erro no serviço de IA';
     next(new AppError(err.response.status, detail));
@@ -26,18 +25,18 @@ function forwardIngestError(err: unknown, next: NextFunction): void {
   next(err);
 }
 
-export async function listarJobs(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function buscarStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { silo_id, limit = '100', offset = '0' } = req.query;
+    const { silo_id } = req.query;
     if (!silo_id) throw new AppError(400, 'silo_id é obrigatório');
-    const { data } = await axios.get(ingestUrl('/v1/ia/jobs'), {
-      headers: await ingestHeaders(),
-      params: { silo_id, limit, offset },
+    const { data } = await axios.get(iaUrl('/api/v1/status'), {
+      headers: iaHeaders(req),
+      params: { silo_id },
       timeout: 15_000,
     });
     res.json(data);
   } catch (err) {
-    forwardIngestError(err, next);
+    forwardIaError(err, next);
   }
 }
 
@@ -47,25 +46,38 @@ export async function solicitarTreino(req: Request, res: Response, next: NextFun
     if (!silo_id || !modo) throw new AppError(400, 'silo_id e modo são obrigatórios');
     if (!['full', 'incremental', 'bootstrap'].includes(modo)) throw new AppError(422, 'Modo inválido. Use full, incremental ou bootstrap');
     const { data } = await axios.post(
-      ingestUrl('/v1/ia/treino'),
+      iaUrl('/api/v1/treino'),
       { silo_id, modo },
-      { headers: await ingestHeaders(), timeout: 15_000 },
+      { headers: iaHeaders(req), timeout: 15_000 },
     );
     res.status(202).json(data);
   } catch (err) {
-    forwardIngestError(err, next);
+    forwardIaError(err, next);
   }
 }
 
 export async function buscarPrevisoes(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { silo_id } = req.params;
-    const { data } = await axios.get(ingestUrl(`/v1/ia/previsoes/${silo_id}`), {
-      headers: await ingestHeaders(),
+    const { data } = await axios.get(iaUrl(`/api/v1/previsoes/${silo_id}`), {
+      headers: iaHeaders(req),
       timeout: 30_000,
     });
     res.json(data);
   } catch (err) {
-    forwardIngestError(err, next);
+    forwardIaError(err, next);
+  }
+}
+
+export async function buscarRisco(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { silo_id } = req.params;
+    const { data } = await axios.get(iaUrl(`/api/v1/risco/${silo_id}`), {
+      headers: iaHeaders(req),
+      timeout: 15_000,
+    });
+    res.json(data);
+  } catch (err) {
+    forwardIaError(err, next);
   }
 }

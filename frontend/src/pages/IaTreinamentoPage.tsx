@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { BrainCircuit, RefreshCw, PlusCircle, AlertCircle, TriangleAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
-import { getJobs, solicitarTreino } from '../services/ia';
+import { getStatus, solicitarTreino } from '../services/ia';
 import { useAuth } from '../context/AuthContext';
-import type { Silo, IaJob } from '../types/index';
+import type { Silo, IaStatus } from '../types/index';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -12,25 +12,14 @@ const BRT = 'America/Sao_Paulo';
 
 function fmt(ts: string): string {
   return new Date(ts).toLocaleString('pt-BR', {
-    timeZone: BRT, day: '2-digit', month: '2-digit',
+    timeZone: BRT, day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   }).replace(', ', ' ');
 }
 
-function duracao(job: IaJob): string {
-  if (!job.concluido_em) return '—';
-  const ms = new Date(job.concluido_em).getTime() - new Date(job.solicitado_em).getTime();
-  const min = Math.round(ms / 60_000);
-  return min < 1 ? '< 1 min' : `${min} min`;
-}
-
-function origemLabel(origem: IaJob['origem']): string {
-  return origem === 'web' ? 'Usuário' : 'Automático';
-}
-
 // ─── StatusBadge ──────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: IaJob['status'] }) {
+function StatusBadge({ status }: { status: IaStatus['status'] }) {
   const cfg = {
     pendente:   { cls: 'bg-yellow-100 text-yellow-700', label: 'Aguardando' },
     executando: { cls: 'bg-blue-100 text-blue-700',    label: 'Treinando...' },
@@ -84,11 +73,10 @@ export default function IaTreinamentoPage({ modo }: Props) {
 
   const [silos,         setSilos]         = useState<Silo[]>([]);
   const [siloId,        setSiloId]        = useState('');
-  const [jobs,          setJobs]          = useState<IaJob[]>([]);
+  const [status,        setStatus]        = useState<IaStatus | null>(null);
   const [loading,       setLoading]       = useState(false);
   const [solicitando,   setSolicitando]   = useState(false);
   const [confirmando,   setConfirmando]   = useState(false);
-  const [erroDetalhe,   setErroDetalhe]   = useState<{ id: number; msg: string } | null>(null);
 
   useEffect(() => {
     api.get<{ data: Silo[] }>('/silos?per_page=200')
@@ -100,33 +88,30 @@ export default function IaTreinamentoPage({ modo }: Props) {
       .catch(() => toast.error('Erro ao carregar silos'));
   }, []);
 
-  const fetchJobs = useCallback(async (id: string) => {
+  const fetchStatus = useCallback(async (id: string) => {
     setLoading(true);
     try {
-      const data = await getJobs(id, 100);
-      const filtrados = data.jobs
-        .filter((j) => j.modo === modo)
-        .slice(0, 10);
-      setJobs(filtrados);
+      const data = await getStatus(id);
+      setStatus(data);
     } catch {
-      toast.error('Erro ao carregar histórico de treinamentos');
+      toast.error('Erro ao carregar status do modelo');
     } finally {
       setLoading(false);
     }
-  }, [modo]);
+  }, []);
 
   useEffect(() => {
-    if (!siloId) { setJobs([]); return; }
-    fetchJobs(siloId);
-  }, [siloId, fetchJobs]);
+    if (!siloId) { setStatus(null); return; }
+    fetchStatus(siloId);
+  }, [siloId, fetchStatus]);
 
-  // Polling: atualiza a cada 30s se há jobs ativos
+  // Polling a cada 30s se há job em andamento
   useEffect(() => {
-    const hasAtivo = jobs.some((j) => j.status === 'pendente' || j.status === 'executando');
-    if (!hasAtivo || !siloId) return;
-    const interval = setInterval(() => fetchJobs(siloId), 30_000);
+    const emAndamento = status?.status === 'pendente' || status?.status === 'executando';
+    if (!emAndamento || !siloId) return;
+    const interval = setInterval(() => fetchStatus(siloId), 30_000);
     return () => clearInterval(interval);
-  }, [jobs, siloId, fetchJobs]);
+  }, [status, siloId, fetchStatus]);
 
   const handleSolicitar = async () => {
     if (!siloId) { toast.error('Selecione um silo'); return; }
@@ -135,7 +120,7 @@ export default function IaTreinamentoPage({ modo }: Props) {
     try {
       await solicitarTreino(siloId, modo);
       toast.success('Treino enfileirado com sucesso. Acompanhe o status abaixo.');
-      await fetchJobs(siloId);
+      await fetchStatus(siloId);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       toast.error(msg ?? 'Erro ao solicitar treinamento');
@@ -143,8 +128,6 @@ export default function IaTreinamentoPage({ modo }: Props) {
       setSolicitando(false);
     }
   };
-
-  const jobsAtivos = jobs.filter((j) => j.status === 'pendente' || j.status === 'executando');
 
   return (
     <div className="space-y-5">
@@ -184,10 +167,10 @@ export default function IaTreinamentoPage({ modo }: Props) {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => siloId && fetchJobs(siloId)}
+            onClick={() => siloId && fetchStatus(siloId)}
             disabled={!siloId || loading}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Atualizar lista"
+            title="Atualizar status"
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             Atualizar
@@ -226,93 +209,68 @@ export default function IaTreinamentoPage({ modo }: Props) {
         </div>
       </div>
 
-      {/* Aviso de jobs ativos */}
-      {jobsAtivos.length > 0 && (
+      {/* Aviso de job em andamento */}
+      {(status?.status === 'pendente' || status?.status === 'executando') && (
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 text-sm text-blue-700">
           <RefreshCw size={14} className="animate-spin flex-shrink-0" />
-          Há {jobsAtivos.length} treino(s) em andamento. Atualizando automaticamente a cada 30s...
+          Treinamento em andamento. Atualizando automaticamente a cada 30s...
         </div>
       )}
 
-      {/* Tabela */}
+      {/* Painel de status */}
       {!siloId ? (
         <div className="bg-white rounded-lg shadow p-10 text-center text-gray-400 text-sm">
-          Selecione um silo para ver o histórico de treinamentos.
+          Selecione um silo para ver o status do modelo.
         </div>
-      ) : loading && jobs.length === 0 ? (
+      ) : loading && !status ? (
         <div className="bg-white rounded-lg shadow flex items-center justify-center py-16">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         </div>
-      ) : jobs.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-10 text-center text-gray-400 text-sm">
-          Nenhum treinamento encontrado para este silo.
-        </div>
-      ) : (
+      ) : status ? (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-700">
-              Últimos {jobs.length} treinamentos — {silos.find((s) => String(s.id) === siloId)?.nome ?? `Silo ${siloId}`}
+              Status do modelo — {silos.find((s) => String(s.id) === siloId)?.nome ?? `Silo ${siloId}`}
             </h2>
-            <span className="text-xs text-gray-400">Modo: {label}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400">Modo: {label}</span>
+              <StatusBadge status={status.status} />
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Solicitado</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Origem</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Duração</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">T° MAE</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">UR MAE</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">CO₂ MAE</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {jobs.map((job) => (
-                  <tr key={job.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">{job.id}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmt(job.solicitado_em)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{origemLabel(job.origem)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{duracao(job)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700"><MaeCell value={job.mae_temperatura} unit="°C" /></td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700"><MaeCell value={job.mae_umidade} unit="%" /></td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700"><MaeCell value={job.mae_co2} unit="ppm" /></td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="space-y-1">
-                        <StatusBadge status={job.status} />
-                        {job.status === 'erro' && job.erro && (
-                          <div>
-                            {erroDetalhe?.id === job.id ? (
-                              <div className="mt-1 text-xs text-red-600 max-w-xs">
-                                {job.erro}
-                                <button
-                                  onClick={() => setErroDetalhe(null)}
-                                  className="ml-2 underline text-gray-500"
-                                >
-                                  fechar
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setErroDetalhe({ id: job.id, msg: job.erro! })}
-                                className="text-xs text-red-500 underline"
-                              >
-                                ver detalhe
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {status.modelo ? (
+            <div className="px-4 py-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">Versão do modelo</p>
+                <p className="text-sm font-medium text-gray-800">{fmt(status.modelo.versao)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">Épocas treinadas</p>
+                <p className="text-sm font-medium text-gray-800">{status.modelo.epochs_treinados}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">Amostras de treino</p>
+                <p className="text-sm font-medium text-gray-800">{status.modelo.amostras_treino.toLocaleString('pt-BR')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">MAE Temperatura</p>
+                <MaeCell value={status.modelo.mae_temperatura} unit="°C" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">MAE Umidade</p>
+                <MaeCell value={status.modelo.mae_umidade} unit="%" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">MAE CO₂</p>
+                <MaeCell value={status.modelo.mae_co2} unit="ppm" />
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-6 text-center text-sm text-gray-400">
+              Nenhum modelo treinado para este silo.
+            </div>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

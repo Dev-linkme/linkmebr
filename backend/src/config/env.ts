@@ -12,6 +12,7 @@ const envSchema = z.object({
   INGEST_BASE_URL: z.string().default(''),
   INGEST_CLIENT_ID: z.string().default(''),
   INGEST_CLIENT_SECRET: z.string().default(''),
+  IA_BASE_URL: z.string().default(''),
 });
 
 export const env = envSchema.parse(process.env);

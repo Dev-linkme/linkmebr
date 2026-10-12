@@ -152,32 +152,12 @@ export interface AuthUser {
   empresa_id: number | null;
 }
 
-export interface IaJob {
-  id: number;
-  silo_id: number;
-  modo: 'full' | 'incremental' | 'bootstrap';
-  origem: 'web' | 'scheduler';
-  status: 'pendente' | 'executando' | 'concluido' | 'erro';
-  solicitado_em: string;
-  concluido_em: string | null;
-  modelo_versao: string | null;
-  mae_temperatura: number | null;
-  mae_umidade: number | null;
-  mae_co2: number | null;
-  erro: string | null;
-}
-
-export interface IaJobsResponse {
-  silo_id: number;
-  total: number;
-  limit: number;
-  offset: number;
-  jobs: IaJob[];
-}
 
 export interface IaPrevisaoSensor {
   sensor_id: number;
+  id_labrador: number;
   barra_id: number;
+  node_id: number;
   tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
   altura_solo_m: number;
   valores: number[];
@@ -187,10 +167,45 @@ export interface IaPrevisoes {
   silo_id: number;
   ciclo_id: number;
   gerado_em: string;
+  modelo_versao: string;
   horizonte_horas: number;
   intervalo_minutos: number;
   timestamps: string[];
   sensores: IaPrevisaoSensor[];
+}
+
+export interface IaStatus {
+  silo_id: number;
+  status: 'pendente' | 'executando' | 'concluido' | 'erro';
+  modelo: {
+    versao: string;
+    mae_temperatura: number;
+    mae_umidade: number;
+    mae_co2: number;
+    epochs_treinados: number;
+    amostras_treino: number;
+  } | null;
+}
+
+export interface IaRiscoPonto {
+  barra_id: number;
+  node_id: number;
+  altura: 'topo' | 'meio' | 'fundo';
+  risco_agora: number;
+  cat_agora: 'Normal' | 'Atenção' | 'Emergência';
+  risco_max: number;
+  cat_max: 'Normal' | 'Atenção' | 'Emergência';
+  hora_risco_max: string;
+}
+
+export interface IaRisco {
+  silo_id: number;
+  gerado_em: string;
+  risco_silo: {
+    pior_agora: IaRiscoPonto & { risco_agora: number; cat_agora: 'Normal' | 'Atenção' | 'Emergência' };
+    pior_24h: IaRiscoPonto & { risco_max: number; cat_max: 'Normal' | 'Atenção' | 'Emergência'; hora_risco_max: string };
+  };
+  pontos: IaRiscoPonto[];
 }
 
 export type LabradorComandoStatus =
