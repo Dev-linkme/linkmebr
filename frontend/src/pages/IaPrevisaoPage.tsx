@@ -112,7 +112,7 @@ function buildChartData(
   if (previsoes) {
     previsoes.timestamps.forEach((ts, i) => {
       prevSensoresFiltrados.forEach((s) => {
-        const internalSensor = sensorByBarraSensor.get(barraSensorKey(s.barra_id, s.sensor_id));
+        const internalSensor = sensorByBarraSensor.get(barraSensorKey(s.node_id, s.id_labrador));
         if (!internalSensor) return;
         set(ts, `p_${internalSensor.id}`, s.valores[i]);
       });
@@ -433,12 +433,12 @@ export default function IaPrevisaoPage() {
 
   const prevSensoresFiltrados = (previsoes?.sensores ?? []).filter((s) =>
     s.tipo_grandeza === grandeza &&
-    barraIdLabradorAtivos.has(s.barra_id) &&
-    sensorByBarraSensor.has(barraSensorKey(s.barra_id, s.sensor_id))
+    barraIdLabradorAtivos.has(s.node_id) &&
+    sensorByBarraSensor.has(barraSensorKey(s.node_id, s.id_labrador))
   );
-  // Normaliza prevSensores: substitui id_labrador por IDs internos para agrupamentos
+  // Normaliza prevSensores: substitui ids labrador por IDs internos para agrupamentos
   const prevSensoresNorm = prevSensoresFiltrados.map((s) => {
-    const interno = sensorByBarraSensor.get(barraSensorKey(s.barra_id, s.sensor_id));
+    const interno = sensorByBarraSensor.get(barraSensorKey(s.node_id, s.id_labrador));
     return { ...s, sensor_id: interno?.id ?? s.sensor_id, barra_id: interno?.barra_id ?? s.barra_id };
   });
 
