@@ -7,8 +7,8 @@ import {
 import { Sparkles, Search, Info, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
-import { getPrevisoes, getSilosIa } from '../services/ia';
-import type { Silo, Barra, Sensor, LeituraInterna, Regra, IaPrevisoes } from '../types/index';
+import { getPrevisoes, getSilosIa, getRisco } from '../services/ia';
+import type { Silo, Barra, Sensor, LeituraInterna, Regra, IaPrevisoes, IaRisco } from '../types/index';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -269,6 +269,73 @@ function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: 
     : <ChevronDown size={14} className="text-primary-600 inline ml-1" />;
 }
 
+// ─── RiscoPanel ───────────────────────────────────────────────────────────────
+
+const ALTURAS: { key: 'topo' | 'meio' | 'fundo'; label: string; m: number }[] = [
+  { key: 'topo',  label: 'Topo',  m: 1.5 },
+  { key: 'meio',  label: 'Meio',  m: 1.3 },
+  { key: 'fundo', label: 'Fundo', m: 1.1 },
+];
+
+function riscoCor(cat: string) {
+  if (cat === 'Emergência') return { bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-300'    };
+  if (cat === 'Atenção')    return { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' };
+  return                           { bg: 'bg-green-100',  text: 'text-green-700',  border: 'border-green-300'  };
+}
+
+function RiscoCell({ ponto }: { ponto: IaRisco['pontos'][number] | undefined }) {
+  if (!ponto) return <td className="px-3 py-2 text-center text-gray-300 text-xs">—</td>;
+  const cor = riscoCor(ponto.cat_agora);
+  const corMax = riscoCor(ponto.cat_max);
+  return (
+    <td className="px-3 py-2 text-center">
+      <div className={`inline-flex flex-col items-center gap-0.5 rounded-md border px-2.5 py-1.5 ${cor.bg} ${cor.border}`}>
+        <span className={`text-sm font-bold ${cor.text}`}>{ponto.risco_agora.toFixed(0)}</span>
+        <span className={`text-xs font-medium ${cor.text}`}>{ponto.cat_agora}</span>
+        {ponto.cat_max !== ponto.cat_agora && (
+          <span className={`text-[10px] ${corMax.text}`}>↑ {ponto.cat_max} 24h</span>
+        )}
+      </div>
+    </td>
+  );
+}
+
+function RiscoPanel({ risco }: { risco: IaRisco }) {
+  const nodeIds = [...new Set(risco.pontos.map((p) => p.node_id))].sort((a, b) => a - b);
+  return (
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+        <span className="text-sm font-semibold text-gray-700">Nível de risco — agora</span>
+        <span className="text-xs text-gray-400">Gerado em {formatFullTimestamp(risco.gerado_em)}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Altura</th>
+              {nodeIds.map((nid) => (
+                <th key={nid} className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
+                  Barra {nid - 100} <span className="font-normal text-gray-400">(node {nid})</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {ALTURAS.map(({ key, label, m }) => (
+              <tr key={key}>
+                <td className="px-3 py-2 text-xs font-medium text-gray-600 whitespace-nowrap">{label} ({m} m)</td>
+                {nodeIds.map((nid) => (
+                  <RiscoCell key={nid} ponto={risco.pontos.find((p) => p.node_id === nid && p.altura === key)} />
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function IaPrevisaoPage() {
@@ -289,6 +356,7 @@ export default function IaPrevisaoPage() {
   const [agrupamento, setAgrupamento] = useState<AgrupamentoGrafico>('barra');
 
   const [previsoes,    setPrevisoes]    = useState<IaPrevisoes | null>(null);
+  const [risco,        setRisco]        = useState<IaRisco | null>(null);
   const [grafico,      setGrafico]      = useState<GraficoResponse | null>(null);
   const [leituras,     setLeituras]     = useState<LeituraInterna[]>([]);
   const [pagina,       setPagina]       = useState(1);
@@ -320,7 +388,7 @@ export default function IaPrevisaoPage() {
   useEffect(() => {
     setBarras([]); setSensores([]);
     setValue('barra_id', ''); setValue('sensor_id', '');
-    setConsultado(false); setPrevisoes(null); setGrafico(null); setLeituras([]);
+    setConsultado(false); setPrevisoes(null); setRisco(null); setGrafico(null); setLeituras([]);
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
@@ -371,12 +439,14 @@ export default function IaPrevisaoPage() {
     if (filtros.barra_id)  params.barra_id  = filtros.barra_id;
     if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
 
-    const [graficoRes, previsoesRes] = await Promise.allSettled([
+    const [graficoRes, previsoesRes, riscoRes] = await Promise.allSettled([
       api.get<GraficoResponse>('/relatorios/leituras/grafico', { params }),
       getPrevisoes(filtros.silo_id),
+      getRisco(filtros.silo_id),
     ]);
 
     setGrafico(graficoRes.status === 'fulfilled' ? graficoRes.value.data : null);
+    setRisco(riscoRes.status === 'fulfilled' ? riscoRes.value : null);
 
     if (previsoesRes.status === 'fulfilled') {
       setPrevisoes(previsoesRes.value);
@@ -546,6 +616,9 @@ export default function IaPrevisaoPage() {
           )}
 
           <div className="p-4 space-y-4">
+            {/* Painel de risco */}
+            {risco && <RiscoPanel risco={risco} />}
+
             {/* Abas grandeza */}
             <div className="flex border-b border-gray-100 -mt-1">
               {GRANDEZA_TABS.map(({ key, label }) => (
