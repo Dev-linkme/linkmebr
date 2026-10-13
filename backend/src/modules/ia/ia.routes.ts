@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middlewares/authenticate';
 import { authorize } from '../../middlewares/authorize';
-import { buscarStatus, solicitarTreino, buscarPrevisoes, buscarRisco } from './ia.controller';
+import { buscarStatus, solicitarTreino, buscarPrevisoes, buscarRisco, listarSilosIa } from './ia.controller';
 
 const router = Router();
 
@@ -15,6 +15,7 @@ const adminAuth = [
   authorize('administrador_geral', 'administrador_empresa'),
 ];
 
+router.get('/silos',              ...auth,      listarSilosIa);
 router.get('/status',             ...auth,      buscarStatus);
 router.get('/risco/:silo_id',     ...auth,      buscarRisco);
 router.post('/treino',            ...adminAuth, solicitarTreino);

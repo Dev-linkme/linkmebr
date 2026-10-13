@@ -153,6 +153,19 @@ export interface AuthUser {
 }
 
 
+export interface IaSiloIa {
+  silo_id: number;
+  modelo_versao: string;
+  mae_temperatura: number;
+  mae_umidade: number;
+  mae_co2: number;
+  treinado_em: string;
+}
+
+export interface IaSilosIaResponse {
+  silos: IaSiloIa[];
+}
+
 export interface IaPrevisaoSensor {
   sensor_id: number;
   id_labrador: number;

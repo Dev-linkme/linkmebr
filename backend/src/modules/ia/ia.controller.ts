@@ -81,3 +81,15 @@ export async function buscarRisco(req: Request, res: Response, next: NextFunctio
     forwardIaError(err, next);
   }
 }
+
+export async function listarSilosIa(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { data } = await axios.get(iaUrl('/api/v1/silos'), {
+      headers: iaHeaders(req),
+      timeout: 15_000,
+    });
+    res.json(data);
+  } catch (err) {
+    forwardIaError(err, next);
+  }
+}

@@ -7,7 +7,7 @@ import {
 import { Sparkles, Search, Info, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
-import { getPrevisoes } from '../services/ia';
+import { getPrevisoes, getSilosIa } from '../services/ia';
 import type { Silo, Barra, Sensor, LeituraInterna, Regra, IaPrevisoes } from '../types/index';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -304,9 +304,16 @@ export default function IaPrevisaoPage() {
   const [sortDir,      setSortDir]      = useState<SortDir>('asc');
 
   useEffect(() => {
-    api.get<{ data: Silo[] }>('/silos?per_page=200')
-      .then((res) => setSilos((res.data.data ?? []).filter((s) => s.status === 'ativo')))
-      .catch(() => toast.error('Erro ao carregar silos'));
+    Promise.all([
+      api.get<{ data: Silo[] }>('/silos?per_page=200'),
+      getSilosIa(),
+    ]).then(([silosRes, iaRes]) => {
+      const idsComIa = new Set(iaRes.silos.map((s) => s.silo_id));
+      const filtrados = (silosRes.data.data ?? []).filter(
+        (s) => s.status === 'ativo' && idsComIa.has(s.id),
+      );
+      setSilos(filtrados);
+    }).catch(() => toast.error('Erro ao carregar silos'));
     api.get<Regra[]>('/regras').then((res) => setRegras(res.data)).catch(() => {});
   }, []);
 
