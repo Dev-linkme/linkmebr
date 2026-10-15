@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { HeartPulse, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { getSilosIa } from '../services/ia';
 import type { Silo } from '../types/index';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -211,9 +212,16 @@ export default function SaudeIaPage() {
   const [atualizando, setAtualizando] = useState(false);
 
   useEffect(() => {
-    api.get<{ data: Silo[] }>('/silos?per_page=200')
-      .then((res) => setSilos((res.data.data ?? []).filter((s) => s.status === 'ativo')))
-      .catch(() => toast.error('Erro ao carregar silos'))
+    Promise.all([
+      api.get<{ data: Silo[] }>('/silos?per_page=200'),
+      getSilosIa(),
+    ]).then(([silosRes, iaRes]) => {
+      const idsComIa = new Set(iaRes.silos.map((s) => s.silo_id));
+      const filtrados = (silosRes.data.data ?? []).filter(
+        (s) => s.status === 'ativo' && idsComIa.has(s.id),
+      );
+      setSilos(filtrados);
+    }).catch(() => toast.error('Erro ao carregar silos'))
       .finally(() => setSilosCarregando(false));
   }, []);
 
