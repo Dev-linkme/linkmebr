@@ -130,11 +130,11 @@ export async function listarHeartbeats(req: Request, res: Response, next: NextFu
     params.push(limit, offset);
     const rows = await prisma.$queryRawUnsafe<Array<{
       id: bigint; recebido_em: Date; timestamp: Date | null;
-      versao_modelo: string | null; modelo_hash: string | null;
+      versao_modelo: string | null; modelo_hash: string | null; modelo_info: unknown;
       ciclo_ok: boolean; n_emergencias: number | null;
       risco_max: number | null; cat_max: string | null;
     }>>(
-      `SELECT id, recebido_em, timestamp, versao_modelo, modelo_hash,
+      `SELECT id, recebido_em, timestamp, versao_modelo, modelo_hash, modelo_info,
               ciclo_ok, n_emergencias, risco_max, cat_max
        FROM silos.ia_heartbeat WHERE ${whereStr}
        ORDER BY recebido_em DESC
@@ -149,6 +149,7 @@ export async function listarHeartbeats(req: Request, res: Response, next: NextFu
         timestamp:     r.timestamp instanceof Date ? r.timestamp.toISOString() : r.timestamp ?? null,
         versao_modelo: r.versao_modelo,
         modelo_hash:   r.modelo_hash,
+        modelo_info:   r.modelo_info,
         ciclo_ok:      r.ciclo_ok,
         n_emergencias: r.n_emergencias != null ? Number(r.n_emergencias) : null,
         risco_max:     r.risco_max     != null ? Number(r.risco_max)     : null,

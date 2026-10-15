@@ -21,12 +21,21 @@ interface FiltrosForm {
 type SubAba = 'tabela' | 'grafico';
 type RangeHint = { data_inicio: string | null; data_fim: string | null } | null;
 
+interface ModeloInfo {
+  n_camadas: number;
+  hidden_size: number;
+  horizonte: number;
+  n_features: number;
+  n_features_alvo: number;
+}
+
 interface HeartbeatRow {
   id: number;
   recebido_em: string;
   timestamp: string | null;
   versao_modelo: string | null;
   modelo_hash: string | null;
+  modelo_info: ModeloInfo | null;
   ciclo_ok: boolean;
   n_emergencias: number | null;
   risco_max: number | null;
@@ -317,6 +326,7 @@ export default function SaudeIaPage() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Emergências</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Risco máx.</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Categoria</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Arquitetura</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -349,6 +359,11 @@ export default function SaudeIaPage() {
                           </td>
                           <td className={`px-4 py-3 whitespace-nowrap ${catMaxColor(row.cat_max)}`}>
                             {row.cat_max ?? '—'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                            {row.modelo_info
+                              ? `${row.modelo_info.n_camadas} cam · h=${row.modelo_info.hidden_size} · ${row.modelo_info.horizonte}h · f=${row.modelo_info.n_features}/${row.modelo_info.n_features_alvo}`
+                              : '—'}
                           </td>
                         </tr>
                       ))}
