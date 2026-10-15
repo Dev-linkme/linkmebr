@@ -221,6 +221,23 @@ export interface IaRisco {
   pontos: IaRiscoPonto[];
 }
 
+export interface IaPrevisaoSensorHistorico {
+  sensor_id: number;
+  node_id: number | null;
+  barra_id: number;
+  tipo_grandeza: 'temperatura' | 'umidade' | 'co2';
+  altura_solo_m: number;
+  timestamps: string[];
+  valores: number[];
+}
+
+export interface IaPrevisoeHistoricas {
+  silo_id: number;
+  data_inicio: string;
+  data_fim: string;
+  sensores: IaPrevisaoSensorHistorico[];
+}
+
 export type LabradorComandoStatus =
   | 'pendente'
   | 'ok'

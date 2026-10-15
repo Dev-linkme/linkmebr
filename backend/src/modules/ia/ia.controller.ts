@@ -216,6 +216,83 @@ export async function graficoHeartbeat(req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 }
 
+// ─── Previsões históricas (últimos N ciclos, janela passada) ─────────────────
+
+export async function previsoeHistoricas(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const silo_id = Number(req.params.silo_id);
+    if (!silo_id || isNaN(silo_id)) throw new AppError(400, 'silo_id inválido');
+
+    const silo = await prisma.silo.findUnique({ where: { id: silo_id } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    const data_inicio = req.query.data_inicio ? new Date(req.query.data_inicio as string) : undefined;
+    const data_fim    = req.query.data_fim    ? new Date(req.query.data_fim    as string) : undefined;
+    if (!data_inicio || !data_fim) throw new AppError(400, 'data_inicio e data_fim são obrigatórios');
+    if (isNaN(data_inicio.getTime()) || isNaN(data_fim.getTime())) throw new AppError(400, 'datas inválidas');
+
+    // DISTINCT ON: para cada (sensor, barra, timestamp_previsto), usa a previsão do ciclo mais recente
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      sensor_id: bigint; node_id: number | null; barra_id: bigint;
+      tipo_grandeza: string; altura_solo_m: string;
+      timestamp_previsto: Date; valor_previsto: string;
+    }>>(
+      `SELECT DISTINCT ON (p.sensor_id, p.barra_id, p.timestamp_previsto)
+           p.sensor_id,
+           b.id_labrador  AS node_id,
+           p.barra_id,
+           p.tipo_grandeza,
+           p.altura_solo_m::float AS altura_solo_m,
+           p.timestamp_previsto,
+           p.valor_previsto::float AS valor_previsto
+       FROM silos_ia.ia_previsoes p
+       JOIN silos_ia.ia_ciclos_previsao c ON c.id = p.ciclo_id
+       JOIN silos.barras b ON b.id = p.barra_id
+       WHERE p.silo_id = $1
+         AND p.timestamp_previsto BETWEEN $2 AND $3
+       ORDER BY p.sensor_id, p.barra_id, p.timestamp_previsto, c.gerado_em DESC`,
+      silo_id, data_inicio, data_fim,
+    );
+
+    type SensorEntry = {
+      sensor_id: number; node_id: number | null; barra_id: number;
+      tipo_grandeza: string; altura_solo_m: number;
+      timestamps: string[]; valores: number[];
+    };
+    const sensoresMap = new Map<string, SensorEntry>();
+
+    for (const row of rows) {
+      const key = `${row.sensor_id}_${row.barra_id}`;
+      if (!sensoresMap.has(key)) {
+        sensoresMap.set(key, {
+          sensor_id:     Number(row.sensor_id),
+          node_id:       row.node_id != null ? Number(row.node_id) : null,
+          barra_id:      Number(row.barra_id),
+          tipo_grandeza: row.tipo_grandeza,
+          altura_solo_m: Number(row.altura_solo_m),
+          timestamps:    [],
+          valores:       [],
+        });
+      }
+      const entry = sensoresMap.get(key)!;
+      entry.timestamps.push(
+        row.timestamp_previsto instanceof Date
+          ? row.timestamp_previsto.toISOString()
+          : String(row.timestamp_previsto),
+      );
+      entry.valores.push(Number(row.valor_previsto));
+    }
+
+    res.json({
+      silo_id,
+      data_inicio: data_inicio.toISOString(),
+      data_fim:    data_fim.toISOString(),
+      sensores: [...sensoresMap.values()],
+    });
+  } catch (err) { next(err); }
+}
+
 // ─── Heartbeat — último por silo ─────────────────────────────────────────────
 
 export async function buscarHeartbeat(req: Request, res: Response, next: NextFunction): Promise<void> {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -7,8 +7,8 @@ import {
 import { Sparkles, Search, Info, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
-import { getPrevisoes, getSilosIa, getRisco } from '../services/ia';
-import type { Silo, Barra, Sensor, LeituraInterna, Regra, IaPrevisoes, IaRisco } from '../types/index';
+import { getPrevisoes, getSilosIa, getRisco, getPrevisoeHistoricas } from '../services/ia';
+import type { Silo, Barra, Sensor, LeituraInterna, Regra, IaPrevisoes, IaRisco, IaPrevisoeHistoricas } from '../types/index';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ const GRANDEZA_TABS: { key: GrandezaTipo; label: string }[] = [
   { key: 'umidade',     label: 'Umidade' },
   { key: 'co2',         label: 'CO₂' },
 ];
-type SubAba            = 'tabela' | 'grafico';
+type SubAba             = 'tabela' | 'grafico';
 type AgrupamentoGrafico = 'barra' | 'sensor' | 'altura';
 type SortField          = 'valor_avg' | 'valor_max' | 'valor_min';
 type SortDir            = 'asc' | 'desc';
@@ -30,21 +30,26 @@ const AGRUPAMENTO_LABELS: Record<AgrupamentoGrafico, string> = {
 };
 const BRT = 'America/Sao_Paulo';
 
+// altura_solo_m * 10 arredondado → chave de altura
+const ALTURA_BY_CM: Record<number, 'topo' | 'meio' | 'fundo'> = { 15: 'topo', 13: 'meio', 11: 'fundo' };
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FiltrosForm { silo_id: string; barra_id: string; sensor_id: string; }
 
-interface GraficoSerie   { sensor_id: number; bucket: string; avg: number; max: number; min: number; }
-interface GraficoSensor  {
+interface GraficoSerie  { sensor_id: number; bucket: string; avg: number; max: number; min: number; }
+interface GraficoSensor {
   id: number; id_labrador: number | null; identificacao: string; tipo_grandeza: GrandezaTipo;
   unidade_medida: string; altura_solo_m: number;
   barra_id: number; barra_id_labrador: number | null; barra_identificacao: string;
 }
-interface GraficoResponse { series: GraficoSerie[]; sensores: GraficoSensor[]; }
+interface GraficoResponse  { series: GraficoSerie[]; sensores: GraficoSensor[]; }
 interface RelatorioResponse { dados: LeituraInterna[]; pagina: number; total_paginas: number; total: number; }
 
-// Ponto unificado do gráfico: timestamp + valores reais (r_N) e previsão (p_N)
-type ChartPoint = { ts: string; [key: string]: number | string | null };
+// Ponto unificado: epoch ms + valores reais (r_N), previsão futura (p_N), previsão hist. (h_N)
+type ChartPoint = { ts: number; [key: string]: number | null };
+
+type ValoresAtuais = { T: number | null; UR: number | null; CO2: number | null };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -68,8 +73,7 @@ function sensorLabel(s: { identificacao: string; barra_identificacao: string; al
   return `${s.barra_identificacao} - ${s.identificacao} (${s.altura_solo_m}m)`;
 }
 function yDomainFrom(values: (number | undefined | null)[]): [number, number] {
-  let yMin = Infinity;
-  let yMax = -Infinity;
+  let yMin = Infinity, yMax = -Infinity;
   for (const v of values) {
     if (v != null && !isNaN(v) && isFinite(v)) {
       if (v < yMin) yMin = v;
@@ -81,32 +85,29 @@ function yDomainFrom(values: (number | undefined | null)[]): [number, number] {
   return [Math.floor(yMin - yPad), Math.ceil(yMax + yPad)];
 }
 
-// Chave composta para mapeamento previsão → sensor real.
-// sensor_id da previsão é id_labrador do sensor, mas só é único dentro de uma barra.
 function barraSensorKey(barraIdLabrador: number, sensorIdLabrador: number): string {
   return `${barraIdLabrador}_${sensorIdLabrador}`;
 }
 
-// Mescla dados reais e previsão numa linha de tempo unificada.
-// Normaliza os sensor_id da previsão (id_labrador) para IDs internos via sensorByBarraSensor.
+// Mescla dados reais, previsão futura e previsão histórica numa linha de tempo com epoch ms.
 function buildChartData(
   realSeries: GraficoSerie[],
   realSensores: GraficoSensor[],
   previsoes: IaPrevisoes | null,
   prevSensoresFiltrados: IaPrevisoes['sensores'],
   sensorByBarraSensor: Map<string, GraficoSensor>,
+  historicoPrevSensores: IaPrevisoeHistoricas['sensores'],
 ): ChartPoint[] {
-  const map = new Map<string, Record<string, number>>();
+  const map = new Map<number, Record<string, number>>();
 
   const set = (ts: string, key: string, val: number) => {
-    if (!map.has(ts)) map.set(ts, {});
-    map.get(ts)![key] = val;
+    const ms = new Date(ts).getTime();
+    if (!map.has(ms)) map.set(ms, {});
+    map.get(ms)![key] = val;
   };
 
   realSeries.forEach((s) => {
-    if (realSensores.some((x) => x.id === s.sensor_id)) {
-      set(s.bucket, `r_${s.sensor_id}`, s.avg);
-    }
+    if (realSensores.some((x) => x.id === s.sensor_id)) set(s.bucket, `r_${s.sensor_id}`, s.avg);
   });
 
   if (previsoes) {
@@ -119,9 +120,15 @@ function buildChartData(
     });
   }
 
+  historicoPrevSensores.forEach((s) => {
+    s.timestamps.forEach((ts, i) => {
+      if (s.valores[i] != null) set(ts, `h_${s.sensor_id}`, s.valores[i]);
+    });
+  });
+
   return [...map.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([ts, vals]) => ({ ts, ...vals }));
+    .sort(([a], [b]) => a - b)
+    .map(([ts, vals]) => ({ ts, ...vals } as ChartPoint));
 }
 
 // ─── Paginacao ────────────────────────────────────────────────────────────────
@@ -149,19 +156,23 @@ function Paginacao({ pagina, totalPaginas, loading, onPageChange }: {
 // ─── Gráfico Previsão ─────────────────────────────────────────────────────────
 
 function PrevisaoChart({
-  titulo, chartData, realSensores, prevSensores, unidade,
+  titulo, chartData, realSensores, prevSensores, historicoPrevSensores, unidade,
 }: {
   titulo?: string;
   chartData: ChartPoint[];
   realSensores: GraficoSensor[];
   prevSensores: IaPrevisoes['sensores'];
+  historicoPrevSensores: IaPrevisoeHistoricas['sensores'];
   unidade: string;
 }) {
-  const nowTs = new Date().toISOString();
   if (realSensores.length === 0 && prevSensores.length === 0) return null;
 
   const allSensoresIds = [
-    ...new Set([...realSensores.map((s) => s.id), ...prevSensores.map((s) => s.sensor_id)]),
+    ...new Set([
+      ...realSensores.map((s) => s.id),
+      ...prevSensores.map((s) => s.sensor_id),
+      ...historicoPrevSensores.map((s) => s.sensor_id),
+    ]),
   ];
 
   const yDomain = yDomainFrom(
@@ -169,62 +180,87 @@ function PrevisaoChart({
       allSensoresIds.flatMap((id) => [
         row[`r_${id}`] as number | null,
         row[`p_${id}`] as number | null,
+        row[`h_${id}`] as number | null,
       ])
     )
   );
 
-  const findMeta = (sensorId: number): { identificacao: string; barra_identificacao: string; altura_solo_m: number } => {
+  const findMeta = (sensorId: number) => {
     const real = realSensores.find((s) => s.id === sensorId);
     if (real) return { identificacao: real.identificacao, barra_identificacao: real.barra_identificacao, altura_solo_m: real.altura_solo_m };
     const prev = prevSensores.find((s) => s.sensor_id === sensorId);
     if (prev) return { identificacao: `Sensor ${sensorId}`, barra_identificacao: `Barra ${prev.barra_id}`, altura_solo_m: prev.altura_solo_m };
+    const hist = historicoPrevSensores.find((s) => s.sensor_id === sensorId);
+    if (hist) return { identificacao: `Sensor ${sensorId}`, barra_identificacao: `Barra ${hist.barra_id}`, altura_solo_m: hist.altura_solo_m };
     return { identificacao: `Sensor ${sensorId}`, barra_identificacao: '—', altura_solo_m: 0 };
   };
+
+  const hasHistorico = historicoPrevSensores.length > 0;
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       {titulo && <h3 className="text-sm font-semibold text-gray-700 mb-3">{titulo}</h3>}
-      <div className="flex items-center gap-4 mb-2 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="inline-block w-6 border-t-2 border-gray-700" /> Leitura real</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-6 border-t-2 border-dashed border-gray-700" /> Previsão IA</span>
+      <div className="flex flex-wrap items-center gap-4 mb-2 text-xs text-gray-500">
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-6 border-t-2 border-gray-700" /> Leitura real
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-6 border-t-2 border-dashed border-gray-700" /> Previsão IA
+        </span>
+        {hasHistorico && (
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-6 border-t-2 border-dotted border-gray-500 opacity-70" /> Prev. hist.
+          </span>
+        )}
       </div>
       <ResponsiveContainer width="100%" height={320}>
         <LineChart data={chartData} margin={{ top: 4, right: 24, left: 16, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="ts" tickFormatter={formatTimestamp} tick={{ fontSize: 11 }} minTickGap={60} />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            scale="time"
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={(v: number) => formatTimestamp(new Date(v).toISOString())}
+            tick={{ fontSize: 11 }}
+            minTickGap={60}
+          />
           <YAxis width={60} tick={{ fontSize: 11 }} domain={yDomain}
             label={{ value: unidade, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11 } }} />
           <Tooltip
-            labelFormatter={(v) => formatTimestamp(String(v))}
+            labelFormatter={(v) => formatTimestamp(new Date(Number(v)).toISOString())}
             formatter={(val, name) => {
               const n = String(name ?? '');
-              const isPrevisao = n.startsWith('p_');
-              const sId = Number(n.replace(/^[rp]_/, ''));
+              const isHistorico = n.startsWith('h_');
+              const isPrevisao  = n.startsWith('p_');
+              const sId  = Number(n.replace(/^[rph]_/, ''));
               const meta = findMeta(sId);
-              const label = `${sensorLabel(meta)} — ${isPrevisao ? 'Previsão IA' : 'Real'}`;
-              return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, label];
+              const tipo = isHistorico ? 'Prev. hist. IA' : isPrevisao ? 'Previsão IA' : 'Real';
+              return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, `${sensorLabel(meta)} — ${tipo}`];
             }}
           />
           <Legend
             formatter={(v) => {
               const n = String(v ?? '');
-              const isPrevisao = n.startsWith('p_');
-              const sId = Number(n.replace(/^[rp]_/, ''));
+              const isHistorico = n.startsWith('h_');
+              const isPrevisao  = n.startsWith('p_');
+              const sId  = Number(n.replace(/^[rph]_/, ''));
               const meta = findMeta(sId);
-              return `${sensorLabel(meta)} (${isPrevisao ? 'Previsão' : 'Real'})`;
+              const tipo = isHistorico ? 'Prev. hist.' : isPrevisao ? 'Previsão' : 'Real';
+              return `${sensorLabel(meta)} (${tipo})`;
             }}
           />
-          {/* Linha "Agora" */}
           <ReferenceLine
-            x={nowTs}
+            x={Date.now()}
             stroke="#6b7280"
             strokeDasharray="4 4"
             label={{ value: 'Agora', position: 'insideTopLeft', fontSize: 11, fill: '#6b7280' }}
           />
           {allSensoresIds.map((sId, idx) => {
-            const color = LINE_COLORS[idx % LINE_COLORS.length];
-            const hasReal = realSensores.some((s) => s.id === sId);
-            const hasPrev = prevSensores.some((s) => s.sensor_id === sId);
+            const color       = LINE_COLORS[idx % LINE_COLORS.length];
+            const hasReal     = realSensores.some((s) => s.id === sId);
+            const hasPrev     = prevSensores.some((s) => s.sensor_id === sId);
+            const hasHistSens = historicoPrevSensores.some((s) => s.sensor_id === sId);
             return [
               hasReal && (
                 <Line key={`r_${sId}`} type="monotone" dataKey={`r_${sId}`}
@@ -234,6 +270,11 @@ function PrevisaoChart({
                 <Line key={`p_${sId}`} type="monotone" dataKey={`p_${sId}`}
                   stroke={color} strokeWidth={1.5} strokeDasharray="6 3" dot={false} connectNulls />
               ),
+              hasHistSens && (
+                <Line key={`h_${sId}`} type="monotone" dataKey={`h_${sId}`}
+                  stroke={color} strokeWidth={1.2} strokeDasharray="2 5"
+                  strokeOpacity={0.65} dot={false} connectNulls />
+              ),
             ].filter(Boolean);
           })}
         </LineChart>
@@ -242,7 +283,7 @@ function PrevisaoChart({
   );
 }
 
-// ─── StatusAnaliseBadge simplificado ─────────────────────────────────────────
+// ─── StatusAnaliseBadge ───────────────────────────────────────────────────────
 
 function StatusAnaliseBadge({ status, regras }: { status: string | null | undefined; regras: Regra[] }) {
   if (!status) return <span className="text-gray-300">—</span>;
@@ -251,7 +292,7 @@ function StatusAnaliseBadge({ status, regras }: { status: string | null | undefi
     return r ?? { codigo, criterio: codigo, logica: '', severidade: 'erro' as const };
   });
   if (itens.length === 0) return <span className="text-gray-300">—</span>;
-  const temErro = itens.some((i) => i.severidade === 'erro');
+  const temErro  = itens.some((i) => i.severidade === 'erro');
   const badgeCls = temErro ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-yellow-100 text-yellow-700 border border-yellow-200';
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${badgeCls}`}>
@@ -265,7 +306,7 @@ function StatusAnaliseBadge({ status, regras }: { status: string | null | undefi
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField | null; sortDir: SortDir }) {
   if (sortField !== field) return <ChevronDown size={14} className="text-gray-300 inline ml-1" />;
   return sortDir === 'asc'
-    ? <ChevronUp size={14} className="text-primary-600 inline ml-1" />
+    ? <ChevronUp   size={14} className="text-primary-600 inline ml-1" />
     : <ChevronDown size={14} className="text-primary-600 inline ml-1" />;
 }
 
@@ -283,24 +324,45 @@ function riscoCor(cat: string) {
   return                           { bg: 'bg-green-100',  text: 'text-green-700',  border: 'border-green-300'  };
 }
 
-function RiscoCell({ ponto }: { ponto: IaRisco['pontos'][number] | undefined }) {
+function RiscoCell({ ponto, valoresAtuais }: {
+  ponto: IaRisco['pontos'][number] | undefined;
+  valoresAtuais?: ValoresAtuais;
+}) {
   if (!ponto) return <td className="px-3 py-2 text-center text-gray-300 text-xs">—</td>;
-  const cor = riscoCor(ponto.cat_agora);
+  const cor    = riscoCor(ponto.cat_agora);
   const corMax = riscoCor(ponto.cat_max);
+  const hasVal = valoresAtuais && (
+    valoresAtuais.T != null || valoresAtuais.UR != null || valoresAtuais.CO2 != null
+  );
   return (
     <td className="px-3 py-2 text-center">
-      <div className={`inline-flex flex-col items-center gap-0.5 rounded-md border px-2.5 py-1.5 ${cor.bg} ${cor.border}`}>
-        <span className={`text-sm font-bold ${cor.text}`}>{ponto.risco_agora.toFixed(0)}</span>
-        <span className={`text-xs font-medium ${cor.text}`}>{ponto.cat_agora}</span>
-        {ponto.cat_max !== ponto.cat_agora && (
-          <span className={`text-[10px] ${corMax.text}`}>↑ {ponto.cat_max} 24h</span>
+      <div className="relative inline-block group">
+        <div className={`inline-flex flex-col items-center gap-0.5 rounded-md border px-2.5 py-1.5 ${cor.bg} ${cor.border} ${hasVal ? 'cursor-help' : ''}`}>
+          <span className={`text-sm font-bold ${cor.text}`}>{ponto.risco_agora.toFixed(0)}</span>
+          <span className={`text-xs font-medium ${cor.text}`}>{ponto.cat_agora}</span>
+          {ponto.cat_max !== ponto.cat_agora && (
+            <span className={`text-[10px] ${corMax.text}`}>↑ {ponto.cat_max} 24h</span>
+          )}
+        </div>
+        {hasVal && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+            <div className="bg-gray-900 text-white text-xs rounded-md px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+              {valoresAtuais!.T   != null && <div>T: {valoresAtuais!.T.toFixed(1)}°C</div>}
+              {valoresAtuais!.UR  != null && <div>UR: {valoresAtuais!.UR.toFixed(0)}%</div>}
+              {valoresAtuais!.CO2 != null && <div>CO₂: {valoresAtuais!.CO2.toFixed(0)} ppm</div>}
+            </div>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+          </div>
         )}
       </div>
     </td>
   );
 }
 
-function RiscoPanel({ risco }: { risco: IaRisco }) {
+function RiscoPanel({ risco, sensorValoresAtuais }: {
+  risco: IaRisco;
+  sensorValoresAtuais: Map<string, ValoresAtuais>;
+}) {
   const nodeIds = [...new Set(risco.pontos.map((p) => p.node_id))].sort((a, b) => a - b);
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -325,7 +387,11 @@ function RiscoPanel({ risco }: { risco: IaRisco }) {
               <tr key={key}>
                 <td className="px-3 py-2 text-xs font-medium text-gray-600 whitespace-nowrap">{label} ({m} m)</td>
                 {nodeIds.map((nid) => (
-                  <RiscoCell key={nid} ponto={risco.pontos.find((p) => p.node_id === nid && p.altura === key)} />
+                  <RiscoCell
+                    key={nid}
+                    ponto={risco.pontos.find((p) => p.node_id === nid && p.altura === key)}
+                    valoresAtuais={sensorValoresAtuais.get(`${nid}_${key}`)}
+                  />
                 ))}
               </tr>
             ))}
@@ -343,8 +409,8 @@ export default function IaPrevisaoPage() {
     defaultValues: { silo_id: '', barra_id: '', sensor_id: '' },
   });
 
-  const siloId   = watch('silo_id');
-  const barraId  = watch('barra_id');
+  const siloId  = watch('silo_id');
+  const barraId = watch('barra_id');
 
   const [silos,    setSilos]    = useState<Silo[]>([]);
   const [barras,   setBarras]   = useState<Barra[]>([]);
@@ -355,14 +421,15 @@ export default function IaPrevisaoPage() {
   const [subAba,      setSubAba]      = useState<SubAba>('grafico');
   const [agrupamento, setAgrupamento] = useState<AgrupamentoGrafico>('barra');
 
-  const [previsoes,    setPrevisoes]    = useState<IaPrevisoes | null>(null);
-  const [risco,        setRisco]        = useState<IaRisco | null>(null);
-  const [grafico,      setGrafico]      = useState<GraficoResponse | null>(null);
-  const [leituras,     setLeituras]     = useState<LeituraInterna[]>([]);
-  const [pagina,       setPagina]       = useState(1);
-  const [totalPags,    setTotalPags]    = useState(0);
-  const [loadingMain,  setLoadingMain]  = useState(false);
-  const [loadingTabela,setLoadingTabela]= useState(false);
+  const [previsoes,          setPrevisoes]          = useState<IaPrevisoes | null>(null);
+  const [risco,              setRisco]              = useState<IaRisco | null>(null);
+  const [grafico,            setGrafico]            = useState<GraficoResponse | null>(null);
+  const [previsoeHistoricas, setPrevisoeHistoricas] = useState<IaPrevisoeHistoricas | null>(null);
+  const [leituras,           setLeituras]           = useState<LeituraInterna[]>([]);
+  const [pagina,             setPagina]             = useState(1);
+  const [totalPags,          setTotalPags]          = useState(0);
+  const [loadingMain,        setLoadingMain]        = useState(false);
+  const [loadingTabela,      setLoadingTabela]      = useState(false);
 
   const [consultado,   setConsultado]   = useState(false);
   const [lastSiloId,   setLastSiloId]   = useState('');
@@ -377,10 +444,7 @@ export default function IaPrevisaoPage() {
       getSilosIa(),
     ]).then(([silosRes, iaRes]) => {
       const idsComIa = new Set(iaRes.silos.map((s) => s.silo_id));
-      const filtrados = (silosRes.data.data ?? []).filter(
-        (s) => s.status === 'ativo' && idsComIa.has(s.id),
-      );
-      setSilos(filtrados);
+      setSilos((silosRes.data.data ?? []).filter((s) => s.status === 'ativo' && idsComIa.has(s.id)));
     }).catch(() => toast.error('Erro ao carregar silos'));
     api.get<Regra[]>('/regras').then((res) => setRegras(res.data)).catch(() => {});
   }, []);
@@ -388,7 +452,8 @@ export default function IaPrevisaoPage() {
   useEffect(() => {
     setBarras([]); setSensores([]);
     setValue('barra_id', ''); setValue('sensor_id', '');
-    setConsultado(false); setPrevisoes(null); setRisco(null); setGrafico(null); setLeituras([]);
+    setConsultado(false); setPrevisoes(null); setRisco(null);
+    setGrafico(null); setLeituras([]); setPrevisoeHistoricas(null);
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
@@ -431,32 +496,32 @@ export default function IaPrevisaoPage() {
     setPagina(1);
     setSortField(null);
 
-    const params: Record<string, string> = {
-      silo_id: filtros.silo_id,
-      data_inicio: now24hAgo(),
-      data_fim: new Date().toISOString(),
-    };
+    const dataInicio = now24hAgo();
+    const dataFim    = new Date().toISOString();
+    const params: Record<string, string> = { silo_id: filtros.silo_id, data_inicio: dataInicio, data_fim: dataFim };
     if (filtros.barra_id)  params.barra_id  = filtros.barra_id;
     if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
 
-    const [graficoRes, previsoesRes, riscoRes] = await Promise.allSettled([
+    const [graficoRes, previsoesRes, riscoRes, historicoRes] = await Promise.allSettled([
       api.get<GraficoResponse>('/relatorios/leituras/grafico', { params }),
       getPrevisoes(filtros.silo_id),
       getRisco(filtros.silo_id),
+      getPrevisoeHistoricas(filtros.silo_id, dataInicio, dataFim),
     ]);
 
     setGrafico(graficoRes.status === 'fulfilled' ? graficoRes.value.data : null);
     setRisco(riscoRes.status === 'fulfilled' ? riscoRes.value : null);
+    setPrevisoeHistoricas(historicoRes.status === 'fulfilled' ? historicoRes.value : null);
 
     if (previsoesRes.status === 'fulfilled') {
       setPrevisoes(previsoesRes.value);
     } else {
       const status = (previsoesRes.reason as { response?: { status?: number } })?.response?.status;
-      if (status === 404) {
-        setErroPrevisao('Projeções ainda não disponíveis. O modelo precisa ser treinado antes de gerar previsões.');
-      } else {
-        setErroPrevisao('Não foi possível carregar as previsões da IA.');
-      }
+      setErroPrevisao(
+        status === 404
+          ? 'Projeções ainda não disponíveis. O modelo precisa ser treinado antes de gerar previsões.'
+          : 'Não foi possível carregar as previsões da IA.',
+      );
       setPrevisoes(null);
     }
 
@@ -466,7 +531,7 @@ export default function IaPrevisaoPage() {
   };
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+    if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortField(field); setSortDir('asc'); }
   };
 
@@ -492,17 +557,14 @@ export default function IaPrevisaoPage() {
   // ── Dados derivados por grandeza ──────────────────────────────────────────
 
   const realSensoresFiltrados = (grafico?.sensores ?? []).filter((s) => s.tipo_grandeza === grandeza);
-  const realSeriesFiltradas   = (grafico?.series  ?? []).filter((s) =>
+  const realSeriesFiltradas   = (grafico?.series   ?? []).filter((s) =>
     realSensoresFiltrados.some((x) => x.id === s.sensor_id)
   );
 
-  // Mapa composto (barra_id_labrador + sensor_id_labrador) → sensor real interno.
-  // sensor_id da previsão só é único dentro de uma barra, nunca globalmente.
   const sensorByBarraSensor = new Map<string, GraficoSensor>();
   (grafico?.sensores ?? []).forEach((s) => {
-    if (s.id_labrador != null && s.barra_id_labrador != null) {
+    if (s.id_labrador != null && s.barra_id_labrador != null)
       sensorByBarraSensor.set(barraSensorKey(s.barra_id_labrador, s.id_labrador), s);
-    }
   });
   const barraIdLabradorAtivos = new Set(
     barras.map((b) => b.id_labrador).filter((v): v is number => v != null)
@@ -513,18 +575,28 @@ export default function IaPrevisaoPage() {
     barraIdLabradorAtivos.has(s.node_id) &&
     sensorByBarraSensor.has(barraSensorKey(s.node_id, s.id_labrador))
   );
-  // Normaliza prevSensores: substitui ids labrador por IDs internos para agrupamentos
   const prevSensoresNorm = prevSensoresFiltrados.map((s) => {
     const interno = sensorByBarraSensor.get(barraSensorKey(s.node_id, s.id_labrador));
     return { ...s, sensor_id: interno?.id ?? s.sensor_id, barra_id: interno?.barra_id ?? s.barra_id };
   });
 
-  const unidade = realSensoresFiltrados[0]?.unidade_medida ?? (grandeza === 'temperatura' ? '°C' : grandeza === 'umidade' ? '%' : 'ppm');
+  const historicoPrevSensoresFiltrados = (previsoeHistoricas?.sensores ?? []).filter(
+    (s) => s.tipo_grandeza === grandeza
+  );
 
-  const chartData = buildChartData(realSeriesFiltradas, realSensoresFiltrados, previsoes, prevSensoresFiltrados, sensorByBarraSensor);
+  const unidade = realSensoresFiltrados[0]?.unidade_medida ?? (
+    grandeza === 'temperatura' ? '°C' : grandeza === 'umidade' ? '%' : 'ppm'
+  );
+
+  const chartData = buildChartData(
+    realSeriesFiltradas, realSensoresFiltrados,
+    previsoes, prevSensoresFiltrados,
+    sensorByBarraSensor,
+    historicoPrevSensoresFiltrados,
+  );
 
   const grandezasComDados = new Set([
-    ...(grafico?.sensores ?? []).map((s) => s.tipo_grandeza),
+    ...(grafico?.sensores   ?? []).map((s) => s.tipo_grandeza),
     ...(previsoes?.sensores ?? []).map((s) => s.tipo_grandeza),
   ]) as Set<GrandezaTipo>;
 
@@ -538,12 +610,32 @@ export default function IaPrevisaoPage() {
         if (bDiff !== 0) return bDiff;
         return (a.sensor?.altura_solo_m ?? 0) - (b.sensor?.altura_solo_m ?? 0);
       }
-      const va = a[sortField] ?? 0;
-      const vb = b[sortField] ?? 0;
+      const va = a[sortField] ?? 0, vb = b[sortField] ?? 0;
       return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
     });
 
   const temDadosGrafico = realSensoresFiltrados.length > 0 || prevSensoresNorm.length > 0;
+
+  // Últimos valores T/UR/CO₂ por (node_id_labrador × alturaKey) para o tooltip do RiscoCell
+  const sensorValoresAtuais = useMemo<Map<string, ValoresAtuais>>(() => {
+    const map = new Map<string, ValoresAtuais>();
+    if (!grafico) return map;
+    for (const sensor of grafico.sensores) {
+      if (sensor.barra_id_labrador == null) continue;
+      const altKey = ALTURA_BY_CM[Math.round(sensor.altura_solo_m * 10)];
+      if (!altKey) continue;
+      const mapKey     = `${sensor.barra_id_labrador}_${altKey}`;
+      const serieSensor = grafico.series.filter((s) => s.sensor_id === sensor.id);
+      if (serieSensor.length === 0) continue;
+      const latest = serieSensor.reduce((a, b) => (a.bucket > b.bucket ? a : b));
+      if (!map.has(mapKey)) map.set(mapKey, { T: null, UR: null, CO2: null });
+      const entry = map.get(mapKey)!;
+      if (sensor.tipo_grandeza === 'temperatura') entry.T   = latest.avg;
+      else if (sensor.tipo_grandeza === 'umidade') entry.UR  = latest.avg;
+      else if (sensor.tipo_grandeza === 'co2')     entry.CO2 = latest.avg;
+    }
+    return map;
+  }, [grafico]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -588,7 +680,6 @@ export default function IaPrevisaoPage() {
             </select>
           </div>
         </div>
-
         <div className="flex justify-end">
           <button type="submit" disabled={loadingMain || !siloId}
             className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors">
@@ -601,7 +692,6 @@ export default function IaPrevisaoPage() {
       {/* Resultados */}
       {consultado && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {/* Banner previsão */}
           {previsoes && (
             <div className="flex items-center gap-2 px-4 py-2.5 bg-primary-50 border-b border-primary-100 text-sm text-primary-700">
               <Info size={14} className="flex-shrink-0" />
@@ -617,7 +707,7 @@ export default function IaPrevisaoPage() {
 
           <div className="p-4 space-y-4">
             {/* Painel de risco */}
-            {risco && <RiscoPanel risco={risco} />}
+            {risco && <RiscoPanel risco={risco} sensorValoresAtuais={sensorValoresAtuais} />}
 
             {/* Abas grandeza */}
             <div className="flex border-b border-gray-100 -mt-1">
@@ -654,7 +744,6 @@ export default function IaPrevisaoPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {/* Agrupamento */}
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-500">Agrupar por:</span>
                     <div className="flex rounded-lg overflow-hidden border border-gray-200">
@@ -682,6 +771,7 @@ export default function IaPrevisaoPage() {
                         chartData={chartData}
                         realSensores={realSensoresFiltrados.filter((s) => s.barra_id === barraIdN)}
                         prevSensores={prevSensoresNorm.filter((s) => s.barra_id === barraIdN)}
+                        historicoPrevSensores={historicoPrevSensoresFiltrados.filter((s) => s.barra_id === barraIdN)}
                         unidade={unidade}
                       />
                     ));
@@ -696,6 +786,7 @@ export default function IaPrevisaoPage() {
                     return allIds.map((sId) => {
                       const real = realSensoresFiltrados.filter((s) => s.id === sId);
                       const prev = prevSensoresNorm.filter((s) => s.sensor_id === sId);
+                      const hist = historicoPrevSensoresFiltrados.filter((s) => s.sensor_id === sId);
                       const meta = real[0] ?? { identificacao: `Sensor ${sId}`, barra_identificacao: `Barra ${prev[0]?.barra_id ?? '?'}`, altura_solo_m: prev[0]?.altura_solo_m ?? 0 };
                       return (
                         <PrevisaoChart key={sId}
@@ -703,6 +794,7 @@ export default function IaPrevisaoPage() {
                           chartData={chartData}
                           realSensores={real}
                           prevSensores={prev}
+                          historicoPrevSensores={hist}
                           unidade={unidade}
                         />
                       );
@@ -721,6 +813,7 @@ export default function IaPrevisaoPage() {
                         chartData={chartData}
                         realSensores={realSensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
                         prevSensores={prevSensoresNorm.filter((s) => s.altura_solo_m === alt)}
+                        historicoPrevSensores={historicoPrevSensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
                         unidade={unidade}
                       />
                     ));
