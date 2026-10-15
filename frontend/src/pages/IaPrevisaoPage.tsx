@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -328,15 +329,24 @@ function RiscoCell({ ponto, valoresAtuais }: {
   ponto: IaRisco['pontos'][number] | undefined;
   valoresAtuais?: ValoresAtuais;
 }) {
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+
   if (!ponto) return <td className="px-3 py-2 text-center text-gray-300 text-xs">—</td>;
   const cor    = riscoCor(ponto.cat_agora);
   const corMax = riscoCor(ponto.cat_max);
   const hasVal = valoresAtuais && (
     valoresAtuais.T != null || valoresAtuais.UR != null || valoresAtuais.CO2 != null
   );
+
+  const onEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!hasVal) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setAnchor({ x: r.left + r.width / 2, y: r.top });
+  };
+
   return (
     <td className="px-3 py-2 text-center">
-      <div className="relative inline-block group">
+      <div className="inline-block" onMouseEnter={onEnter} onMouseLeave={() => setAnchor(null)}>
         <div className={`inline-flex flex-col items-center gap-0.5 rounded-md border px-2.5 py-1.5 ${cor.bg} ${cor.border} ${hasVal ? 'cursor-help' : ''}`}>
           <span className={`text-sm font-bold ${cor.text}`}>{ponto.risco_agora.toFixed(0)}</span>
           <span className={`text-xs font-medium ${cor.text}`}>{ponto.cat_agora}</span>
@@ -344,17 +354,19 @@ function RiscoCell({ ponto, valoresAtuais }: {
             <span className={`text-[10px] ${corMax.text}`}>↑ {ponto.cat_max} 24h</span>
           )}
         </div>
-        {hasVal && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
-            <div className="bg-gray-900 text-white text-xs rounded-md px-2.5 py-1.5 whitespace-nowrap shadow-lg">
-              {valoresAtuais!.T   != null && <div>T: {valoresAtuais!.T.toFixed(1)}°C</div>}
-              {valoresAtuais!.UR  != null && <div>UR: {valoresAtuais!.UR.toFixed(0)}%</div>}
-              {valoresAtuais!.CO2 != null && <div>CO₂: {valoresAtuais!.CO2.toFixed(0)} ppm</div>}
-            </div>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-          </div>
-        )}
       </div>
+      {hasVal && anchor && createPortal(
+        <div
+          className="pointer-events-none z-[9999] bg-gray-900 text-white text-xs rounded-md px-2.5 py-1.5 whitespace-nowrap shadow-lg"
+          style={{ position: 'fixed', left: anchor.x, top: anchor.y - 8, transform: 'translate(-50%, -100%)' }}
+        >
+          {valoresAtuais!.T   != null && <div>T: {valoresAtuais!.T.toFixed(1)}°C</div>}
+          {valoresAtuais!.UR  != null && <div>UR: {valoresAtuais!.UR.toFixed(0)}%</div>}
+          {valoresAtuais!.CO2 != null && <div>CO₂: {valoresAtuais!.CO2.toFixed(0)} ppm</div>}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>,
+        document.body,
+      )}
     </td>
   );
 }
