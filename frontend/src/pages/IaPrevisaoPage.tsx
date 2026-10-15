@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { Sparkles, Search, Info, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -197,10 +197,13 @@ function PrevisaoChart({
   };
 
   const hasHistorico = historicoPrevSensores.length > 0;
+  const [legendaAberta, setLegendaAberta] = useState(false);
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
-      {titulo && <h3 className="text-sm font-semibold text-gray-700 mb-3">{titulo}</h3>}
+      {titulo && <h3 className="text-sm font-semibold text-gray-700 mb-2">{titulo}</h3>}
+
+      {/* Tipos de linha */}
       <div className="flex flex-wrap items-center gap-4 mb-2 text-xs text-gray-500">
         <span className="flex items-center gap-1">
           <span className="inline-block w-6 border-t-2 border-gray-700" /> Leitura real
@@ -213,9 +216,37 @@ function PrevisaoChart({
             <span className="inline-block w-6 border-t-2 border-dotted border-gray-500 opacity-70" /> Prev. hist.
           </span>
         )}
+        <button
+          type="button"
+          onClick={() => setLegendaAberta((v) => !v)}
+          className="ml-auto flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          Sensores {legendaAberta ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        </button>
       </div>
-      <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={chartData} margin={{ top: 4, right: 24, left: 16, bottom: 4 }}>
+
+      {/* Legenda colapsável */}
+      {legendaAberta && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 px-1 text-xs text-gray-600">
+          {allSensoresIds.map((sId, idx) => {
+            const color    = LINE_COLORS[idx % LINE_COLORS.length];
+            const hasReal  = realSensores.some((s) => s.id === sId);
+            const hasPrev  = prevSensores.some((s) => s.sensor_id === sId);
+            const hasHist  = historicoPrevSensores.some((s) => s.sensor_id === sId);
+            const meta     = findMeta(sId);
+            const tipos    = [hasReal && 'Real', hasPrev && 'Prev.', hasHist && 'Hist.'].filter(Boolean).join('/');
+            return (
+              <span key={sId} className="flex items-center gap-1 whitespace-nowrap">
+                <span className="inline-block w-4 h-0.5 rounded" style={{ backgroundColor: color }} />
+                {sensorLabel(meta)} <span className="text-gray-400">({tipos})</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
             dataKey="ts"
@@ -226,8 +257,9 @@ function PrevisaoChart({
             tick={{ fontSize: 11 }}
             minTickGap={60}
           />
-          <YAxis width={60} tick={{ fontSize: 11 }} domain={yDomain}
-            label={{ value: unidade, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11 } }} />
+          <YAxis width={52} tick={{ fontSize: 12 }} domain={yDomain}
+            tickFormatter={(v: number) => v.toFixed(1)}
+            label={{ value: unidade, angle: -90, position: 'insideLeft', offset: 14, style: { fontSize: 11 } }} />
           <Tooltip
             labelFormatter={(v) => formatTimestamp(new Date(Number(v)).toISOString())}
             formatter={(val, name) => {
@@ -238,17 +270,6 @@ function PrevisaoChart({
               const meta = findMeta(sId);
               const tipo = isHistorico ? 'Prev. hist. IA' : isPrevisao ? 'Previsão IA' : 'Real';
               return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, `${sensorLabel(meta)} — ${tipo}`];
-            }}
-          />
-          <Legend
-            formatter={(v) => {
-              const n = String(v ?? '');
-              const isHistorico = n.startsWith('h_');
-              const isPrevisao  = n.startsWith('p_');
-              const sId  = Number(n.replace(/^[rph]_/, ''));
-              const meta = findMeta(sId);
-              const tipo = isHistorico ? 'Prev. hist.' : isPrevisao ? 'Previsão' : 'Real';
-              return `${sensorLabel(meta)} (${tipo})`;
             }}
           />
           <ReferenceLine
