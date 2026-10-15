@@ -22,6 +22,7 @@ import LabradorPage from './pages/LabradorPage';
 import CarregamentosPage from './pages/CarregamentosPage';
 import CarregamentosVisualizarPage from './pages/CarregamentosVisualizarPage';
 import EventosPage from './pages/EventosPage';
+import SaudeIaPage from './pages/SaudeIaPage';
 
 export default function App() {
   return (
@@ -138,6 +139,18 @@ export default function App() {
         }
       >
         <Route index element={<SaudeSistemaPage />} />
+      </Route>
+
+      {/* Saúde da IA — todos os perfis autenticados */}
+      <Route
+        path="/saude-ia"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<SaudeIaPage />} />
       </Route>
 
       {/* Exportação — todos os perfis autenticados */}

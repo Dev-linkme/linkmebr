@@ -27,6 +27,7 @@ import {
   CalendarClock,
   Globe2,
   Radio,
+  HeartPulse,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -125,6 +126,11 @@ export default function AppLayout() {
       to: '/saude-sistema',
       label: t('nav.saude_sistema'),
       icon: <Activity size={16} />,
+    },
+    {
+      to: '/saude-ia',
+      label: t('nav.saude_ia'),
+      icon: <HeartPulse size={16} />,
     },
   ];
 
