@@ -544,7 +544,13 @@ export default function IaPrevisaoPage() {
 
     setGrafico(graficoRes.status === 'fulfilled' ? graficoRes.value.data : null);
     setRisco(riscoRes.status === 'fulfilled' ? riscoRes.value : null);
-    setPrevisoeHistoricas(historicoRes.status === 'fulfilled' ? historicoRes.value : null);
+    if (historicoRes.status === 'fulfilled') {
+      setPrevisoeHistoricas(historicoRes.value);
+    } else {
+      setPrevisoeHistoricas(null);
+      const httpStatus = (historicoRes.reason as { response?: { status?: number } })?.response?.status;
+      if (httpStatus !== 404) toast.error('Não foi possível carregar previsões históricas.');
+    }
 
     if (previsoesRes.status === 'fulfilled') {
       setPrevisoes(previsoesRes.value);
