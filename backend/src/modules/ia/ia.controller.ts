@@ -96,6 +96,127 @@ export async function listarSilosIa(req: Request, res: Response, next: NextFunct
   }
 }
 
+// ─── Heartbeat — lista paginada ───────────────────────────────────────────────
+
+export async function listarHeartbeats(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const silo_id = Number(req.query.silo_id);
+    if (!silo_id || isNaN(silo_id)) throw new AppError(400, 'silo_id é obrigatório');
+
+    const silo = await prisma.silo.findUnique({ where: { id: silo_id } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    const data_inicio = req.query.data_inicio ? new Date(req.query.data_inicio as string) : undefined;
+    const data_fim    = req.query.data_fim    ? new Date(req.query.data_fim    as string) : undefined;
+    if (data_inicio && isNaN(data_inicio.getTime())) throw new AppError(400, 'data_inicio inválida');
+    if (data_fim    && isNaN(data_fim.getTime()))    throw new AppError(400, 'data_fim inválida');
+
+    const page   = Math.max(1, Number(req.query.page)  || 1);
+    const limit  = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const where: string[]  = ['silo_id = $1'];
+    const params: unknown[] = [silo_id];
+    if (data_inicio) { params.push(data_inicio); where.push(`timestamp >= $${params.length}`); }
+    if (data_fim)    { params.push(data_fim);    where.push(`timestamp <= $${params.length}`); }
+    const whereStr = where.join(' AND ');
+
+    const countRes = await prisma.$queryRawUnsafe<[{ count: bigint }]>(
+      `SELECT COUNT(*) FROM silos.ia_heartbeat WHERE ${whereStr}`, ...params,
+    );
+    const total = Number(countRes[0].count);
+
+    params.push(limit, offset);
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      id: bigint; recebido_em: Date; timestamp: Date | null;
+      versao_modelo: string | null; modelo_hash: string | null;
+      ciclo_ok: boolean; n_emergencias: number | null;
+      risco_max: number | null; cat_max: string | null;
+    }>>(
+      `SELECT id, recebido_em, timestamp, versao_modelo, modelo_hash,
+              ciclo_ok, n_emergencias, risco_max, cat_max
+       FROM silos.ia_heartbeat WHERE ${whereStr}
+       ORDER BY recebido_em DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      ...params,
+    );
+
+    res.json({
+      dados: rows.map((r) => ({
+        id:            Number(r.id),
+        recebido_em:   r.recebido_em instanceof Date ? r.recebido_em.toISOString() : String(r.recebido_em),
+        timestamp:     r.timestamp instanceof Date ? r.timestamp.toISOString() : r.timestamp ?? null,
+        versao_modelo: r.versao_modelo,
+        modelo_hash:   r.modelo_hash,
+        ciclo_ok:      r.ciclo_ok,
+        n_emergencias: r.n_emergencias != null ? Number(r.n_emergencias) : null,
+        risco_max:     r.risco_max     != null ? Number(r.risco_max)     : null,
+        cat_max:       r.cat_max,
+      })),
+      total,
+      pagina: page,
+      total_paginas: Math.ceil(total / limit),
+    });
+  } catch (err) { next(err); }
+}
+
+export async function rangeHeartbeat(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const silo_id = Number(req.query.silo_id);
+    if (!silo_id || isNaN(silo_id)) throw new AppError(400, 'silo_id é obrigatório');
+
+    const silo = await prisma.silo.findUnique({ where: { id: silo_id } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    const agg = await prisma.$queryRawUnsafe<[{ min_ts: Date | null; max_ts: Date | null }]>(
+      `SELECT MIN(timestamp) AS min_ts, MAX(timestamp) AS max_ts
+       FROM silos.ia_heartbeat WHERE silo_id = $1`,
+      silo_id,
+    );
+    res.json({ data_inicio: agg[0].min_ts, data_fim: agg[0].max_ts });
+  } catch (err) { next(err); }
+}
+
+export async function graficoHeartbeat(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const silo_id = Number(req.query.silo_id);
+    if (!silo_id || isNaN(silo_id)) throw new AppError(400, 'silo_id é obrigatório');
+
+    const silo = await prisma.silo.findUnique({ where: { id: silo_id } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    const data_inicio = req.query.data_inicio ? new Date(req.query.data_inicio as string) : undefined;
+    const data_fim    = req.query.data_fim    ? new Date(req.query.data_fim    as string) : undefined;
+
+    const where: string[]  = ['silo_id = $1'];
+    const params: unknown[] = [silo_id];
+    if (data_inicio) { params.push(data_inicio); where.push(`timestamp >= $${params.length}`); }
+    if (data_fim)    { params.push(data_fim);    where.push(`timestamp <= $${params.length}`); }
+
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      timestamp: Date | null; risco_max: number | null; ciclo_ok: boolean;
+    }>>(
+      `SELECT timestamp, risco_max, ciclo_ok
+       FROM silos.ia_heartbeat WHERE ${where.join(' AND ')}
+       ORDER BY timestamp ASC LIMIT 720`,
+      ...params,
+    );
+
+    res.json({
+      series: rows.map((r) => ({
+        timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : r.timestamp ?? null,
+        risco_max: r.risco_max != null ? Number(r.risco_max) : null,
+        ciclo_ok:  r.ciclo_ok,
+      })),
+    });
+  } catch (err) { next(err); }
+}
+
+// ─── Heartbeat — último por silo ─────────────────────────────────────────────
+
 export async function buscarHeartbeat(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const silo_id = Number(req.params.silo_id);
