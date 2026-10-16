@@ -17,7 +17,7 @@
     "ia_treinamento_global": "Treinamento Global",
     "ia_treinamento_diario": "Treinamento Diário",
     "ia_previsao": "Previsão IA",
-    "ia_bootstrap": "Bootstrap do Modelo"
+    "ia_bootstrap": "Inferência do Modelo"
   },
   "cadastros": {
     "empresas": "Empresas",

@@ -14,7 +14,7 @@
     "ia_treinamento_global": "Global Training",
     "ia_treinamento_diario": "Daily Training",
     "ia_previsao": "AI Forecast",
-    "ia_bootstrap": "Model Bootstrap",
+    "ia_bootstrap": "Model Inference",
     "saude_ia": "AI Health"
   },
   "cadastros": {
