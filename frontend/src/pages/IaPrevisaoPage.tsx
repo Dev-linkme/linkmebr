@@ -70,6 +70,9 @@ function fmtSensor(val: number | null | undefined, tipo: string): string {
   if (val == null) return '—';
   return tipo === 'temperatura' ? val.toFixed(1) : val.toFixed(0);
 }
+function fmtChartVal(val: number, grandeza: GrandezaTipo): string {
+  return grandeza === 'temperatura' ? val.toFixed(1) : val.toFixed(0);
+}
 function sensorLabel(s: { identificacao: string; barra_identificacao: string; altura_solo_m: number }): string {
   return `${s.barra_identificacao} - ${s.identificacao} (${s.altura_solo_m}m)`;
 }
@@ -157,7 +160,8 @@ function Paginacao({ pagina, totalPaginas, loading, onPageChange }: {
 // ─── Gráfico Previsão ─────────────────────────────────────────────────────────
 
 function PrevisaoChart({
-  titulo, chartData, realSensores, prevSensores, historicoPrevSensores, unidade,
+  titulo, chartData, realSensores, prevSensores, historicoPrevSensores,
+  unidade, grandeza, yDomain: yDomainProp,
 }: {
   titulo?: string;
   chartData: ChartPoint[];
@@ -165,6 +169,8 @@ function PrevisaoChart({
   prevSensores: IaPrevisoes['sensores'];
   historicoPrevSensores: IaPrevisoeHistoricas['sensores'];
   unidade: string;
+  grandeza: GrandezaTipo;
+  yDomain?: [number, number];
 }) {
   if (realSensores.length === 0 && prevSensores.length === 0) return null;
 
@@ -176,7 +182,7 @@ function PrevisaoChart({
     ]),
   ];
 
-  const yDomain = yDomainFrom(
+  const yDomain = yDomainProp ?? yDomainFrom(
     chartData.flatMap((row) =>
       allSensoresIds.flatMap((id) => [
         row[`r_${id}`] as number | null,
@@ -258,7 +264,7 @@ function PrevisaoChart({
             minTickGap={60}
           />
           <YAxis width={52} tick={{ fontSize: 12 }} domain={yDomain}
-            tickFormatter={(v: number) => v.toFixed(1)}
+            tickFormatter={(v: number) => fmtChartVal(v, grandeza)}
             label={{ value: unidade, angle: -90, position: 'insideLeft', offset: 14, style: { fontSize: 11 } }} />
           <Tooltip
             labelFormatter={(v) => formatTimestamp(new Date(Number(v)).toISOString())}
@@ -268,15 +274,26 @@ function PrevisaoChart({
               const isPrevisao  = n.startsWith('p_');
               const sId  = Number(n.replace(/^[rph]_/, ''));
               const meta = findMeta(sId);
-              const tipo = isHistorico ? 'Prev. hist. IA' : isPrevisao ? 'Previsão IA' : 'Real';
-              return [`${typeof val === 'number' ? val.toFixed(2) : val} ${unidade}`, `${sensorLabel(meta)} — ${tipo}`];
+              const altLabel = meta.altura_solo_m > 0 ? `${meta.altura_solo_m} m` : `Sensor ${sId}`;
+              const tipo = isHistorico ? 'Prev. hist.' : isPrevisao ? 'Prev. IA' : 'Real';
+              const fmtVal = typeof val === 'number' ? fmtChartVal(val, grandeza) : String(val);
+              return [`${fmtVal} ${unidade}`, `${altLabel} — ${tipo}`];
             }}
           />
           <ReferenceLine
             x={Date.now()}
-            stroke="#6b7280"
+            stroke="#9ca3af"
             strokeDasharray="4 4"
-            label={{ value: 'Agora', position: 'insideTopLeft', fontSize: 11, fill: '#6b7280' }}
+            label={(props: { viewBox?: { x: number; y: number } }) => {
+              const x = props.viewBox?.x ?? 0;
+              const y = (props.viewBox?.y ?? 0) + 14;
+              return (
+                <g>
+                  <text x={x - 6} y={y} textAnchor="end"   fontSize={10} fill="#9ca3af">← Medido</text>
+                  <text x={x + 6} y={y} textAnchor="start" fontSize={10} fill="#2563eb">Previsão IA →</text>
+                </g>
+              );
+            }}
           />
           {allSensoresIds.map((sId, idx) => {
             const color       = LINE_COLORS[idx % LINE_COLORS.length];
@@ -294,8 +311,8 @@ function PrevisaoChart({
               ),
               hasHistSens && (
                 <Line key={`h_${sId}`} type="monotone" dataKey={`h_${sId}`}
-                  stroke={color} strokeWidth={1.2} strokeDasharray="2 5"
-                  strokeOpacity={0.65} dot={false} connectNulls />
+                  stroke={color} strokeWidth={1.5}
+                  strokeOpacity={0.45} dot={false} connectNulls />
               ),
             ].filter(Boolean);
           })}
@@ -634,6 +651,21 @@ export default function IaPrevisaoPage() {
     historicoPrevSensoresFiltrados,
   );
 
+  const allGrandezaIds = [
+    ...realSensoresFiltrados.map((s) => s.id),
+    ...prevSensoresNorm.map((s) => s.sensor_id),
+    ...historicoPrevSensoresFiltrados.map((s) => s.sensor_id),
+  ];
+  const globalYDomain = yDomainFrom(
+    chartData.flatMap((row) =>
+      allGrandezaIds.flatMap((id) => [
+        row[`r_${id}`] as number | null,
+        row[`p_${id}`] as number | null,
+        row[`h_${id}`] as number | null,
+      ])
+    )
+  );
+
   const grandezasComDados = new Set([
     ...(grafico?.sensores   ?? []).map((s) => s.tipo_grandeza),
     ...(previsoes?.sensores ?? []).map((s) => s.tipo_grandeza),
@@ -812,6 +844,8 @@ export default function IaPrevisaoPage() {
                         prevSensores={prevSensoresNorm.filter((s) => s.barra_id === barraIdN)}
                         historicoPrevSensores={historicoPrevSensoresFiltrados.filter((s) => s.barra_id === barraIdN)}
                         unidade={unidade}
+                        grandeza={grandeza}
+                        yDomain={globalYDomain}
                       />
                     ));
                   })()}
@@ -835,6 +869,8 @@ export default function IaPrevisaoPage() {
                           prevSensores={prev}
                           historicoPrevSensores={hist}
                           unidade={unidade}
+                          grandeza={grandeza}
+                          yDomain={globalYDomain}
                         />
                       );
                     });
@@ -854,6 +890,8 @@ export default function IaPrevisaoPage() {
                         prevSensores={prevSensoresNorm.filter((s) => s.altura_solo_m === alt)}
                         historicoPrevSensores={historicoPrevSensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
                         unidade={unidade}
+                        grandeza={grandeza}
+                        yDomain={globalYDomain}
                       />
                     ));
                   })()}
