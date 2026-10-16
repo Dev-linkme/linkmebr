@@ -327,7 +327,7 @@ function PrevisaoChart({
             return [
               hasReal && showReal && (
                 <Line key={`r_${sId}`} type="monotone" dataKey={`r_${sId}`}
-                  stroke={color} strokeWidth={2} dot={false} connectNulls />
+                  stroke={color} strokeWidth={2} dot={false} connectNulls={false} />
               ),
               hasPrev && showFutura && (
                 <Line key={`p_${sId}`} type="monotone" dataKey={`p_${sId}`}
