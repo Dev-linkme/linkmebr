@@ -203,29 +203,53 @@ function PrevisaoChart({
   };
 
   const hasHistorico = historicoPrevSensores.length > 0;
-  const [legendaAberta, setLegendaAberta] = useState(false);
+  const [legendaAberta,  setLegendaAberta]  = useState(false);
+  const [showReal,       setShowReal]       = useState(true);
+  const [showFutura,     setShowFutura]     = useState(true);
+  const [showPassado,    setShowPassado]    = useState(true);
+
+  function ToggleBtn({ active, onToggle, children }: {
+    active: boolean; onToggle: () => void; children: React.ReactNode;
+  }) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium transition-colors select-none ${
+          active
+            ? 'bg-gray-700 border-gray-700 text-white'
+            : 'bg-white border-gray-300 text-gray-400 line-through'
+        }`}
+      >
+        {children}
+      </button>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       {titulo && <h3 className="text-sm font-semibold text-gray-700 mb-2">{titulo}</h3>}
 
-      {/* Tipos de linha */}
-      <div className="flex flex-wrap items-center gap-4 mb-2 text-xs text-gray-500">
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-6 border-t-2 border-gray-700" /> Leitura real
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-6 border-t-2 border-dashed border-gray-700" /> Previsão IA
-        </span>
+      {/* Tipos de linha com toggles */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <ToggleBtn active={showReal} onToggle={() => setShowReal((v) => !v)}>
+          <span className="inline-block w-5 border-t-2 border-current" />
+          Leitura real
+        </ToggleBtn>
+        <ToggleBtn active={showFutura} onToggle={() => setShowFutura((v) => !v)}>
+          <span className="inline-block w-5 border-t-2 border-dashed border-current" />
+          Previsão Futura
+        </ToggleBtn>
         {hasHistorico && (
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-6 border-t-2 border-dotted border-gray-500 opacity-70" /> Prev. hist.
-          </span>
+          <ToggleBtn active={showPassado} onToggle={() => setShowPassado((v) => !v)}>
+            <span className="inline-block w-5 border-t-2 border-current opacity-50" />
+            Previsão no Passado
+          </ToggleBtn>
         )}
         <button
           type="button"
           onClick={() => setLegendaAberta((v) => !v)}
-          className="ml-auto flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors"
+          className="ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
         >
           Sensores {legendaAberta ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
@@ -235,12 +259,12 @@ function PrevisaoChart({
       {legendaAberta && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 px-1 text-xs text-gray-600">
           {allSensoresIds.map((sId, idx) => {
-            const color    = LINE_COLORS[idx % LINE_COLORS.length];
-            const hasReal  = realSensores.some((s) => s.id === sId);
-            const hasPrev  = prevSensores.some((s) => s.sensor_id === sId);
-            const hasHist  = historicoPrevSensores.some((s) => s.sensor_id === sId);
-            const meta     = findMeta(sId);
-            const tipos    = [hasReal && 'Real', hasPrev && 'Prev.', hasHist && 'Hist.'].filter(Boolean).join('/');
+            const color   = LINE_COLORS[idx % LINE_COLORS.length];
+            const hasReal = realSensores.some((s) => s.id === sId);
+            const hasPrev = prevSensores.some((s) => s.sensor_id === sId);
+            const hasHist = historicoPrevSensores.some((s) => s.sensor_id === sId);
+            const meta    = findMeta(sId);
+            const tipos   = [hasReal && 'Real', hasPrev && 'Futura', hasHist && 'Passado'].filter(Boolean).join('/');
             return (
               <span key={sId} className="flex items-center gap-1 whitespace-nowrap">
                 <span className="inline-block w-4 h-0.5 rounded" style={{ backgroundColor: color }} />
@@ -275,7 +299,7 @@ function PrevisaoChart({
               const sId  = Number(n.replace(/^[rph]_/, ''));
               const meta = findMeta(sId);
               const altLabel = meta.altura_solo_m > 0 ? `${meta.altura_solo_m} m` : `Sensor ${sId}`;
-              const tipo = isHistorico ? 'Prev. hist.' : isPrevisao ? 'Prev. IA' : 'Real';
+              const tipo = isHistorico ? 'Prev. Passado' : isPrevisao ? 'Prev. Futura' : 'Real';
               const fmtVal = typeof val === 'number' ? fmtChartVal(val, grandeza) : String(val);
               return [`${fmtVal} ${unidade}`, `${altLabel} — ${tipo}`];
             }}
@@ -301,15 +325,15 @@ function PrevisaoChart({
             const hasPrev     = prevSensores.some((s) => s.sensor_id === sId);
             const hasHistSens = historicoPrevSensores.some((s) => s.sensor_id === sId);
             return [
-              hasReal && (
+              hasReal && showReal && (
                 <Line key={`r_${sId}`} type="monotone" dataKey={`r_${sId}`}
                   stroke={color} strokeWidth={2} dot={false} connectNulls />
               ),
-              hasPrev && (
+              hasPrev && showFutura && (
                 <Line key={`p_${sId}`} type="monotone" dataKey={`p_${sId}`}
                   stroke={color} strokeWidth={1.5} strokeDasharray="6 3" dot={false} connectNulls />
               ),
-              hasHistSens && (
+              hasHistSens && showPassado && (
                 <Line key={`h_${sId}`} type="monotone" dataKey={`h_${sId}`}
                   stroke={color} strokeWidth={1.5}
                   strokeOpacity={0.45} dot={false} connectNulls />
