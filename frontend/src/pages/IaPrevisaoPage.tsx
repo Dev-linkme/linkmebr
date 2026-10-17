@@ -658,7 +658,13 @@ export default function IaPrevisaoPage() {
       if (httpStatus !== 404) toast.error('Não foi possível carregar previsões históricas.');
     }
 
-    setRiscoSerie(riscoSerieRes.status === 'fulfilled' ? riscoSerieRes.value : null);
+    if (riscoSerieRes.status === 'fulfilled') {
+      setRiscoSerie(riscoSerieRes.value);
+    } else {
+      setRiscoSerie(null);
+      const httpStatus = (riscoSerieRes.reason as { response?: { status?: number } })?.response?.status;
+      if (httpStatus !== 404) toast.error(`Risco previsto indisponível (${httpStatus ?? 'sem resposta'})`);
+    }
     setRiscoHistorico(riscoHistoricoRes.status === 'fulfilled' ? riscoHistoricoRes.value : null);
 
     if (previsoesRes.status === 'fulfilled') {
@@ -803,7 +809,7 @@ export default function IaPrevisaoPage() {
   // Fallback para previsto quando riscoSerie não está disponível:
   // usa risco_agora (agora) → risco_max (hora_risco_max) de IaRisco como 2 pontos.
   const riscoSerieEfetivo = useMemo<IaRiscoSerie | null>(() => {
-    if (riscoSerie) return riscoSerie;
+    if (riscoSerie && riscoSerie.pontos.length > 0) return riscoSerie;
     if (!risco) return null;
     return {
       silo_id:   risco.silo_id,
