@@ -800,6 +800,24 @@ export default function IaPrevisaoPage() {
     return map;
   }, [grafico]);
 
+  // Fallback para previsto quando riscoSerie não está disponível:
+  // usa risco_agora (agora) → risco_max (hora_risco_max) de IaRisco como 2 pontos.
+  const riscoSerieEfetivo = useMemo<IaRiscoSerie | null>(() => {
+    if (riscoSerie) return riscoSerie;
+    if (!risco) return null;
+    return {
+      silo_id:   risco.silo_id,
+      gerado_em: risco.gerado_em,
+      pontos: risco.pontos.map((p) => ({
+        barra_id:   p.barra_id,
+        node_id:    p.node_id,
+        altura:     p.altura,
+        timestamps: [risco.gerado_em, p.hora_risco_max],
+        riscos:     [p.risco_agora,   p.risco_max],
+      })),
+    };
+  }, [riscoSerie, risco]);
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -887,8 +905,8 @@ export default function IaPrevisaoPage() {
             {/* ── Aba Risco ── */}
             {activeTab === 'risco' && (() => {
               const todosBarras = [...new Map([
-                ...(riscoHistorico?.pontos ?? []),
-                ...(riscoSerie?.pontos     ?? []),
+                ...(riscoHistorico?.pontos        ?? []),
+                ...(riscoSerieEfetivo?.pontos ?? []),
               ].map((p) => [`${p.barra_id}`, p])).values()]
                 .sort((a, b) => (a.node_id ?? 0) - (b.node_id ?? 0));
 
@@ -930,7 +948,7 @@ export default function IaPrevisaoPage() {
                           const nodeId   = todosBarras.find((p) => p.barra_id === bid)?.node_id;
                           const barLabel = nodeId != null ? `Cabo ${nodeId - 100}` : `Barra ${bid}`;
                           const medido   = riscoHistorico?.pontos.find((p) => p.barra_id === bid && p.altura === altKey);
-                          const prev     = riscoSerie?.pontos.find((p) => p.barra_id === bid && p.altura === altKey);
+                          const prev     = riscoSerieEfetivo?.pontos.find((p) => p.barra_id === bid && p.altura === altKey);
                           return (
                             <RiscoSerieChart
                               key={bid}
