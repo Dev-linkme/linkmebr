@@ -216,6 +216,71 @@ export async function graficoHeartbeat(req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 }
 
+// ─── Risco — série prevista (proxy linkme-ia) ────────────────────────────────
+
+export async function riscoSerie(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { silo_id } = req.params;
+    const { data } = await axios.get(iaUrl(`/api/v1/risco-serie/${silo_id}`), {
+      headers: iaHeaders(req),
+      timeout: 30_000,
+    });
+    res.json(data);
+  } catch (err) {
+    forwardIaError(err, next);
+  }
+}
+
+// ─── Risco — série histórica medida (banco) ───────────────────────────────────
+
+export async function riscoHistorico(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const silo_id = Number(req.params.silo_id);
+    if (!silo_id || isNaN(silo_id)) throw new AppError(400, 'silo_id inválido');
+
+    const silo = await prisma.silo.findUnique({ where: { id: silo_id } });
+    if (!silo) throw new AppError(404, 'Silo não encontrado');
+    assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
+
+    const horas = Math.min(168, Math.max(1, Number(req.query.horas) || 24));
+
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      barra_id: bigint; node_id: number | null; altura: string;
+      gerado_em: Date; risco_agora: number;
+    }>>(
+      `SELECT r.barra_id, b.id_labrador AS node_id, r.altura,
+              c.gerado_em, r.risco_agora::float AS risco_agora
+       FROM silos_ia.ia_ciclos_risco r
+       JOIN silos_ia.ia_ciclos_previsao c ON c.id = r.ciclo_id
+       JOIN silos.barras b ON b.id = r.barra_id
+       WHERE r.silo_id = $1
+         AND c.gerado_em >= NOW() - ($2 * interval '1 hour')
+       ORDER BY r.barra_id, r.altura, c.gerado_em`,
+      silo_id, horas,
+    );
+
+    type Ponto = { barra_id: number; node_id: number | null; altura: string; timestamps: string[]; riscos: number[] };
+    const pontosMap = new Map<string, Ponto>();
+    for (const row of rows) {
+      const key = `${row.barra_id}_${row.altura}`;
+      if (!pontosMap.has(key)) {
+        pontosMap.set(key, {
+          barra_id: Number(row.barra_id),
+          node_id:  row.node_id != null ? Number(row.node_id) : null,
+          altura:   row.altura,
+          timestamps: [],
+          riscos:     [],
+        });
+      }
+      const p = pontosMap.get(key)!;
+      p.timestamps.push(row.gerado_em instanceof Date ? row.gerado_em.toISOString() : String(row.gerado_em));
+      p.riscos.push(Number(row.risco_agora));
+    }
+
+    res.json({ silo_id, pontos: [...pontosMap.values()] });
+  } catch (err) { next(err); }
+}
+
 // ─── Previsões históricas (últimos N ciclos, janela passada) ─────────────────
 
 export async function previsoeHistoricas(req: Request, res: Response, next: NextFunction): Promise<void> {

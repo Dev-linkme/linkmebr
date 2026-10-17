@@ -238,6 +238,25 @@ export interface IaPrevisoeHistoricas {
   sensores: IaPrevisaoSensorHistorico[];
 }
 
+export interface IaRiscoSeriePonto {
+  barra_id: number;
+  node_id: number | null;
+  altura: 'topo' | 'meio' | 'fundo';
+  timestamps: string[];
+  riscos: number[];
+}
+
+export interface IaRiscoSerie {
+  silo_id: number;
+  gerado_em: string;
+  pontos: IaRiscoSeriePonto[];
+}
+
+export interface IaRiscoHistorico {
+  silo_id: number;
+  pontos: IaRiscoSeriePonto[];
+}
+
 export type LabradorComandoStatus =
   | 'pendente'
   | 'ok'

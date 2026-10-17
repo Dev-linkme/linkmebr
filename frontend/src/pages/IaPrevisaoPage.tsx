@@ -3,23 +3,25 @@ import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from 'recharts';
 import { Sparkles, Search, Info, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
-import { getPrevisoes, getSilosIa, getRisco, getPrevisoeHistoricas } from '../services/ia';
-import type { Silo, Barra, Sensor, LeituraInterna, Regra, IaPrevisoes, IaRisco, IaPrevisoeHistoricas } from '../types/index';
+import { getPrevisoes, getSilosIa, getRisco, getPrevisoeHistoricas, getRiscoSerie, getRiscoHistorico } from '../services/ia';
+import type { Silo, Barra, Sensor, LeituraInterna, Regra, IaPrevisoes, IaRisco, IaPrevisoeHistoricas, IaRiscoSerie, IaRiscoHistorico, IaRiscoSeriePonto } from '../types/index';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LINE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 type GrandezaTipo = 'temperatura' | 'umidade' | 'co2';
-const GRANDEZA_TABS: { key: GrandezaTipo; label: string }[] = [
+type TabKey = GrandezaTipo | 'risco';
+const GRANDEZA_TABS: { key: TabKey; label: string }[] = [
   { key: 'temperatura', label: 'Temperatura' },
   { key: 'umidade',     label: 'Umidade' },
   { key: 'co2',         label: 'CO₂' },
+  { key: 'risco',       label: 'Risco' },
 ];
 type SubAba             = 'tabela' | 'grafico';
 type AgrupamentoGrafico = 'barra' | 'sensor' | 'altura';
@@ -346,6 +348,63 @@ function PrevisaoChart({
   );
 }
 
+// ─── RiscoSerieChart ──────────────────────────────────────────────────────────
+
+const RISCO_CORTE_ATENCAO    = 35;
+const RISCO_CORTE_EMERGENCIA = 65;
+
+function RiscoSerieChart({ titulo, medido, previsto, color }: {
+  titulo: string;
+  medido:   IaRiscoSeriePonto | undefined;
+  previsto: IaRiscoSeriePonto | undefined;
+  color: string;
+}) {
+  type RPoint = { ts: number; medido: number | null; previsto: number | null };
+
+  const chartData = useMemo<RPoint[]>(() => {
+    const map = new Map<number, RPoint>();
+    const ensure = (ts: string) => {
+      const ms = new Date(ts).getTime();
+      if (!map.has(ms)) map.set(ms, { ts: ms, medido: null, previsto: null });
+      return map.get(ms)!;
+    };
+    medido?.timestamps.forEach((ts, i)   => { ensure(ts).medido   = medido.riscos[i]; });
+    previsto?.timestamps.forEach((ts, i) => { ensure(ts).previsto = previsto.riscos[i]; });
+    return [...map.values()].sort((a, b) => a.ts - b.ts);
+  }, [medido, previsto]);
+
+  if (chartData.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-3">
+      <h4 className="text-xs font-semibold text-gray-600 mb-1">{titulo}</h4>
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+          <ReferenceArea y1={0}                       y2={RISCO_CORTE_ATENCAO}    fill="#dcfce7" fillOpacity={0.55} ifOverflow="hidden" />
+          <ReferenceArea y1={RISCO_CORTE_ATENCAO}    y2={RISCO_CORTE_EMERGENCIA} fill="#fef9c3" fillOpacity={0.55} ifOverflow="hidden" />
+          <ReferenceArea y1={RISCO_CORTE_EMERGENCIA} y2={100}                    fill="#fee2e2" fillOpacity={0.55} ifOverflow="hidden" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']}
+            tickFormatter={(v: number) => formatTimestamp(new Date(v).toISOString())}
+            tick={{ fontSize: 10 }} minTickGap={60} />
+          <YAxis domain={[0, 100]} width={28} tick={{ fontSize: 10 }}
+            ticks={[0, RISCO_CORTE_ATENCAO, RISCO_CORTE_EMERGENCIA, 100]} />
+          <Tooltip
+            labelFormatter={(v) => formatTimestamp(new Date(Number(v)).toISOString())}
+            formatter={(val, name) => [
+              typeof val === 'number' ? val.toFixed(1) : val,
+              name === 'medido' ? 'Risco medido' : 'Risco previsto',
+            ]}
+          />
+          <ReferenceLine x={Date.now()} stroke="#9ca3af" strokeDasharray="4 4" />
+          {medido   && <Line dataKey="medido"   stroke={color} strokeWidth={2}   dot={false} connectNulls={false} />}
+          {previsto && <Line dataKey="previsto" stroke={color} strokeWidth={1.5} strokeDasharray="6 3" dot={false} connectNulls />}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // ─── StatusAnaliseBadge ───────────────────────────────────────────────────────
 
 function StatusAnaliseBadge({ status, regras }: { status: string | null | undefined; regras: Regra[] }) {
@@ -491,7 +550,8 @@ export default function IaPrevisaoPage() {
   const [sensores, setSensores] = useState<Sensor[]>([]);
   const [regras,   setRegras]   = useState<Regra[]>([]);
 
-  const [grandeza,    setGrandeza]    = useState<GrandezaTipo>('temperatura');
+  const [activeTab,   setActiveTab]   = useState<TabKey>('temperatura');
+  const grandeza = activeTab !== 'risco' ? activeTab as GrandezaTipo : 'temperatura';
   const [subAba,      setSubAba]      = useState<SubAba>('grafico');
   const [agrupamento, setAgrupamento] = useState<AgrupamentoGrafico>('barra');
 
@@ -499,6 +559,8 @@ export default function IaPrevisaoPage() {
   const [risco,              setRisco]              = useState<IaRisco | null>(null);
   const [grafico,            setGrafico]            = useState<GraficoResponse | null>(null);
   const [previsoeHistoricas, setPrevisoeHistoricas] = useState<IaPrevisoeHistoricas | null>(null);
+  const [riscoSerie,         setRiscoSerie]         = useState<IaRiscoSerie | null>(null);
+  const [riscoHistorico,     setRiscoHistorico]     = useState<IaRiscoHistorico | null>(null);
   const [leituras,           setLeituras]           = useState<LeituraInterna[]>([]);
   const [pagina,             setPagina]             = useState(1);
   const [totalPags,          setTotalPags]          = useState(0);
@@ -528,6 +590,7 @@ export default function IaPrevisaoPage() {
     setValue('barra_id', ''); setValue('sensor_id', '');
     setConsultado(false); setPrevisoes(null); setRisco(null);
     setGrafico(null); setLeituras([]); setPrevisoeHistoricas(null);
+    setRiscoSerie(null); setRiscoHistorico(null);
     if (!siloId) return;
     api.get<{ data: Barra[] }>(`/silos/${siloId}/barras?per_page=200`)
       .then((res) => setBarras(res.data.data ?? []))
@@ -576,11 +639,13 @@ export default function IaPrevisaoPage() {
     if (filtros.barra_id)  params.barra_id  = filtros.barra_id;
     if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
 
-    const [graficoRes, previsoesRes, riscoRes, historicoRes] = await Promise.allSettled([
+    const [graficoRes, previsoesRes, riscoRes, historicoRes, riscoSerieRes, riscoHistoricoRes] = await Promise.allSettled([
       api.get<GraficoResponse>('/relatorios/leituras/grafico', { params }),
       getPrevisoes(filtros.silo_id),
       getRisco(filtros.silo_id),
       getPrevisoeHistoricas(filtros.silo_id, dataInicio, dataFim),
+      getRiscoSerie(filtros.silo_id),
+      getRiscoHistorico(filtros.silo_id, 24),
     ]);
 
     setGrafico(graficoRes.status === 'fulfilled' ? graficoRes.value.data : null);
@@ -592,6 +657,9 @@ export default function IaPrevisaoPage() {
       const httpStatus = (historicoRes.reason as { response?: { status?: number } })?.response?.status;
       if (httpStatus !== 404) toast.error('Não foi possível carregar previsões históricas.');
     }
+
+    setRiscoSerie(riscoSerieRes.status === 'fulfilled' ? riscoSerieRes.value : null);
+    setRiscoHistorico(riscoHistoricoRes.status === 'fulfilled' ? riscoHistoricoRes.value : null);
 
     if (previsoesRes.status === 'fulfilled') {
       setPrevisoes(previsoesRes.value);
@@ -619,9 +687,9 @@ export default function IaPrevisaoPage() {
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
 
-  const grandezaTabCls = (g: GrandezaTipo) =>
+  const grandezaTabCls = (g: GrandezaTipo | 'risco') =>
     `px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
-      grandeza === g
+      activeTab === g
         ? 'border-primary-500 text-primary-600'
         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
     }`;
@@ -804,17 +872,84 @@ export default function IaPrevisaoPage() {
             {/* Painel de risco */}
             {risco && <RiscoPanel risco={risco} sensorValoresAtuais={sensorValoresAtuais} />}
 
-            {/* Abas grandeza */}
+            {/* Abas grandeza + risco */}
             <div className="flex border-b border-gray-100 -mt-1">
               {GRANDEZA_TABS.map(({ key, label }) => (
-                <button key={key} onClick={() => setGrandeza(key)}
-                  className={`${grandezaTabCls(key)} ${!grandezasComDados.has(key) ? 'opacity-40' : ''}`}>
+                <button key={key} onClick={() => setActiveTab(key)}
+                  className={`${grandezaTabCls(key as GrandezaTipo)} ${
+                    key !== 'risco' && !grandezasComDados.has(key as GrandezaTipo) ? 'opacity-40' : ''
+                  }`}>
                   {label}
                 </button>
               ))}
             </div>
 
-            {/* Sub-abas Tabela / Gráfico */}
+            {/* ── Aba Risco ── */}
+            {activeTab === 'risco' && (() => {
+              const todosBarras = [...new Map([
+                ...(riscoHistorico?.pontos ?? []),
+                ...(riscoSerie?.pontos     ?? []),
+              ].map((p) => [`${p.barra_id}`, p])).values()]
+                .sort((a, b) => (a.node_id ?? 0) - (b.node_id ?? 0));
+
+              const barrasIds = [...new Set(todosBarras.map((p) => p.barra_id))];
+
+              if (barrasIds.length === 0) {
+                return (
+                  <p className="text-center text-gray-400 text-sm py-10">
+                    Dados de risco ainda não disponíveis. O modelo precisa ter rodado ao menos um ciclo de inferência.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="space-y-5">
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-6 border-t-2 border-gray-700" /> Risco medido
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-6 border-t-2 border-dashed border-gray-700" /> Risco previsto 24h
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-4 h-3 rounded" style={{ background: '#dcfce7' }} /> Normal (&lt;{RISCO_CORTE_ATENCAO})
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-4 h-3 rounded" style={{ background: '#fef9c3' }} /> Atenção ({RISCO_CORTE_ATENCAO}–{RISCO_CORTE_EMERGENCIA})
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-4 h-3 rounded" style={{ background: '#fee2e2' }} /> Emergência (&gt;{RISCO_CORTE_EMERGENCIA})
+                    </span>
+                  </div>
+                  {ALTURAS.map(({ key: altKey, label: altLabel }) => (
+                    <div key={altKey}>
+                      <h3 className="text-sm font-semibold text-gray-600 mb-2">{altLabel}</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {barrasIds.map((bid, idx) => {
+                          const color    = LINE_COLORS[idx % LINE_COLORS.length];
+                          const nodeId   = todosBarras.find((p) => p.barra_id === bid)?.node_id;
+                          const barLabel = nodeId != null ? `Cabo ${nodeId - 100}` : `Barra ${bid}`;
+                          const medido   = riscoHistorico?.pontos.find((p) => p.barra_id === bid && p.altura === altKey);
+                          const prev     = riscoSerie?.pontos.find((p) => p.barra_id === bid && p.altura === altKey);
+                          return (
+                            <RiscoSerieChart
+                              key={bid}
+                              titulo={barLabel}
+                              medido={medido}
+                              previsto={prev}
+                              color={color}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Sub-abas Tabela / Gráfico (só para grandezas T/UR/CO₂) */}
+            {activeTab !== 'risco' && (
             <div className="flex items-center justify-between">
               <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
                 <button onClick={() => setSubAba('grafico')} className={subTabCls('grafico')}>Gráfico</button>
@@ -826,9 +961,10 @@ export default function IaPrevisaoPage() {
                 </span>
               )}
             </div>
+            )}
 
             {/* ── Gráfico ── */}
-            {subAba === 'grafico' && (
+            {activeTab !== 'risco' && subAba === 'grafico' && (
               loadingMain ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
@@ -924,7 +1060,7 @@ export default function IaPrevisaoPage() {
             )}
 
             {/* ── Tabela (leituras reais) ── */}
-            {subAba === 'tabela' && (
+            {activeTab !== 'risco' && subAba === 'tabela' && (
               loadingTabela ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />

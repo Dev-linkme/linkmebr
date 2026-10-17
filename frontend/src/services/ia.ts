@@ -1,7 +1,7 @@
 import api from './api';
-import type { IaStatus, IaPrevisoes, IaRisco, IaSilosIaResponse, IaPrevisoeHistoricas } from '../types/index';
+import type { IaStatus, IaPrevisoes, IaRisco, IaSilosIaResponse, IaPrevisoeHistoricas, IaRiscoSerie, IaRiscoHistorico } from '../types/index';
 
-export type { IaPrevisoeHistoricas };
+export type { IaPrevisoeHistoricas, IaRiscoSerie, IaRiscoHistorico };
 
 export async function getStatus(siloId: number | string): Promise<IaStatus> {
   const res = await api.get<IaStatus>('/ia/status', { params: { silo_id: siloId } });
@@ -25,6 +25,16 @@ export async function getRisco(siloId: number | string): Promise<IaRisco> {
 
 export async function getSilosIa(): Promise<IaSilosIaResponse> {
   const res = await api.get<IaSilosIaResponse>('/ia/silos');
+  return res.data;
+}
+
+export async function getRiscoSerie(siloId: number | string): Promise<IaRiscoSerie> {
+  const res = await api.get<IaRiscoSerie>(`/ia/risco-serie/${siloId}`);
+  return res.data;
+}
+
+export async function getRiscoHistorico(siloId: number | string, horas = 24): Promise<IaRiscoHistorico> {
+  const res = await api.get<IaRiscoHistorico>(`/ia/risco-historico/${siloId}`, { params: { horas } });
   return res.data;
 }
 
