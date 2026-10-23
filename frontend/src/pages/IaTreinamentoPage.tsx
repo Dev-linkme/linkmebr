@@ -42,7 +42,7 @@ function MaeCell({ value, unit }: { value: number | null; unit: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-interface Props { modo: 'full' | 'incremental' | 'bootstrap'; }
+interface Props { modo: 'full' | 'bootstrap'; }
 
 const MODO_CONFIG = {
   full: {
@@ -52,13 +52,7 @@ const MODO_CONFIG = {
     confirmaTexto: (siloNome: string) =>
       `Confirmar retreino global completo para o silo "${siloNome}"?\n\nEsta operação pode demorar vários minutos.`,
   },
-  incremental: {
-    titulo:    'Treinamento Diário',
-    descricao: 'Preserva dados existentes, ingesta apenas as últimas 25h e aplica fine-tuning sobre o modelo ativo. Equivalente ao treino automático diário (00:30 UTC).',
-    label:     'Diário (incremental)',
-    confirmaTexto: (siloNome: string) =>
-      `Confirmar treino incremental (últimas 25h) para o silo "${siloNome}"?`,
-  },
+
   bootstrap: {
     titulo:    'Inferência do Modelo',
     descricao: 'Trunca todos os dados de IA e reingestão completa do histórico desde 2020. Use apenas quando as regras de sanitização ou filtros de barras foram alterados.',

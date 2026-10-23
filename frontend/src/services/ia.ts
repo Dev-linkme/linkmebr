@@ -8,7 +8,7 @@ export async function getStatus(siloId: number | string): Promise<IaStatus> {
   return res.data;
 }
 
-export async function solicitarTreino(siloId: number | string, modo: 'full' | 'incremental' | 'bootstrap') {
+export async function solicitarTreino(siloId: number | string, modo: 'full' | 'bootstrap') {
   const res = await api.post('/ia/treino', { silo_id: Number(siloId), modo });
   return res.data;
 }

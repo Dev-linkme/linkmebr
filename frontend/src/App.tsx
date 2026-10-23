@@ -201,16 +201,6 @@ export default function App() {
         <Route index element={<IaTreinamentoPage modo="full" />} />
       </Route>
 
-      <Route
-        path="/ia/treinamento-diario"
-        element={
-          <ProtectedRoute perfis={['administrador_geral', 'administrador_empresa']}>
-            <AppLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<IaTreinamentoPage modo="incremental" />} />
-      </Route>
 
       <Route
         path="/ia/bootstrap"

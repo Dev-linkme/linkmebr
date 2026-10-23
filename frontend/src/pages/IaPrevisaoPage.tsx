@@ -350,7 +350,7 @@ function PrevisaoChart({
 
 // ─── RiscoSerieChart ──────────────────────────────────────────────────────────
 
-const RISCO_CORTE_ATENCAO    = 35;
+const RISCO_CORTE_ATENCAO    = 40;
 const RISCO_CORTE_EMERGENCIA = 65;
 
 function RiscoSerieChart({ titulo, medido, previsto, color }: {
@@ -833,7 +833,7 @@ export default function IaPrevisaoPage() {
         <Sparkles size={28} className="text-primary-600" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Previsão IA</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Leituras reais (últimas 24h) + projeções do modelo (próximas 48h)</p>
+          <p className="text-sm text-gray-500 mt-0.5">Leituras reais (últimas 24h) + projeções do modelo (próximas 24h)</p>
         </div>
       </div>
 

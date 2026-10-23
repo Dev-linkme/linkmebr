@@ -132,8 +132,8 @@ function HeartbeatChart({ series }: { series: HeartbeatGraficoSerie[] }) {
             labelFormatter={(v) => formatTimestamp(String(v))}
             formatter={(val) => [`${typeof val === 'number' ? val.toFixed(1) : val}`, 'Risco máx.']}
           />
-          <ReferenceLine y={50} stroke="#f59e0b" strokeDasharray="4 2" label={{ value: 'Atenção', position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }} />
-          <ReferenceLine y={75} stroke="#ef4444" strokeDasharray="4 2" label={{ value: 'Emergência', position: 'insideTopRight', fontSize: 10, fill: '#ef4444' }} />
+          <ReferenceLine y={40} stroke="#f59e0b" strokeDasharray="4 2" label={{ value: 'Atenção', position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }} />
+          <ReferenceLine y={65} stroke="#ef4444" strokeDasharray="4 2" label={{ value: 'Emergência', position: 'insideTopRight', fontSize: 10, fill: '#ef4444' }} />
           <Line
             type="monotone"
             dataKey="risco_max"
