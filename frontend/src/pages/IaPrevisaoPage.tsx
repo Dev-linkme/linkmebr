@@ -907,11 +907,15 @@ export default function IaPrevisaoPage() {
                 <Info size={14} className="flex-shrink-0" />
                 Projeções geradas em {formatFullTimestamp(previsoes.gerado_em)} · Horizonte: {previsoes.horizonte_horas}h · Intervalo: {previsoes.intervalo_minutos} min
               </div>
-              {previsoes.timestamps.length > 0 && (
-                <div className="flex items-center gap-2 pl-5 text-xs text-primary-600">
-                  Previsões disponíveis de {formatFullTimestamp(previsoes.timestamps[0])} a {formatFullTimestamp(previsoes.timestamps[previsoes.timestamps.length - 1])}
-                </div>
-              )}
+              {previsoes.timestamps.length > 0 && (() => {
+                const inicio = previsoeHistoricas?.sensores?.[0]?.timestamps?.[0] ?? previsoes.timestamps[0];
+                const fim    = previsoes.timestamps[previsoes.timestamps.length - 1];
+                return (
+                  <div className="flex items-center gap-2 pl-5 text-xs text-primary-600">
+                    Período exibido: de {formatFullTimestamp(inicio)} a {formatFullTimestamp(fim)}
+                  </div>
+                );
+              })()}
             </div>
           )}
           {erroPrevisao && (
