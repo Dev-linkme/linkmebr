@@ -191,7 +191,18 @@ export default function App() {
 
       {/* IA — Treinamento (administrador_empresa + administrador_geral) */}
       <Route
-        path="/ia/treinamento-global"
+        path="/ia/treinamento-total"
+        element={
+          <ProtectedRoute perfis={['administrador_geral', 'administrador_empresa']}>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<IaTreinamentoPage modo="bootstrap" />} />
+      </Route>
+
+      <Route
+        path="/ia/treinamento-adicional"
         element={
           <ProtectedRoute perfis={['administrador_geral', 'administrador_empresa']}>
             <AppLayout />
@@ -201,16 +212,15 @@ export default function App() {
         <Route index element={<IaTreinamentoPage modo="full" />} />
       </Route>
 
-
       <Route
-        path="/ia/bootstrap"
+        path="/ia/previsao-24h"
         element={
           <ProtectedRoute perfis={['administrador_geral', 'administrador_empresa']}>
             <AppLayout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<IaTreinamentoPage modo="bootstrap" />} />
+        <Route index element={<IaTreinamentoPage modo="inferencia" />} />
       </Route>
 
       {/* Cadastros — visualização hierárquica (todos os perfis autenticados) */}

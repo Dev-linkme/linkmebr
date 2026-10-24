@@ -137,6 +137,28 @@ function buildChartData(
     .map(([ts, vals]) => ({ ts, ...vals } as ChartPoint));
 }
 
+// Agrega séries de leituras reais (3 min) para resolução horária, alinhando com a previsão.
+function aggregateToHourly(series: GraficoSerie[]): GraficoSerie[] {
+  const map = new Map<string, { sum: number; count: number; sensor_id: number; bucket: string }>();
+  for (const point of series) {
+    const d = new Date(point.bucket);
+    d.setMinutes(0, 0, 0);
+    const hourIso = d.toISOString();
+    const key = `${point.sensor_id}_${hourIso}`;
+    if (!map.has(key)) map.set(key, { sum: 0, count: 0, sensor_id: point.sensor_id, bucket: hourIso });
+    const entry = map.get(key)!;
+    entry.sum += point.avg;
+    entry.count += 1;
+  }
+  return [...map.values()].map(({ sum, count, sensor_id, bucket }) => ({
+    sensor_id,
+    bucket,
+    avg: sum / count,
+    max: sum / count,
+    min: sum / count,
+  }));
+}
+
 // ─── Paginacao ────────────────────────────────────────────────────────────────
 
 function Paginacao({ pagina, totalPaginas, loading, onPageChange }: {
@@ -711,8 +733,8 @@ export default function IaPrevisaoPage() {
   // ── Dados derivados por grandeza ──────────────────────────────────────────
 
   const realSensoresFiltrados = (grafico?.sensores ?? []).filter((s) => s.tipo_grandeza === grandeza);
-  const realSeriesFiltradas   = (grafico?.series   ?? []).filter((s) =>
-    realSensoresFiltrados.some((x) => x.id === s.sensor_id)
+  const realSeriesFiltradas   = aggregateToHourly(
+    (grafico?.series ?? []).filter((s) => realSensoresFiltrados.some((x) => x.id === s.sensor_id))
   );
 
   const sensorByBarraSensor = new Map<string, GraficoSensor>();
@@ -880,9 +902,16 @@ export default function IaPrevisaoPage() {
       {consultado && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {previsoes && (
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-primary-50 border-b border-primary-100 text-sm text-primary-700">
-              <Info size={14} className="flex-shrink-0" />
-              Projeções geradas em {formatFullTimestamp(previsoes.gerado_em)} · Horizonte: {previsoes.horizonte_horas}h · Intervalo: {previsoes.intervalo_minutos} min
+            <div className="flex flex-col gap-0.5 px-4 py-2.5 bg-primary-50 border-b border-primary-100 text-sm text-primary-700">
+              <div className="flex items-center gap-2">
+                <Info size={14} className="flex-shrink-0" />
+                Projeções geradas em {formatFullTimestamp(previsoes.gerado_em)} · Horizonte: {previsoes.horizonte_horas}h · Intervalo: {previsoes.intervalo_minutos} min
+              </div>
+              {previsoes.timestamps.length > 0 && (
+                <div className="flex items-center gap-2 pl-5 text-xs text-primary-600">
+                  Previsões disponíveis de {formatFullTimestamp(previsoes.timestamps[0])} a {formatFullTimestamp(previsoes.timestamps[previsoes.timestamps.length - 1])}
+                </div>
+              )}
             </div>
           )}
           {erroPrevisao && (

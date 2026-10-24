@@ -42,23 +42,29 @@ function MaeCell({ value, unit }: { value: number | null; unit: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-interface Props { modo: 'full' | 'bootstrap'; }
+interface Props { modo: 'bootstrap' | 'full' | 'inferencia'; }
 
 const MODO_CONFIG = {
-  full: {
-    titulo:    'Treinamento Global',
-    descricao: 'Preserva dados existentes, ingesta o delta a partir da última leitura registrada e retreina o modelo com todo o histórico acumulado.',
-    label:     'Global (full)',
-    confirmaTexto: (siloNome: string) =>
-      `Confirmar retreino global completo para o silo "${siloNome}"?\n\nEsta operação pode demorar vários minutos.`,
-  },
-
   bootstrap: {
-    titulo:    'Inferência do Modelo',
-    descricao: 'Trunca todos os dados de IA e reingestão completa do histórico desde 2020. Use apenas quando as regras de sanitização ou filtros de barras foram alterados.',
-    label:     'Inferência',
+    titulo:    'Treinamento Total',
+    descricao: 'Apaga todos os dados de IA deste silo e reinicia a ingestão completa do histórico desde 2020. O modelo é treinado do zero com novos pesos. Use apenas na primeira implantação ou quando os parâmetros de sanitização ou filtros de barras foram alterados.',
+    label:     'Total (bootstrap)',
     confirmaTexto: (siloNome: string) =>
-      `⚠️ ATENÇÃO — Operação destrutiva!\n\nConfirmar INFERÊNCIA para o silo "${siloNome}"?\n\nTodos os dados de IA serão apagados e o histórico será reingerido do zero.`,
+      `⚠️ ATENÇÃO — Operação destrutiva!\n\nConfirmar TREINAMENTO TOTAL para o silo "${siloNome}"?\n\nTodos os dados de IA serão apagados e o histórico será reingerido do zero. Duração estimada: 20–60 minutos.`,
+  },
+  full: {
+    titulo:    'Treinamento Adicional',
+    descricao: 'Preserva os dados existentes. Ingesta apenas as leituras novas desde a última ingestão e retreina o modelo com todo o histórico acumulado. Use para manter o modelo atualizado periodicamente.',
+    label:     'Adicional (full)',
+    confirmaTexto: (siloNome: string) =>
+      `Confirmar TREINAMENTO ADICIONAL para o silo "${siloNome}"?\n\nSerão ingestadas apenas as leituras novas e o modelo será retreinado. Duração estimada: 20–60 minutos.`,
+  },
+  inferencia: {
+    titulo:    'Previsão 24 Horas',
+    descricao: 'Ingesta as leituras das últimas 24 horas e gera a previsão para as próximas 24 horas usando o modelo já treinado. Não retreina o modelo nem altera os pesos.',
+    label:     'Previsão (inferência)',
+    confirmaTexto: (siloNome: string) =>
+      `Confirmar geração de PREVISÃO 24 HORAS para o silo "${siloNome}"?\n\nO modelo atual será usado para gerar as projeções das próximas 24 horas. Nenhum dado de treino será alterado.`,
   },
 };
 
@@ -148,7 +154,15 @@ export default function IaTreinamentoPage({ modo }: Props) {
         <div className="flex items-start gap-3 bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-800">
           <TriangleAlert size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <span className="font-semibold">Operação destrutiva.</span> A inferência trunca toda a tabela de leituras de IA e reinicia a ingestão completa do histórico desde 2020. Use somente quando as regras de sanitização ou filtros de barras foram alterados.
+            <span className="font-semibold">Operação destrutiva.</span> Apaga todos os dados de IA e reinicia a ingestão completa do histórico desde 2020. Use somente quando as regras de sanitização ou filtros de barras foram alterados.
+          </div>
+        </div>
+      )}
+      {modo === 'inferencia' && (
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+          <TriangleAlert size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold">Sem retreino.</span> O modelo atual será usado para gerar as projeções. Nenhum dado de treino será alterado.
           </div>
         </div>
       )}
@@ -183,10 +197,16 @@ export default function IaTreinamentoPage({ modo }: Props) {
             <button
               onClick={() => setConfirmando(true)}
               disabled={!siloId || solicitando}
-              className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className={`flex items-center gap-1.5 disabled:opacity-60 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                modo === 'bootstrap'
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : modo === 'inferencia'
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-primary-600 hover:bg-primary-700'
+              }`}
             >
               <PlusCircle size={15} />
-              Solicitar Treino
+              {modo === 'inferencia' ? 'Gerar Previsão' : 'Solicitar Treino'}
             </button>
           )}
 
@@ -194,11 +214,17 @@ export default function IaTreinamentoPage({ modo }: Props) {
             <div className={`flex flex-col gap-2 rounded-lg border px-4 py-3 ${
               modo === 'bootstrap'
                 ? 'bg-red-50 border-red-300'
-                : 'bg-amber-50 border-amber-200'
+                : modo === 'inferencia'
+                  ? 'bg-blue-50 border-blue-200'
+                  : 'bg-amber-50 border-amber-200'
             }`}>
               <div className="flex items-start gap-2">
-                <AlertCircle size={16} className={`flex-shrink-0 mt-0.5 ${modo === 'bootstrap' ? 'text-red-600' : 'text-amber-600'}`} />
-                <p className={`text-sm whitespace-pre-line ${modo === 'bootstrap' ? 'text-red-800 font-medium' : 'text-amber-800'}`}>
+                <AlertCircle size={16} className={`flex-shrink-0 mt-0.5 ${
+                  modo === 'bootstrap' ? 'text-red-600' : modo === 'inferencia' ? 'text-blue-500' : 'text-amber-600'
+                }`} />
+                <p className={`text-sm whitespace-pre-line ${
+                  modo === 'bootstrap' ? 'text-red-800 font-medium' : modo === 'inferencia' ? 'text-blue-800' : 'text-amber-800'
+                }`}>
                   {confirmaTexto(siloNome)}
                 </p>
               </div>
@@ -215,7 +241,9 @@ export default function IaTreinamentoPage({ modo }: Props) {
                   className={`text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-60 ${
                     modo === 'bootstrap'
                       ? 'bg-red-600 hover:bg-red-700'
-                      : 'bg-amber-600 hover:bg-amber-700'
+                      : modo === 'inferencia'
+                        ? 'bg-blue-600 hover:bg-blue-700'
+                        : 'bg-amber-600 hover:bg-amber-700'
                   }`}
                 >
                   {solicitando ? 'Enviando...' : 'Sim, confirmar'}

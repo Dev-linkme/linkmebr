@@ -11,9 +11,10 @@
     "admin": "Administration",
     "cadastros": "Records",
     "ia_gestao": "AI Model Management",
-    "ia_treinamento_global": "Global Training",
+    "ia_treinamento_adicional": "Additional Training",
+    "ia_previsao_24h": "24h Forecast",
+    "ia_treinamento_total": "Full Training",
     "ia_previsao": "AI Forecast",
-    "ia_bootstrap": "Model Inference",
     "saude_ia": "AI Health"
   },
   "cadastros": {

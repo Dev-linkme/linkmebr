@@ -28,6 +28,7 @@ import {
   Globe2,
   Radio,
   HeartPulse,
+  Zap,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -210,7 +211,7 @@ export default function AppLayout() {
             {iaExpanded && (
               <div className="mt-1 space-y-1">
                 <NavLink
-                  to="/ia/treinamento-global"
+                  to="/ia/treinamento-adicional"
                   className={({ isActive }) =>
                     `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -218,12 +219,24 @@ export default function AppLayout() {
                   }
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <Globe2 size={16} />{t('nav.ia_treinamento_global')}
+                  <Globe2 size={16} />{t('nav.ia_treinamento_adicional')}
+                </NavLink>
+
+                <NavLink
+                  to="/ia/previsao-24h"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700'
+                    }`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Zap size={16} />{t('nav.ia_previsao_24h')}
                 </NavLink>
 
                 {(isAdminGeral || isAdminEmpresa) && (
                   <NavLink
-                    to="/ia/bootstrap"
+                    to="/ia/treinamento-total"
                     className={({ isActive }) =>
                       `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isActive ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-red-50 hover:text-red-700'
@@ -231,7 +244,7 @@ export default function AppLayout() {
                     }
                     onClick={() => setSidebarOpen(false)}
                   >
-                    <RotateCcw size={16} />{t('nav.ia_bootstrap')}
+                    <RotateCcw size={16} />{t('nav.ia_treinamento_total')}
                   </NavLink>
                 )}
               </div>

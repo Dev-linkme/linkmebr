@@ -11,9 +11,10 @@
     "admin": "Administración",
     "cadastros": "Registros",
     "ia_gestao": "Gestión del Modelo de IA",
-    "ia_treinamento_global": "Entrenamiento Global",
+    "ia_treinamento_adicional": "Entrenamiento Adicional",
+    "ia_previsao_24h": "Pronóstico 24h",
+    "ia_treinamento_total": "Entrenamiento Total",
     "ia_previsao": "Pronóstico IA",
-    "ia_bootstrap": "Inferencia del Modelo",
     "saude_ia": "Salud de la IA"
   },
   "cadastros": {
