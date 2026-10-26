@@ -191,7 +191,7 @@ function Paginacao({ pagina, totalPaginas, loading, onPageChange }: {
 
 function PrevisaoChart({
   titulo, chartData, realSensores, prevSensores, historicoPrevSensores,
-  unidade, grandeza, yDomain: yDomainProp,
+  unidade, grandeza, yDomain: yDomainProp, xDomain,
 }: {
   titulo?: string;
   chartData: ChartPoint[];
