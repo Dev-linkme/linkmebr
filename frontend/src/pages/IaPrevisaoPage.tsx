@@ -636,8 +636,6 @@ export default function IaPrevisaoPage() {
       .catch(() => toast.error('Erro ao carregar sensores'));
   }, [barraId, setValue]);
 
-  const now24hAgo = () => new Date(Date.now() - 24 * 3_600_000).toISOString();
-
   const fetchTabela = useCallback(async (f: FiltrosForm, page: number, start: Date, end: Date) => {
     setLoadingTabela(true);
     try {
