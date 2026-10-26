@@ -201,6 +201,7 @@ function PrevisaoChart({
   unidade: string;
   grandeza: GrandezaTipo;
   yDomain?: [number, number];
+  xDomain?: [number, number];
 }) {
   if (realSensores.length === 0 && prevSensores.length === 0) return null;
 
@@ -212,6 +213,7 @@ function PrevisaoChart({
     ]),
   ];
 
+  const xDomainEfetivo: [number, number] | ['dataMin', 'dataMax'] = xDomain ?? ['dataMin', 'dataMax'];
   const yDomain = yDomainProp ?? yDomainFrom(
     chartData.flatMap((row) =>
       allSensoresIds.flatMap((id) => [
@@ -312,7 +314,7 @@ function PrevisaoChart({
             dataKey="ts"
             type="number"
             scale="time"
-            domain={['dataMin', 'dataMax']}
+            domain={xDomainEfetivo}
             tickFormatter={(v: number) => formatTimestamp(new Date(v).toISOString())}
             tick={{ fontSize: 11 }}
             minTickGap={60}
@@ -601,9 +603,9 @@ export default function IaPrevisaoPage() {
   const [erroPrevisao, setErroPrevisao] = useState<string | null>(null);
   const [sortField,    setSortField]    = useState<SortField | null>(null);
   const [sortDir,      setSortDir]      = useState<SortDir>('asc');
-  const [windowEnd,    setWindowEnd]    = useState(() => new Date());
-  const windowStart = useMemo(() => new Date(windowEnd.getTime() - 24 * 3_600_000), [windowEnd]);
-  const canGoForward  = windowEnd.getTime() < Date.now() - 3_600_000;
+  const [windowEnd,    setWindowEnd]    = useState(() => new Date(Date.now() + 24 * 3_600_000));
+  const windowStart = useMemo(() => new Date(windowEnd.getTime() - 48 * 3_600_000), [windowEnd]);
+  const canGoForward  = windowEnd.getTime() < Date.now() + 24 * 3_600_000 - 1_800_000;
 
   useEffect(() => {
     Promise.all([
@@ -709,19 +711,19 @@ export default function IaPrevisaoPage() {
 
   const onSubmit = async (filtros: FiltrosForm) => {
     if (!filtros.silo_id) { toast.error('Selecione um silo'); return; }
-    const now   = new Date();
-    const start = new Date(now.getTime() - 24 * 3_600_000);
-    setWindowEnd(now);
+    const end   = new Date(Date.now() + 24 * 3_600_000);
+    const start = new Date(end.getTime() - 48 * 3_600_000);
+    setWindowEnd(end);
     setLastFiltros(filtros);
     setLastSiloId(filtros.silo_id);
     setConsultado(false);
-    await doFetch(filtros, start, now);
+    await doFetch(filtros, start, end);
   };
 
   const goBack = async () => {
     if (!lastFiltros || loadingMain) return;
     const newEnd   = new Date(windowEnd.getTime() - 24 * 3_600_000);
-    const newStart = new Date(newEnd.getTime()    - 24 * 3_600_000);
+    const newStart = new Date(newEnd.getTime()    - 48 * 3_600_000);
     setWindowEnd(newEnd);
     setConsultado(false);
     await doFetch(lastFiltros, newStart, newEnd);
@@ -729,8 +731,8 @@ export default function IaPrevisaoPage() {
 
   const goForward = async () => {
     if (!lastFiltros || loadingMain) return;
-    const newEnd   = new Date(Math.min(windowEnd.getTime() + 24 * 3_600_000, Date.now()));
-    const newStart = new Date(newEnd.getTime() - 24 * 3_600_000);
+    const newEnd   = new Date(Math.min(windowEnd.getTime() + 24 * 3_600_000, Date.now() + 24 * 3_600_000));
+    const newStart = new Date(newEnd.getTime() - 48 * 3_600_000);
     setWindowEnd(newEnd);
     setConsultado(false);
     await doFetch(lastFiltros, newStart, newEnd);
@@ -801,13 +803,21 @@ export default function IaPrevisaoPage() {
     historicoPrevSensoresFiltrados,
   );
 
+  const windowedChartData = useMemo(
+    () => chartData.filter((p) => p.ts >= windowStart.getTime() && p.ts <= windowEnd.getTime()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chartData, windowStart.getTime(), windowEnd.getTime()],
+  );
+
+  const xDomainChart: [number, number] = [windowStart.getTime(), windowEnd.getTime()];
+
   const allGrandezaIds = [
     ...realSensoresFiltrados.map((s) => s.id),
     ...prevSensoresNorm.map((s) => s.sensor_id),
     ...historicoPrevSensoresFiltrados.map((s) => s.sensor_id),
   ];
   const globalYDomain = yDomainFrom(
-    chartData.flatMap((row) =>
+    windowedChartData.flatMap((row) =>
       allGrandezaIds.flatMap((id) => [
         row[`r_${id}`] as number | null,
         row[`p_${id}`] as number | null,
@@ -1109,13 +1119,14 @@ export default function IaPrevisaoPage() {
                     return [...barrasMap.entries()].map(([barraIdN, barraIdent]) => (
                       <PrevisaoChart key={barraIdN}
                         titulo={`${barraIdent} — ${grandeza === 'temperatura' ? 'Temperatura' : grandeza === 'umidade' ? 'Umidade' : 'CO₂'}${unidade ? ` (${unidade})` : ''}`}
-                        chartData={chartData}
+                        chartData={windowedChartData}
                         realSensores={realSensoresFiltrados.filter((s) => s.barra_id === barraIdN)}
                         prevSensores={prevSensoresNorm.filter((s) => s.barra_id === barraIdN)}
                         historicoPrevSensores={historicoPrevSensoresFiltrados.filter((s) => s.barra_id === barraIdN)}
                         unidade={unidade}
                         grandeza={grandeza}
                         yDomain={globalYDomain}
+                        xDomain={xDomainChart}
                       />
                     ));
                   })()}
@@ -1134,13 +1145,14 @@ export default function IaPrevisaoPage() {
                       return (
                         <PrevisaoChart key={sId}
                           titulo={sensorLabel(meta)}
-                          chartData={chartData}
+                          chartData={windowedChartData}
                           realSensores={real}
                           prevSensores={prev}
                           historicoPrevSensores={hist}
                           unidade={unidade}
                           grandeza={grandeza}
                           yDomain={globalYDomain}
+                          xDomain={xDomainChart}
                         />
                       );
                     });
@@ -1155,13 +1167,14 @@ export default function IaPrevisaoPage() {
                     return alts.map((alt) => (
                       <PrevisaoChart key={alt}
                         titulo={`${alt} m — ${grandeza === 'temperatura' ? 'Temperatura' : grandeza === 'umidade' ? 'Umidade' : 'CO₂'}${unidade ? ` (${unidade})` : ''}`}
-                        chartData={chartData}
+                        chartData={windowedChartData}
                         realSensores={realSensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
                         prevSensores={prevSensoresNorm.filter((s) => s.altura_solo_m === alt)}
                         historicoPrevSensores={historicoPrevSensoresFiltrados.filter((s) => s.altura_solo_m === alt)}
                         unidade={unidade}
                         grandeza={grandeza}
                         yDomain={globalYDomain}
+                        xDomain={xDomainChart}
                       />
                     ));
                   })()}
