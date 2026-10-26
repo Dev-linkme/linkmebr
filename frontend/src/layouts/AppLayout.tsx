@@ -76,11 +76,6 @@ export default function AppLayout() {
       icon: <Sparkles size={18} />,
     },
     {
-      to: '/ia/qualidade-previsao',
-      label: t('nav.ia_qualidade_previsao'),
-      icon: <TrendingUp size={18} />,
-    },
-    {
       to: '/exportacao',
       label: t('nav.exportacao'),
       icon: <Download size={18} />,
@@ -216,6 +211,18 @@ export default function AppLayout() {
             </button>
             {iaExpanded && (
               <div className="mt-1 space-y-1">
+                <NavLink
+                  to="/ia/qualidade-previsao"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 pl-5 pr-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <TrendingUp size={16} />{t('nav.ia_qualidade_previsao')}
+                </NavLink>
+
                 <NavLink
                   to="/ia/treinamento-adicional"
                   className={({ isActive }) =>

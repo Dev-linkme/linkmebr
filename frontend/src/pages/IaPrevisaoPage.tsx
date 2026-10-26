@@ -75,6 +75,12 @@ function fmtSensor(val: number | null | undefined, tipo: string): string {
 function fmtChartVal(val: number, grandeza: GrandezaTipo): string {
   return grandeza === 'temperatura' ? val.toFixed(1) : val.toFixed(0);
 }
+function fmtWindowDate(d: Date): string {
+  return d.toLocaleString('pt-BR', {
+    timeZone: BRT, day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(', ', ' ');
+}
 function sensorLabel(s: { identificacao: string; barra_identificacao: string; altura_solo_m: number }): string {
   return `${s.barra_identificacao} - ${s.identificacao} (${s.altura_solo_m}m)`;
 }
@@ -595,6 +601,9 @@ export default function IaPrevisaoPage() {
   const [erroPrevisao, setErroPrevisao] = useState<string | null>(null);
   const [sortField,    setSortField]    = useState<SortField | null>(null);
   const [sortDir,      setSortDir]      = useState<SortDir>('asc');
+  const [windowEnd,    setWindowEnd]    = useState(() => new Date());
+  const windowStart = useMemo(() => new Date(windowEnd.getTime() - 24 * 3_600_000), [windowEnd]);
+  const canGoForward  = windowEnd.getTime() < Date.now() - 3_600_000;
 
   useEffect(() => {
     Promise.all([
@@ -629,12 +638,12 @@ export default function IaPrevisaoPage() {
 
   const now24hAgo = () => new Date(Date.now() - 24 * 3_600_000).toISOString();
 
-  const fetchTabela = useCallback(async (f: FiltrosForm, page: number) => {
+  const fetchTabela = useCallback(async (f: FiltrosForm, page: number, start: Date, end: Date) => {
     setLoadingTabela(true);
     try {
       const params: Record<string, string | number> = {
         silo_id: f.silo_id, page, limit: 50,
-        data_inicio: now24hAgo(), data_fim: new Date().toISOString(),
+        data_inicio: start.toISOString(), data_fim: end.toISOString(),
       };
       if (f.barra_id)  params.barra_id  = f.barra_id;
       if (f.sensor_id) params.sensor_id = f.sensor_id;
@@ -645,18 +654,14 @@ export default function IaPrevisaoPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onSubmit = async (filtros: FiltrosForm) => {
-    if (!filtros.silo_id) { toast.error('Selecione um silo'); return; }
+  const doFetch = useCallback(async (filtros: FiltrosForm, start: Date, end: Date) => {
     setLoadingMain(true);
-    setConsultado(false);
     setErroPrevisao(null);
-    setLastFiltros(filtros);
-    setLastSiloId(filtros.silo_id);
     setPagina(1);
     setSortField(null);
 
-    const dataInicio = now24hAgo();
-    const dataFim    = new Date().toISOString();
+    const dataInicio = start.toISOString();
+    const dataFim    = end.toISOString();
     const params: Record<string, string> = { silo_id: filtros.silo_id, data_inicio: dataInicio, data_fim: dataFim };
     if (filtros.barra_id)  params.barra_id  = filtros.barra_id;
     if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
@@ -679,7 +684,6 @@ export default function IaPrevisaoPage() {
       const httpStatus = (historicoRes.reason as { response?: { status?: number } })?.response?.status;
       if (httpStatus !== 404) toast.error('Não foi possível carregar previsões históricas.');
     }
-
     if (riscoSerieRes.status === 'fulfilled') {
       setRiscoSerie(riscoSerieRes.value);
     } else {
@@ -688,7 +692,6 @@ export default function IaPrevisaoPage() {
       if (httpStatus !== 404) toast.error(`Risco previsto indisponível (${httpStatus ?? 'sem resposta'})`);
     }
     setRiscoHistorico(riscoHistoricoRes.status === 'fulfilled' ? riscoHistoricoRes.value : null);
-
     if (previsoesRes.status === 'fulfilled') {
       setPrevisoes(previsoesRes.value);
     } else {
@@ -701,9 +704,38 @@ export default function IaPrevisaoPage() {
       setPrevisoes(null);
     }
 
-    await fetchTabela(filtros, 1);
+    await fetchTabela(filtros, 1, start, end);
     setConsultado(true);
     setLoadingMain(false);
+  }, [fetchTabela]);
+
+  const onSubmit = async (filtros: FiltrosForm) => {
+    if (!filtros.silo_id) { toast.error('Selecione um silo'); return; }
+    const now   = new Date();
+    const start = new Date(now.getTime() - 24 * 3_600_000);
+    setWindowEnd(now);
+    setLastFiltros(filtros);
+    setLastSiloId(filtros.silo_id);
+    setConsultado(false);
+    await doFetch(filtros, start, now);
+  };
+
+  const goBack = async () => {
+    if (!lastFiltros || loadingMain) return;
+    const newEnd   = new Date(windowEnd.getTime() - 24 * 3_600_000);
+    const newStart = new Date(newEnd.getTime()    - 24 * 3_600_000);
+    setWindowEnd(newEnd);
+    setConsultado(false);
+    await doFetch(lastFiltros, newStart, newEnd);
+  };
+
+  const goForward = async () => {
+    if (!lastFiltros || loadingMain) return;
+    const newEnd   = new Date(Math.min(windowEnd.getTime() + 24 * 3_600_000, Date.now()));
+    const newStart = new Date(newEnd.getTime() - 24 * 3_600_000);
+    setWindowEnd(newEnd);
+    setConsultado(false);
+    await doFetch(lastFiltros, newStart, newEnd);
   };
 
   const handleSort = (field: SortField) => {
@@ -711,7 +743,7 @@ export default function IaPrevisaoPage() {
     else { setSortField(field); setSortDir('asc'); }
   };
 
-  const handlePage = (p: number) => { if (lastFiltros) { setPagina(p); fetchTabela(lastFiltros, p); } };
+  const handlePage = (p: number) => { if (lastFiltros) { setPagina(p); fetchTabela(lastFiltros, p, windowStart, windowEnd); } };
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
 
@@ -897,6 +929,29 @@ export default function IaPrevisaoPage() {
           </button>
         </div>
       </form>
+
+      {/* Navegação de janela */}
+      {(consultado || loadingMain) && lastFiltros && (
+        <div className="flex items-center justify-between bg-white rounded-lg shadow px-4 py-3">
+          <button
+            onClick={goBack}
+            disabled={loadingMain}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+          >
+            <ChevronLeft size={16} /> −24h
+          </button>
+          <span className="text-sm text-gray-600 font-medium text-center">
+            {fmtWindowDate(windowStart)} → {fmtWindowDate(windowEnd)}
+          </span>
+          <button
+            onClick={goForward}
+            disabled={loadingMain || !canGoForward}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+          >
+            +24h <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Resultados */}
       {consultado && (
