@@ -29,6 +29,7 @@ import {
   Radio,
   HeartPulse,
   Zap,
+  TrendingUp,
 } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
@@ -73,6 +74,11 @@ export default function AppLayout() {
       to: '/ia/previsao',
       label: t('nav.ia_previsao'),
       icon: <Sparkles size={18} />,
+    },
+    {
+      to: '/ia/qualidade-previsao',
+      label: t('nav.ia_qualidade_previsao'),
+      icon: <TrendingUp size={18} />,
     },
     {
       to: '/exportacao',

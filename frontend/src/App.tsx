@@ -18,6 +18,7 @@ import ExportacaoPage from './pages/ExportacaoPage';
 import EsquematicoPage from './pages/EsquematicoPage';
 import IaTreinamentoPage from './pages/IaTreinamentoPage';
 import IaPrevisaoPage from './pages/IaPrevisaoPage';
+import IaQualidadePrevisaoPage from './pages/IaQualidadePrevisaoPage';
 import LabradorPage from './pages/LabradorPage';
 import CarregamentosPage from './pages/CarregamentosPage';
 import CarregamentosVisualizarPage from './pages/CarregamentosVisualizarPage';
@@ -187,6 +188,18 @@ export default function App() {
         }
       >
         <Route index element={<IaPrevisaoPage />} />
+      </Route>
+
+      {/* IA — Qualidade da Previsão (todos os perfis) */}
+      <Route
+        path="/ia/qualidade-previsao"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<IaQualidadePrevisaoPage />} />
       </Route>
 
       {/* IA — Treinamento (administrador_empresa + administrador_geral) */}

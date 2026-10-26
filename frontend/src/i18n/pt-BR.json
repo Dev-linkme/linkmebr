@@ -17,7 +17,8 @@
     "ia_treinamento_adicional": "Treinamento Adicional",
     "ia_previsao_24h": "Previsão 24 Horas",
     "ia_treinamento_total": "Treinamento Total",
-    "ia_previsao": "Previsão IA"
+    "ia_previsao": "Previsão IA",
+    "ia_qualidade_previsao": "Qualidade da Previsão"
   },
   "cadastros": {
     "empresas": "Empresas",
