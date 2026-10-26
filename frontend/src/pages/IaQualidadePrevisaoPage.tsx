@@ -381,7 +381,7 @@ export default function IaQualidadePrevisaoPage() {
             <button
               onClick={goBack}
               disabled={loading}
-              className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
             >
               <ChevronLeft size={16} /> −24h
             </button>
@@ -391,7 +391,7 @@ export default function IaQualidadePrevisaoPage() {
             <button
               onClick={goForward}
               disabled={loading || !canGoForward}
-              className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
             >
               +24h <ChevronRight size={16} />
             </button>
