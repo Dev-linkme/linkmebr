@@ -938,29 +938,6 @@ export default function IaPrevisaoPage() {
         </div>
       </form>
 
-      {/* Navegação de janela */}
-      {(consultado || loadingMain) && lastFiltros && (
-        <div className="flex items-center justify-between bg-white rounded-lg shadow px-4 py-3">
-          <button
-            onClick={goBack}
-            disabled={loadingMain}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-          >
-            <ChevronLeft size={16} /> −24h
-          </button>
-          <span className="text-sm text-gray-600 font-medium text-center">
-            {fmtWindowDate(windowStart)} → {fmtWindowDate(windowEnd)}
-          </span>
-          <button
-            onClick={goForward}
-            disabled={loadingMain || !canGoForward}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-          >
-            +24h <ChevronRight size={16} />
-          </button>
-        </div>
-      )}
-
       {/* Resultados */}
       {consultado && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -991,6 +968,27 @@ export default function IaPrevisaoPage() {
           <div className="p-4 space-y-4">
             {/* Painel de risco */}
             {risco && <RiscoPanel risco={risco} sensorValoresAtuais={sensorValoresAtuais} />}
+
+            {/* Navegação de janela */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={goBack}
+                disabled={loadingMain}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+              >
+                <ChevronLeft size={16} /> −24h
+              </button>
+              <span className="text-sm text-gray-600 font-medium text-center">
+                {fmtWindowDate(windowStart)} → {fmtWindowDate(windowEnd)}
+              </span>
+              <button
+                onClick={goForward}
+                disabled={loadingMain || !canGoForward}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+              >
+                +24h <ChevronRight size={16} />
+              </button>
+            </div>
 
             {/* Abas grandeza + risco */}
             <div className="flex border-b border-gray-100 -mt-1">
