@@ -685,11 +685,18 @@ export default function IaPrevisaoPage() {
     setPagina(1);
     setSortField(null);
 
-    const dataInicio    = start.toISOString();
-    const dataFim       = end.toISOString();
-    // midpoint é o instante em que o ciclo de inferência "histórica" deve ter sido gerado:
-    // apenas ciclos com gerado_em <= midpoint são considerados, isolando a previsão de 24h atrás.
-    const geradoEmMax   = new Date((start.getTime() + end.getTime()) / 2).toISOString();
+    const dataInicio  = start.toISOString();
+    const dataFim     = end.toISOString();
+    // gerado_em_max = instante em que o ciclo "histórico" deve ter rodado (cutoffLow).
+    // Janela atual (end > now): cutoffLow = windowStart  → ciclo de ~24h atrás.
+    // Janela passada (end ≤ now): cutoffLow = midpoint   → ciclo do meio da janela.
+    // Isso isola a previsão que existia no momento em que a janela histórica começa,
+    // evitando que ciclos mais recentes substituam aqueles valores.
+    const nowMs       = Date.now();
+    const midpointMs  = (start.getTime() + end.getTime()) / 2;
+    const geradoEmMax = end.getTime() > nowMs
+      ? start.toISOString()
+      : new Date(midpointMs).toISOString();
     const params: Record<string, string> = { silo_id: filtros.silo_id, data_inicio: dataInicio, data_fim: dataFim };
     if (filtros.barra_id)  params.barra_id  = filtros.barra_id;
     if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
