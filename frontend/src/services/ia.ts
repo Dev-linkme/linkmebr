@@ -42,9 +42,10 @@ export async function getPrevisoeHistoricas(
   siloId: number | string,
   data_inicio: string,
   data_fim: string,
+  gerado_em_max?: string,
 ): Promise<IaPrevisoeHistoricas> {
-  const res = await api.get<IaPrevisoeHistoricas>(`/ia/previsoes-historico/${siloId}`, {
-    params: { data_inicio, data_fim },
-  });
+  const params: Record<string, string> = { data_inicio, data_fim };
+  if (gerado_em_max) params.gerado_em_max = gerado_em_max;
+  const res = await api.get<IaPrevisoeHistoricas>(`/ia/previsoes-historico/${siloId}`, { params });
   return res.data;
 }

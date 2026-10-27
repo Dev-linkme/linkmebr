@@ -292,12 +292,16 @@ export async function previsoeHistoricas(req: Request, res: Response, next: Next
     if (!silo) throw new AppError(404, 'Silo não encontrado');
     assertEmpresa(req.user?.empresa_id ?? null, silo.empresa_id);
 
-    const data_inicio = req.query.data_inicio ? new Date(req.query.data_inicio as string) : undefined;
-    const data_fim    = req.query.data_fim    ? new Date(req.query.data_fim    as string) : undefined;
+    const data_inicio   = req.query.data_inicio   ? new Date(req.query.data_inicio   as string) : undefined;
+    const data_fim      = req.query.data_fim      ? new Date(req.query.data_fim      as string) : undefined;
+    const gerado_em_max = req.query.gerado_em_max ? new Date(req.query.gerado_em_max as string) : undefined;
     if (!data_inicio || !data_fim) throw new AppError(400, 'data_inicio e data_fim são obrigatórios');
     if (isNaN(data_inicio.getTime()) || isNaN(data_fim.getTime())) throw new AppError(400, 'datas inválidas');
+    if (gerado_em_max && isNaN(gerado_em_max.getTime())) throw new AppError(400, 'gerado_em_max inválido');
 
     // DISTINCT ON: para cada (sensor, barra, timestamp_previsto), usa a previsão do ciclo mais recente
+    // gerado_em_max limita a janela de ciclos considerados, permitindo recuperar a previsão de um ciclo
+    // específico (ex: o ciclo que gerou a previsão 24h antes da janela atual).
     const rows = await prisma.$queryRawUnsafe<Array<{
       sensor_id: bigint; node_id: number | null; barra_id: bigint;
       tipo_grandeza: string; altura_solo_m: string;
@@ -316,8 +320,9 @@ export async function previsoeHistoricas(req: Request, res: Response, next: Next
        JOIN silos.barras b ON b.id = p.barra_id
        WHERE p.silo_id = $1
          AND p.timestamp_previsto BETWEEN $2 AND $3
+         ${gerado_em_max ? 'AND c.gerado_em <= $4' : ''}
        ORDER BY p.sensor_id, p.barra_id, p.timestamp_previsto, c.gerado_em DESC`,
-      silo_id, data_inicio, data_fim,
+      ...(gerado_em_max ? [silo_id, data_inicio, data_fim, gerado_em_max] : [silo_id, data_inicio, data_fim]),
     );
 
     type SensorEntry = {

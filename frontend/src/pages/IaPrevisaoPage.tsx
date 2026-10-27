@@ -685,8 +685,11 @@ export default function IaPrevisaoPage() {
     setPagina(1);
     setSortField(null);
 
-    const dataInicio = start.toISOString();
-    const dataFim    = end.toISOString();
+    const dataInicio    = start.toISOString();
+    const dataFim       = end.toISOString();
+    // midpoint é o instante em que o ciclo de inferência "histórica" deve ter sido gerado:
+    // apenas ciclos com gerado_em <= midpoint são considerados, isolando a previsão de 24h atrás.
+    const geradoEmMax   = new Date((start.getTime() + end.getTime()) / 2).toISOString();
     const params: Record<string, string> = { silo_id: filtros.silo_id, data_inicio: dataInicio, data_fim: dataFim };
     if (filtros.barra_id)  params.barra_id  = filtros.barra_id;
     if (filtros.sensor_id) params.sensor_id = filtros.sensor_id;
@@ -695,7 +698,7 @@ export default function IaPrevisaoPage() {
       api.get<GraficoResponse>('/relatorios/leituras/grafico', { params }),
       getPrevisoes(filtros.silo_id),
       getRisco(filtros.silo_id),
-      getPrevisoeHistoricas(filtros.silo_id, dataInicio, dataFim),
+      getPrevisoeHistoricas(filtros.silo_id, dataInicio, dataFim, geradoEmMax),
       getRiscoSerie(filtros.silo_id),
       getRiscoHistorico(filtros.silo_id, 24),
     ]);
