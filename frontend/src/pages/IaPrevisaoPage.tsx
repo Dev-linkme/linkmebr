@@ -191,7 +191,7 @@ function Paginacao({ pagina, totalPaginas, loading, onPageChange }: {
 
 function PrevisaoChart({
   titulo, chartData, realSensores, prevSensores, historicoPrevSensores,
-  unidade, grandeza, yDomain: yDomainProp, xDomain,
+  unidade, grandeza, yDomain: yDomainProp, xDomain, refLineTs,
 }: {
   titulo?: string;
   chartData: ChartPoint[];
@@ -202,6 +202,7 @@ function PrevisaoChart({
   grandeza: GrandezaTipo;
   yDomain?: [number, number];
   xDomain?: [number, number];
+  refLineTs?: number;
 }) {
   if (realSensores.length === 0 && prevSensores.length === 0) return null;
 
@@ -322,31 +323,55 @@ function PrevisaoChart({
           <YAxis width={52} tick={{ fontSize: 12 }} domain={yDomain}
             tickFormatter={(v: number) => fmtChartVal(v, grandeza)}
             label={{ value: unidade, angle: -90, position: 'insideLeft', offset: 14, style: { fontSize: 11 } }} />
-          <Tooltip
-            labelFormatter={(v) => formatTimestamp(new Date(Number(v)).toISOString())}
-            formatter={(val, name) => {
-              const n = String(name ?? '');
-              const isHistorico = n.startsWith('h_');
-              const isPrevisao  = n.startsWith('p_');
-              const sId  = Number(n.replace(/^[rph]_/, ''));
+          <Tooltip content={(props) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { active, payload, label } = props as any;
+            if (!active || !payload?.length) return null;
+            const ts = typeof label === 'number' ? formatTimestamp(new Date(label).toISOString()) : '';
+            const byAlt = new Map<number, { real?: number; prev?: number; color: string }>();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (payload as any[]).forEach((entry: any) => {
+              const key = String(entry.dataKey ?? '');
+              const prefix = key[0];
+              const sId = Number(key.slice(2));
               const meta = findMeta(sId);
-              const altLabel = meta.altura_solo_m > 0 ? `${meta.altura_solo_m} m` : `Sensor ${sId}`;
-              const tipo = isHistorico ? 'Prev. Passado' : isPrevisao ? 'Prev. Futura' : 'Real';
-              const fmtVal = typeof val === 'number' ? fmtChartVal(val, grandeza) : String(val);
-              return [`${fmtVal} ${unidade}`, `${altLabel} — ${tipo}`];
-            }}
-          />
+              const alt = meta.altura_solo_m;
+              if (!byAlt.has(alt)) byAlt.set(alt, { color: entry.color ?? '#888' });
+              const grp = byAlt.get(alt)!;
+              if (prefix === 'r') grp.real = entry.value;
+              else if (prefix === 'p' || prefix === 'h') grp.prev = entry.value;
+            });
+            const fmtV = (v: number) => fmtChartVal(v, grandeza);
+            return (
+              <div style={{ background: '#1f2937', color: '#f9fafb', borderRadius: 6, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', minWidth: 160 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6, color: '#d1d5db', borderBottom: '1px solid #374151', paddingBottom: 4 }}>{ts}</div>
+                {[...byAlt.entries()].sort(([a], [b]) => b - a).map(([alt, grp]) => {
+                  if (grp.real == null && grp.prev == null) return null;
+                  return (
+                    <div key={alt} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <span style={{ color: grp.color, fontWeight: 700, minWidth: 36 }}>{alt} m</span>
+                      {grp.real != null && <span>Real: <b>{fmtV(grp.real)} {unidade}</b></span>}
+                      {grp.prev != null && <span style={{ color: '#93c5fd' }}>Prev.: <b>{fmtV(grp.prev)} {unidade}</b></span>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }} />
           <ReferenceLine
-            x={Date.now()}
+            x={refLineTs ?? Date.now()}
             stroke="#9ca3af"
             strokeDasharray="4 4"
             label={(props: { viewBox?: { x: number; y: number } }) => {
               const x = props.viewBox?.x ?? 0;
               const y = (props.viewBox?.y ?? 0) + 14;
+              const isCurrentForecast = (refLineTs ?? Date.now()) >= Date.now() - 120_000;
               return (
                 <g>
                   <text x={x - 6} y={y} textAnchor="end"   fontSize={10} fill="#9ca3af">← Medido</text>
-                  <text x={x + 6} y={y} textAnchor="start" fontSize={10} fill="#2563eb">Previsão IA →</text>
+                  <text x={x + 6} y={y} textAnchor="start" fontSize={10} fill="#2563eb">
+                    {isCurrentForecast ? 'Previsão IA →' : 'Prev. Histórica →'}
+                  </text>
                 </g>
               );
             }}
@@ -788,9 +813,27 @@ export default function IaPrevisaoPage() {
     return { ...s, sensor_id: interno?.id ?? s.sensor_id, barra_id: interno?.barra_id ?? s.barra_id };
   });
 
-  const historicoPrevSensoresFiltrados = (previsoeHistoricas?.sensores ?? []).filter(
-    (s) => s.tipo_grandeza === grandeza
-  );
+  const midpoint   = (windowStart.getTime() + windowEnd.getTime()) / 2;
+  const nowMs      = Date.now();
+  const refLineTs  = windowEnd.getTime() > nowMs ? nowMs : midpoint;
+  const cutoffLow  = windowEnd.getTime() > nowMs ? windowStart.getTime() : midpoint;
+  const cutoffHigh = Math.min(windowEnd.getTime(), nowMs);
+
+  const historicoPrevSensoresFiltrados = (previsoeHistoricas?.sensores ?? [])
+    .filter((s) => s.tipo_grandeza === grandeza)
+    .map((s) => {
+      const timestamps: string[] = [];
+      const valores: number[] = [];
+      s.timestamps.forEach((ts, i) => {
+        const ms = new Date(ts).getTime();
+        if (ms >= cutoffLow && ms < cutoffHigh) {
+          timestamps.push(ts);
+          valores.push(s.valores[i]);
+        }
+      });
+      return { ...s, timestamps, valores };
+    })
+    .filter((s) => s.timestamps.length > 0);
 
   const unidade = realSensoresFiltrados[0]?.unidade_medida ?? (
     grandeza === 'temperatura' ? '°C' : grandeza === 'umidade' ? '%' : 'ppm'
@@ -1125,6 +1168,7 @@ export default function IaPrevisaoPage() {
                         grandeza={grandeza}
                         yDomain={globalYDomain}
                         xDomain={xDomainChart}
+                        refLineTs={refLineTs}
                       />
                     ));
                   })()}
@@ -1173,6 +1217,7 @@ export default function IaPrevisaoPage() {
                         grandeza={grandeza}
                         yDomain={globalYDomain}
                         xDomain={xDomainChart}
+                        refLineTs={refLineTs}
                       />
                     ));
                   })()}
