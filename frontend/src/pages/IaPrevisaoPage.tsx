@@ -540,7 +540,7 @@ function RiscoPanel({ risco, sensorValoresAtuais }: {
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Altura</th>
               {nodeIds.map((nid) => (
                 <th key={nid} className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
-                  Barra {nid - 100} <span className="font-normal text-gray-400">(node {nid})</span>
+                  Cabo {nid - 100} <span className="font-normal text-gray-400">(node {nid})</span>
                 </th>
               ))}
             </tr>
